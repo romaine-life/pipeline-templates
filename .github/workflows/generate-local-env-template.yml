@@ -94,7 +94,7 @@ jobs:
           echo "✅ Files successfully generated."
 
       - name: Upload .env Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: local-env-files
           path: env-files/
