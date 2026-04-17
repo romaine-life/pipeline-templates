@@ -55,6 +55,17 @@ on:
         required: false
         type: string
         default: 'v0.1'
+      artifact-build-workflow:
+        description: |
+          Optional workflow file in the caller repo (e.g. 'build.yml') to
+          trigger after the release is cut. The workflow is dispatched with
+          a 'tag' input holding the new tag, so it can checkout that tag,
+          build artifacts, and `gh release upload` them to the already-
+          created release. Keeps tag creation and artifact build separate
+          but both pinned to the same deterministic sha.
+        required: false
+        type: string
+        default: ''
     outputs:
       changed:
         description: 'Whether go.mod was updated'
@@ -153,6 +164,19 @@ jobs:
             --title "$next" \
             --notes "$(git log --oneline -1)"
           echo "new-tag=$next" >> $GITHUB_OUTPUT
+
+      # Kick off the repo's artifact-build workflow for the just-cut tag.
+      # Workflow must accept a `tag` input, checkout that tag, build, and
+      # `gh release upload` assets to the existing release. No race — the
+      # tag is passed by value, not inferred from branch HEAD.
+      - name: Dispatch artifact build
+        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != '' && inputs.artifact-build-workflow != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ${{ inputs.artifact-build-workflow }} \
+            -R ${{ github.repository }} \
+            -f tag=${{ steps.release.outputs.new-tag }}
 
       - name: Azure Login via OIDC
         if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != ''
