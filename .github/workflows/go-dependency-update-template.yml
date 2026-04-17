@@ -131,21 +131,27 @@ jobs:
           git commit -m "deps: update $(echo '${{ inputs.modules }}' | sed 's|github.com/nelsong6/||g' | tr ' ' ', ')"
           git push
 
-      # ── Legacy path: caller hasn't migrated to dispatch-repos. Kick off
-      #    the caller's build.yml workflow, which cuts the release and does
-      #    its own downstream dispatch. Race-prone; see header comment.
+      # ── Legacy path: caller hasn't migrated — neither dispatch-repos nor
+      #    artifact-build-workflow is set. Kick off the caller's build.yml
+      #    workflow, which cuts the release and does its own downstream
+      #    dispatch. Race-prone; see header comment.
       - name: Trigger build (legacy fallback)
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos == ''
+        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos == '' && inputs.artifact-build-workflow == ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run build.yml
 
-      # ── Atomic path: template handles the release + downstream dispatch
-      #    itself. Tag is cut pointing at $(git rev-parse HEAD) — the sha
-      #    we just pushed — so there's no window for a stale sha to sneak in.
+      # ── Atomic path: template handles the release (always) + optional
+      #    artifact build (if artifact-build-workflow set) + optional
+      #    downstream dispatch (if dispatch-repos set). Tag is cut pointing
+      #    at $(git rev-parse HEAD) — the sha we just pushed — so there's
+      #    no window for a stale sha to sneak in. Any combination works:
+      #      - dispatch-repos only            → no-artifact producer (fzt-frontend, fzt-terminal)
+      #      - artifact-build-workflow only   → leaf with artifacts (fzt-automate, fzt-picker)
+      #      - both                           → binary producer with downstream (fzt-browser)
       - name: Create release
         id: release
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != ''
+        if: steps.diff.outputs.changed == 'true' && (inputs.dispatch-repos != '' || inputs.artifact-build-workflow != '')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -170,7 +176,7 @@ jobs:
       # `gh release upload` assets to the existing release. No race — the
       # tag is passed by value, not inferred from branch HEAD.
       - name: Dispatch artifact build
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != '' && inputs.artifact-build-workflow != ''
+        if: steps.diff.outputs.changed == 'true' && inputs.artifact-build-workflow != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
