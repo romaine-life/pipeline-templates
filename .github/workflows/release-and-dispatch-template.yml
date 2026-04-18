@@ -93,22 +93,24 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          # targetCommitish may be a full sha or a branch name. Normalize
-          # branch names to the sha they currently point at.
-          latest_ref=$(gh release view "$latest_tag" -R ${{ github.repository }} --json targetCommitish -q .targetCommitish)
-          case "$latest_ref" in
-            main|master)
-              latest_sha=$(git rev-parse "origin/$latest_ref")
-              ;;
-            *)
-              latest_sha="$latest_ref"
-              ;;
-          esac
+          # Use the TAG's commit sha, not the release's targetCommitish.
+          # targetCommitish stores the ref at release-creation time (often
+          # "main"), which would resolve to whatever main points at NOW —
+          # and NOW is the post-bump HEAD the release job is about to tag,
+          # so the comparison was always true. git rev-list -1 follows the
+          # tag to its actual commit sha. fetch-depth: 0 above ensures all
+          # tags are available in the checkout.
+          latest_sha=$(git rev-list -1 "$latest_tag" 2>/dev/null || echo "")
+          if [ -z "$latest_sha" ]; then
+            echo "Tag $latest_tag not found locally — proceeding without guard"
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           if [ "$latest_sha" = "$head_sha" ]; then
             echo "HEAD ($head_sha) already released as $latest_tag — skipping"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
-            echo "HEAD ($head_sha) differs from latest release target ($latest_sha) — proceeding"
+            echo "HEAD ($head_sha) differs from latest release ($latest_tag -> $latest_sha) — proceeding"
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
