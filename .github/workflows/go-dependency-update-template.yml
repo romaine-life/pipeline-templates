@@ -1,28 +1,23 @@
 name: Go Dependency Update Template
 
 # Called by consumer repos on repository_dispatch when an upstream publishes.
-# Bumps the specified modules in go.mod, commits+pushes, then (if configured)
-# cuts a release and dispatches downstream — all in ONE job against ONE sha,
-# so there's no race between the push and the tag.
+# Bumps the specified modules in go.mod, commits+pushes, then delegates to
+# release-and-dispatch-template.yml to cut the release and notify downstream.
 #
-# Two modes:
+# Split into two jobs so the release path is a reusable workflow
+# (release-and-dispatch-template.yml) shared with each consumer's release.yml
+# (which fires on direct pushes to main). Keeps the dep-update and
+# direct-release paths using the exact same release logic — no drift.
 #
-# 1. dispatch-repos is empty (legacy) — template does the bump only, then
-#    kicks off `gh workflow run build.yml` so the caller's separate Tag +
-#    Dispatch workflow can cut the release. This path has a known race:
-#    workflow_dispatch records github.sha at scheduling time, which can be
-#    the pre-push sha if GitHub's API backend hasn't fully propagated yet,
-#    leading to tags cut on stale commits (see 2026-04-16 fzt-frontend
-#    v0.1.1 incident).
-#
-# 2. dispatch-repos is non-empty (preferred) — template does EVERYTHING:
-#    bump, commit, push, cut release pointing at the freshly-pushed sha
-#    (via `--target $(git rev-parse HEAD)`), then dispatch downstream via
-#    GitHub App token. No separate workflow, no race window.
-#
-# The two modes are mutually exclusive; the legacy path exists only so
-# un-migrated callers keep working during the transition. Once every
-# caller is migrated, the legacy step can be deleted.
+# Race protection:
+#   - `ref: github.ref_name` on checkout → runtime sha resolution, not stale
+#     sha from dispatch scheduling (prior 2026-04-16 fzt-frontend v0.1.1
+#     incident was a stale-sha bug).
+#   - `uses:` call to release template (not workflow_dispatch) → no second
+#     scheduling window.
+#   - Release template's "skip if HEAD already released" guard protects
+#     against duplicate tags when dep-update lands on top of a direct push
+#     that the consumer's release.yml already released.
 
 on:
   workflow_call:
@@ -37,11 +32,7 @@ on:
         required: true
         type: string
       dispatch-repos:
-        description: |
-          Comma-separated list of consumer repo names to notify via
-          repository_dispatch after releasing. When non-empty, template
-          cuts the release itself (atomic with the push). When empty,
-          falls back to the legacy `gh workflow run build.yml` flow.
+        description: 'Comma-separated list of consumer repo names to notify after releasing'
         required: false
         type: string
         default: ''
@@ -51,18 +42,12 @@ on:
         type: string
         default: 'fzt-updated'
       version-prefix:
-        description: 'Tag prefix for auto-incrementing patch (e.g. v0.1 -> v0.1.0, v0.1.1, ...)'
+        description: 'Tag prefix for auto-incrementing patch (e.g. v0.1 -> v0.1.0)'
         required: false
         type: string
         default: 'v0.1'
       artifact-build-workflow:
-        description: |
-          Optional workflow file in the caller repo (e.g. 'build.yml') to
-          trigger after the release is cut. The workflow is dispatched with
-          a 'tag' input holding the new tag, so it can checkout that tag,
-          build artifacts, and `gh release upload` them to the already-
-          created release. Keeps tag creation and artifact build separate
-          but both pinned to the same deterministic sha.
+        description: 'Optional workflow file in the caller repo to trigger after release'
         required: false
         type: string
         default: ''
@@ -71,8 +56,8 @@ on:
         description: 'Whether go.mod was updated'
         value: ${{ jobs.update.outputs.changed }}
       new-tag:
-        description: 'The tag cut by this run (only set when dispatch-repos is non-empty)'
-        value: ${{ jobs.update.outputs.new-tag }}
+        description: 'The tag cut by this run (only set when a release was created)'
+        value: ${{ jobs.release.outputs.new-tag }}
 
 permissions:
   contents: write
@@ -84,12 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
-      new-tag: ${{ steps.release.outputs.new-tag }}
     steps:
-      # Explicit ref=ref_name (the branch the dispatch was targeted at,
-      # typically main) instead of the default `github.sha`. Forces checkout
-      # to resolve main's current HEAD at run time, bypassing any stale sha
-      # captured at dispatch-scheduling time.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
@@ -131,100 +111,18 @@ jobs:
           git commit -m "deps: update $(echo '${{ inputs.modules }}' | sed 's|github.com/nelsong6/||g' | tr ' ' ', ')"
           git push
 
-      # ── Legacy path: caller hasn't migrated — neither dispatch-repos nor
-      #    artifact-build-workflow is set. Kick off the caller's build.yml
-      #    workflow, which cuts the release and does its own downstream
-      #    dispatch. Race-prone; see header comment.
-      - name: Trigger build (legacy fallback)
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos == '' && inputs.artifact-build-workflow == ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run build.yml
-
-      # ── Atomic path: template handles the release (always) + optional
-      #    artifact build (if artifact-build-workflow set) + optional
-      #    downstream dispatch (if dispatch-repos set). Tag is cut pointing
-      #    at $(git rev-parse HEAD) — the sha we just pushed — so there's
-      #    no window for a stale sha to sneak in. Any combination works:
-      #      - dispatch-repos only            → no-artifact producer (fzt-frontend, fzt-terminal)
-      #      - artifact-build-workflow only   → leaf with artifacts (fzt-automate, fzt-picker)
-      #      - both                           → binary producer with downstream (fzt-browser)
-      - name: Create release
-        id: release
-        if: steps.diff.outputs.changed == 'true' && (inputs.dispatch-repos != '' || inputs.artifact-build-workflow != '')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          latest=$(gh release list -R ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName // empty')
-          if [ -z "$latest" ] || [[ "$latest" != ${{ inputs.version-prefix }}.* ]]; then
-            next="${{ inputs.version-prefix }}.0"
-          else
-            patch=$(echo "$latest" | sed "s|${{ inputs.version-prefix }}\.||")
-            next="${{ inputs.version-prefix }}.$((patch + 1))"
-          fi
-          sha=$(git rev-parse HEAD)
-          echo "Cutting release $next at $sha"
-          gh release create "$next" \
-            -R ${{ github.repository }} \
-            --target "$sha" \
-            --title "$next" \
-            --notes "$(git log --oneline -1)"
-          echo "new-tag=$next" >> $GITHUB_OUTPUT
-
-      # Kick off the repo's artifact-build workflow for the just-cut tag.
-      # Workflow must accept a `tag` input, checkout that tag, build, and
-      # `gh release upload` assets to the existing release. No race — the
-      # tag is passed by value, not inferred from branch HEAD.
-      - name: Dispatch artifact build
-        if: steps.diff.outputs.changed == 'true' && inputs.artifact-build-workflow != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run ${{ inputs.artifact-build-workflow }} \
-            -R ${{ github.repository }} \
-            -f tag=${{ steps.release.outputs.new-tag }}
-
-      - name: Azure Login via OIDC
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != ''
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.ARM_CLIENT_ID }}
-          tenant-id: ${{ vars.ARM_TENANT_ID }}
-          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
-
-      - name: Get GitHub App credentials from Key Vault
-        id: app-creds
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != ''
-        run: |
-          APP_ID=$(az keyvault secret show --vault-name ${{ vars.KEY_VAULT_NAME }} --name github-app-id --query value -o tsv)
-          echo "::add-mask::$APP_ID"
-          echo "app_id=$APP_ID" >> $GITHUB_OUTPUT
-          PRIVATE_KEY=$(az keyvault secret show --vault-name ${{ vars.KEY_VAULT_NAME }} --name github-app-private-key --query value -o tsv)
-          echo "::add-mask::$PRIVATE_KEY"
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "private_key<<$EOF" >> $GITHUB_OUTPUT
-          echo "$PRIVATE_KEY" >> $GITHUB_OUTPUT
-          echo "$EOF" >> $GITHUB_OUTPUT
-
-      - name: Generate GitHub App token
-        id: app-token
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != ''
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ steps.app-creds.outputs.app_id }}
-          private-key: ${{ steps.app-creds.outputs.private_key }}
-          repositories: ${{ inputs.dispatch-repos }}
-
-      - name: Notify downstream consumers
-        if: steps.diff.outputs.changed == 'true' && inputs.dispatch-repos != ''
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          EVENT: ${{ inputs.dispatch-event }}
-        run: |
-          # dispatch-repos input is comma-separated (matching the format
-          # create-github-app-token uses). Convert to spaces for iteration.
-          for repo in $(echo '${{ inputs.dispatch-repos }}' | tr ',' ' '); do
-            echo "Dispatching $EVENT to nelsong6/$repo"
-            gh api repos/nelsong6/$repo/dispatches \
-              -f event_type=$EVENT
-          done
+  # Delegate the release-cut + downstream dispatch to the shared reusable
+  # workflow. The exact same template is called directly by each consumer's
+  # release.yml on push-to-main, so the two paths stay in lockstep.
+  release:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    # Can't use local ./.github/... ref from a reusable workflow — must be
+    # fully-qualified. Pinned to @main so the release logic stays in lockstep
+    # with what consumer release.yml files call.
+    uses: nelsong6/pipeline-templates/.github/workflows/release-and-dispatch-template.yml@main
+    with:
+      dispatch-repos: ${{ inputs.dispatch-repos }}
+      dispatch-event: ${{ inputs.dispatch-event }}
+      version-prefix: ${{ inputs.version-prefix }}
+      artifact-build-workflow: ${{ inputs.artifact-build-workflow }}

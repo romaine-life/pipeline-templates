@@ -1,0 +1,191 @@
+name: Release and Dispatch Template
+
+# Cuts a release at the current HEAD of the calling repo's main branch,
+# optionally triggers an artifact-build workflow with that tag, optionally
+# notifies downstream consumers via repository_dispatch. Unconditional —
+# if the workflow is called, it releases (unless HEAD is already released,
+# in which case it no-ops to avoid duplicate tags at the same sha).
+#
+# Two call sites per consumer:
+#
+#  1. go-dependency-update-template (second job) — calls this after a
+#     dep bump commits+pushes, so the tag is cut at the freshly-pushed sha.
+#     Runs within the same job chain as the dep bump, so `uses:` instead of
+#     workflow_dispatch avoids the stale-sha scheduling race.
+#
+#  2. Consumer `release.yml` — fires on push-to-main with a paths-ignore
+#     filter on go.mod/go.sum so dep-update's own commits don't retrigger it.
+#     Gives direct code pushes a release path (without needing an upstream
+#     cascade to piggyback on).
+#
+# Duplicate-release guard: if the latest existing release is already pointed
+# at current HEAD, skip. Prevents two tags at the same sha when the two call
+# sites race on a shared event.
+
+on:
+  workflow_call:
+    inputs:
+      dispatch-repos:
+        description: |
+          Comma-separated list of consumer repo names to notify via
+          repository_dispatch after releasing. Empty = no downstream
+          notification.
+        required: false
+        type: string
+        default: ''
+      dispatch-event:
+        description: 'event_type for downstream repository_dispatch'
+        required: false
+        type: string
+        default: 'fzt-updated'
+      version-prefix:
+        description: 'Tag prefix for auto-incrementing patch (e.g. v0.1 -> v0.1.0, v0.1.1, ...)'
+        required: false
+        type: string
+        default: 'v0.1'
+      artifact-build-workflow:
+        description: |
+          Optional workflow file in the caller repo (e.g. 'build.yml') to
+          trigger after the release is cut. Dispatched with a 'tag' input
+          so it checks out the tag (not a sha) and uploads assets to the
+          already-created release.
+        required: false
+        type: string
+        default: ''
+    outputs:
+      new-tag:
+        description: 'The tag cut by this run (empty if skipped)'
+        value: ${{ jobs.release.outputs.new-tag }}
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      new-tag: ${{ steps.release.outputs.new-tag }}
+    steps:
+      # Explicit ref=ref_name forces checkout to resolve main's current HEAD
+      # at runtime, bypassing any stale sha captured at dispatch-scheduling
+      # time. Same pattern as go-dependency-update-template.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      # Guard against duplicate tags at the same sha. If the latest release
+      # is already pointed at current HEAD, no-op. Protects the concurrent
+      # case where both go-dependency-update-template (post-bump) and a
+      # consumer's release.yml (from the Nelson-push that the bump landed
+      # on top of) converge on the same commit.
+      - name: Skip if HEAD already released
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          head_sha=$(git rev-parse HEAD)
+          latest_tag=$(gh release list -R ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName // empty')
+          if [ -z "$latest_tag" ]; then
+            echo "No existing releases; will cut the first one"
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # targetCommitish may be a full sha or a branch name. Normalize
+          # branch names to the sha they currently point at.
+          latest_ref=$(gh release view "$latest_tag" -R ${{ github.repository }} --json targetCommitish -q .targetCommitish)
+          case "$latest_ref" in
+            main|master)
+              latest_sha=$(git rev-parse "origin/$latest_ref")
+              ;;
+            *)
+              latest_sha="$latest_ref"
+              ;;
+          esac
+          if [ "$latest_sha" = "$head_sha" ]; then
+            echo "HEAD ($head_sha) already released as $latest_tag — skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "HEAD ($head_sha) differs from latest release target ($latest_sha) — proceeding"
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release
+        id: release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          latest=$(gh release list -R ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName // empty')
+          if [ -z "$latest" ] || [[ "$latest" != ${{ inputs.version-prefix }}.* ]]; then
+            next="${{ inputs.version-prefix }}.0"
+          else
+            patch=$(echo "$latest" | sed "s|${{ inputs.version-prefix }}\.||")
+            next="${{ inputs.version-prefix }}.$((patch + 1))"
+          fi
+          sha=$(git rev-parse HEAD)
+          echo "Cutting release $next at $sha"
+          gh release create "$next" \
+            -R ${{ github.repository }} \
+            --target "$sha" \
+            --title "$next" \
+            --notes "$(git log --oneline -1)"
+          echo "new-tag=$next" >> $GITHUB_OUTPUT
+
+      # Kick off the repo's artifact-build workflow for the just-cut tag.
+      # Workflow must accept a `tag` input, checkout that tag, build, and
+      # `gh release upload` assets to the existing release. No race — the
+      # tag is passed by value, not inferred from branch HEAD.
+      - name: Dispatch artifact build
+        if: steps.check.outputs.skip != 'true' && inputs.artifact-build-workflow != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ${{ inputs.artifact-build-workflow }} \
+            -R ${{ github.repository }} \
+            -f tag=${{ steps.release.outputs.new-tag }}
+
+      - name: Azure Login via OIDC
+        if: steps.check.outputs.skip != 'true' && inputs.dispatch-repos != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Get GitHub App credentials from Key Vault
+        id: app-creds
+        if: steps.check.outputs.skip != 'true' && inputs.dispatch-repos != ''
+        run: |
+          APP_ID=$(az keyvault secret show --vault-name ${{ vars.KEY_VAULT_NAME }} --name github-app-id --query value -o tsv)
+          echo "::add-mask::$APP_ID"
+          echo "app_id=$APP_ID" >> $GITHUB_OUTPUT
+          PRIVATE_KEY=$(az keyvault secret show --vault-name ${{ vars.KEY_VAULT_NAME }} --name github-app-private-key --query value -o tsv)
+          echo "::add-mask::$PRIVATE_KEY"
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "private_key<<$EOF" >> $GITHUB_OUTPUT
+          echo "$PRIVATE_KEY" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate GitHub App token
+        id: app-token
+        if: steps.check.outputs.skip != 'true' && inputs.dispatch-repos != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ steps.app-creds.outputs.app_id }}
+          private-key: ${{ steps.app-creds.outputs.private_key }}
+          repositories: ${{ inputs.dispatch-repos }}
+
+      - name: Notify downstream consumers
+        if: steps.check.outputs.skip != 'true' && inputs.dispatch-repos != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          EVENT: ${{ inputs.dispatch-event }}
+        run: |
+          for repo in $(echo '${{ inputs.dispatch-repos }}' | tr ',' ' '); do
+            echo "Dispatching $EVENT to nelsong6/$repo"
+            gh api repos/nelsong6/$repo/dispatches \
+              -f event_type=$EVENT
+          done
