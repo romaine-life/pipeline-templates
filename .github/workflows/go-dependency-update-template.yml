@@ -82,8 +82,11 @@ jobs:
       - name: Update dependencies
         working-directory: ${{ inputs.go-mod-path }}
         env:
-          GOPROXY: direct
-          GONOSUMCHECK: github.com/nelsong6/*
+          # GOPRIVATE subsumes GOPROXY=direct + skips sum.golang.org for matching
+          # modules. Previous `GONOSUMCHECK` was not a recognized Go env var; Go
+          # silently ignored it and still hit sum.golang.org, racing indexing.
+          GOPRIVATE: github.com/nelsong6/*
+          GOSUMDB: off
         run: |
           for mod in ${{ inputs.modules }}; do
             echo "Updating $mod..."
