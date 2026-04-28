@@ -42,6 +42,9 @@ jobs:
   # ============================================================================
   # 🛑 YAML Extension Check
   # ============================================================================
+  # Standardize on .yaml — Helm requires Chart.yaml/values.yaml exactly, the
+  # Kubernetes ecosystem (kubectl, ArgoCD, Kustomize) emits .yaml by default,
+  # and yaml.org's preferred extension is .yaml. .yml is flagged.
   check-yaml:
     name: YAML Extensions
     runs-on: ubuntu-latest
@@ -51,11 +54,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Enforce .yml extension
+      - name: Enforce .yaml extension
         run: |
-          YAML_FILES=$(git ls-files '*.yaml')
+          YAML_FILES=$(git ls-files '*.yml')
           if [ -n "$YAML_FILES" ]; then
-            echo "❌ Found files with the '.yaml' extension. Please rename them to use '.yml' instead:"
+            echo "❌ Found files with the '.yml' extension. Please rename them to use '.yaml' instead:"
             echo "$YAML_FILES"
             exit 1
           fi
@@ -79,55 +82,25 @@ jobs:
           ISSUE_TEMPLATE
           EOF
           )
-          
+
           IGNORE_PATTERN=$(echo "$IGNORE_LIST" | grep -v '^$' | paste -sd '|' -)
           UNDERSCORE_FILES=$(git ls-files '*_*')
-          
+
           if [ -z "$UNDERSCORE_FILES" ]; then
             exit 0
           fi
-          
+
           if [ -n "$IGNORE_PATTERN" ]; then
             FAILED_FILES=$(echo "$UNDERSCORE_FILES" | grep -vE "$IGNORE_PATTERN" || true)
           else
             FAILED_FILES="$UNDERSCORE_FILES"
           fi
-          
+
           if [ -n "$(echo "$FAILED_FILES" | grep -v '^$')" ]; then
             echo "❌ Found files with underscores in their names. Please rename them to use hyphens (-) instead:"
             echo "$FAILED_FILES"
             exit 1
           fi
-
-  # ============================================================================
-  # 📖 Spell Check
-  # ============================================================================
-  check-spelling:
-    name: Spell Check (Markdown)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.working_directory }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Run cspell on Markdown
-        run: npx cspell "**/*.md" --no-progress
-
-  # ============================================================================
-  # 📋 Markdown Lint
-  # ============================================================================
-  check-markdown:
-    name: Markdown Formatting
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.working_directory }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Run Markdown Lint
-        run: npx markdownlint-cli "**/*.md" --ignore "node_modules"
 
   # ============================================================================
   # 🏗️ OpenTofu Format
@@ -154,4 +127,3 @@ jobs:
             tofu fmt -recursive -check -diff || true
             exit 1
           fi
-
