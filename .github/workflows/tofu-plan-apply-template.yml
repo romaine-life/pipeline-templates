@@ -78,8 +78,8 @@ jobs:
         working-directory: ${{ inputs.working_directory }}
         run: |
           echo "Downloading shared provider definitions from ${{ inputs.infra_bootstrap_repo }}@${{ inputs.infra_bootstrap_ref }}..."
-          curl -fsSL -o shared_providers.tf \
-            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/shared_providers.tf"
+          curl -fsSL -o shared-providers.tf \
+            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/shared-providers.tf"
           curl -fsSL -o .terraform.lock.hcl \
             "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/.terraform.lock.hcl"
 
@@ -217,8 +217,8 @@ jobs:
       - name: Download shared providers
         working-directory: ${{ inputs.working_directory }}
         run: |
-          curl -fsSL -o shared_providers.tf \
-            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/shared_providers.tf"
+          curl -fsSL -o shared-providers.tf \
+            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/shared-providers.tf"
           curl -fsSL -o .terraform.lock.hcl \
             "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/.terraform.lock.hcl"
 
