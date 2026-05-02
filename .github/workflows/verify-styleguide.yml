@@ -1,0 +1,83 @@
+# Verify the /_styleguide contract on a live env. Reusable so any
+# consumer of glimmung's UI testing pilot can drop it into env-prep
+# without copying the curl-and-typed-abort dance.
+#
+# Contract source of truth: nelsong6/glimmung docs/styleguide-contract.md
+# (every frontend that runs through glimmung's pipeline must expose
+# /_styleguide on its live env). A 404 here aborts the run with the
+# typed reason `frontend_contract_violation` so the dashboard surfaces
+# the failure cleanly instead of swallowing it as a generic step error.
+#
+# Caller wires it after the deploy + wait-for-ready step in env-prep:
+#
+#   verify-styleguide:
+#     needs: deploy
+#     uses: nelsong6/pipeline-templates/.github/workflows/verify-styleguide.yml@main
+#     with:
+#       validation_url: ${{ needs.deploy.outputs.validation_url }}
+#       glimmung_project: ambience
+#       glimmung_run_id: ${{ inputs.run_id }}
+
+name: Verify /_styleguide contract
+
+on:
+  workflow_call:
+    inputs:
+      validation_url:
+        description: Full URL of the live env (no trailing slash). The check curls $validation_url/_styleguide.
+        required: true
+        type: string
+      glimmung_project:
+        description: Glimmung project name (e.g. "ambience"). Used in the typed-abort callback URL.
+        required: true
+        type: string
+      glimmung_run_id:
+        description: Glimmung Run ULID. The typed-abort callback is keyed on this; pass an empty string to skip the callback (the curl-fail still fails the job).
+        required: true
+        type: string
+      glimmung_base:
+        description: Glimmung API base URL. Override for staging.
+        required: false
+        type: string
+        default: https://glimmung.romaine.life
+      contract_doc_url:
+        description: Link to the styleguide contract surfaced in the error message so authors know what to do.
+        required: false
+        type: string
+        default: https://github.com/nelsong6/glimmung/blob/main/docs/styleguide-contract.md
+
+jobs:
+  verify:
+    name: GET /_styleguide expects 200
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl /_styleguide
+        env:
+          VALIDATION_URL: ${{ inputs.validation_url }}
+          GLIMMUNG_BASE: ${{ inputs.glimmung_base }}
+          GLIMMUNG_PROJECT: ${{ inputs.glimmung_project }}
+          GLIMMUNG_RUN_ID: ${{ inputs.glimmung_run_id }}
+          CONTRACT_DOC_URL: ${{ inputs.contract_doc_url }}
+        run: |
+          set -euo pipefail
+          url="${VALIDATION_URL%/}/_styleguide"
+          status=$(curl -sS -o /dev/null -w '%{http_code}' "${url}" || echo "000")
+          if [ "${status}" = "200" ]; then
+            echo "styleguide route OK: ${url}"
+            exit 0
+          fi
+
+          reason="frontend_contract_violation: /_styleguide route not exposed on ${VALIDATION_URL} (HTTP ${status})"
+          echo "::error::${reason}"
+          echo "::error::See ${CONTRACT_DOC_URL} for the contract and a minimal starter."
+
+          if [ -n "${GLIMMUNG_RUN_ID}" ]; then
+            payload=$(jq -nc --arg r "${reason}" '{reason: $r}')
+            curl -sS -X POST \
+              -H "Content-Type: application/json" \
+              -d "${payload}" \
+              "${GLIMMUNG_BASE}/v1/runs/${GLIMMUNG_PROJECT}/${GLIMMUNG_RUN_ID}/aborted" \
+              || echo "::warning::failed to post typed abort to glimmung; lease-release will still fire"
+          fi
+
+          exit 1
