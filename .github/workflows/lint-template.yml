@@ -96,7 +96,12 @@ jobs:
             FAILED_FILES="$UNDERSCORE_FILES"
           fi
 
-          FAILED_FILES=$(echo "$FAILED_FILES" | grep -vE '\.(md|js)$' || true)
+          # Extensions exempt from the no-underscores rule:
+          # .md, .js     — pre-existing exemptions
+          # .py          — Python module names *require* underscores (`my_module`)
+          # image/asset  — original filenames frequently contain underscores
+          #                and renaming risks breaking absolute path references
+          FAILED_FILES=$(echo "$FAILED_FILES" | grep -vE '\.(md|js|py|webp|png|jpe?g|gif|svg|ico|txt)$' || true)
 
           if [ -n "$(echo "$FAILED_FILES" | grep -v '^$')" ]; then
             echo "❌ Found files with underscores in their names. Please rename them to use hyphens (-) instead:"
