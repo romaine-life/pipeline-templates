@@ -46,6 +46,11 @@ on:
         required: false
         type: string
         default: '1.9.0'
+      destroy:
+        description: 'Generate a destroy plan instead of a regular plan. Pair with workflow_dispatch on the caller side to keep push-to-main paths non-destructive.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -120,16 +125,26 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
         run: |
           set -o pipefail
-          tofu plan -out=tfplan ${{ inputs.tofu_vars }} 2>&1 | tee plan_output.txt
+          DESTROY_FLAG=""
+          if [ "${{ inputs.destroy }}" = "true" ]; then
+            DESTROY_FLAG="-destroy"
+            echo "::warning::Generating DESTROY plan — apply will tear down everything currently in state."
+          fi
+          tofu plan $DESTROY_FLAG -out=tfplan ${{ inputs.tofu_vars }} 2>&1 | tee plan_output.txt
 
           # Check plan for actual changes using tofu show
           PLAN_JSON=$(tofu show -json tfplan)
           RESOURCE_CHANGES=$(echo "$PLAN_JSON" | jq '[.resource_changes[]? | select((.change.actions | . != ["no-op"]) or .change.importing)] | length')
 
+          MODE_LABEL="Infrastructure changes"
+          if [ "${{ inputs.destroy }}" = "true" ]; then
+            MODE_LABEL="DESTROY plan — resources to remove"
+          fi
+
           echo "Resource changes detected: $RESOURCE_CHANGES"
           if [ "$RESOURCE_CHANGES" -gt 0 ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "### Infrastructure changes detected ($RESOURCE_CHANGES resources)" >> $GITHUB_STEP_SUMMARY
+            echo "### $MODE_LABEL detected ($RESOURCE_CHANGES resources)" >> $GITHUB_STEP_SUMMARY
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "### No infrastructure changes detected" >> $GITHUB_STEP_SUMMARY
