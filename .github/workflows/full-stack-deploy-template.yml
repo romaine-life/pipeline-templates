@@ -28,7 +28,7 @@ jobs:
     
     steps:
       - name: Wait for Phase 1 CI Build
-        uses: lewagon/wait-on-check-action@v1.3.4
+        uses: lewagon/wait-on-check-action@v1.6.0
         with:
           ref: ${{ inputs.target_sha }}
           check-name: 'build-pipeline / Build and Push Backend' 
