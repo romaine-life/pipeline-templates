@@ -123,7 +123,7 @@ jobs:
     # Can't use local ./.github/... ref from a reusable workflow — must be
     # fully-qualified. Pinned to @main so the release logic stays in lockstep
     # with what consumer release.yml files call.
-    uses: nelsong6/pipeline-templates/.github/workflows/release-and-dispatch-template.yml@main
+    uses: romaine-life/pipeline-templates/.github/workflows/release-and-dispatch-template.yml@main
     with:
       dispatch-repos: ${{ inputs.dispatch-repos }}
       dispatch-event: ${{ inputs.dispatch-event }}
