@@ -30,7 +30,7 @@ on:
         description: 'GitHub repo containing shared provider definitions'
         required: false
         type: string
-        default: 'nelsong6/infra-bootstrap'
+        default: 'romaine-life/infra-bootstrap'
       infra_bootstrap_ref:
         description: 'Branch or tag of infra-bootstrap to pull providers from'
         required: false

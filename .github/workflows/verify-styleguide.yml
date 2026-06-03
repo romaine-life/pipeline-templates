@@ -2,7 +2,7 @@
 # consumer of glimmung's UI testing pilot can drop it into env-prep
 # without copying the curl-and-typed-abort dance.
 #
-# Contract source of truth: nelsong6/glimmung docs/styleguide-contract.md
+# Contract source of truth: romaine-life/glimmung docs/styleguide-contract.md
 # (every frontend that runs through glimmung's pipeline must expose
 # /_styleguide on its live env). A 404 here aborts the run with the
 # typed reason `frontend_contract_violation` so the dashboard surfaces
@@ -44,7 +44,7 @@ on:
         description: Link to the styleguide contract surfaced in the error message so authors know what to do.
         required: false
         type: string
-        default: https://github.com/nelsong6/glimmung/blob/main/docs/styleguide-contract.md
+        default: https://github.com/romaine-life/glimmung/blob/main/docs/styleguide-contract.md
 
 jobs:
   verify:
