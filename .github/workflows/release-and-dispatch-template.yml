@@ -187,7 +187,7 @@ jobs:
           EVENT: ${{ inputs.dispatch-event }}
         run: |
           for repo in $(echo '${{ inputs.dispatch-repos }}' | tr ',' ' '); do
-            echo "Dispatching $EVENT to nelsong6/$repo"
-            gh api repos/nelsong6/$repo/dispatches \
+            echo "Dispatching $EVENT to romaine-life/$repo"
+            gh api repos/romaine-life/$repo/dispatches \
               -f event_type=$EVENT
           done

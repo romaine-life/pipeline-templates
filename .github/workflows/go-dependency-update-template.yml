@@ -85,7 +85,7 @@ jobs:
           # GOPRIVATE subsumes GOPROXY=direct + skips sum.golang.org for matching
           # modules. Previous `GONOSUMCHECK` was not a recognized Go env var; Go
           # silently ignored it and still hit sum.golang.org, racing indexing.
-          GOPRIVATE: github.com/nelsong6/*
+          GOPRIVATE: github.com/romaine-life/*
           GOSUMDB: off
         run: |
           for mod in ${{ inputs.modules }}; do
@@ -111,7 +111,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ${{ inputs.go-mod-path }}/go.mod ${{ inputs.go-mod-path }}/go.sum
-          git commit -m "deps: update $(echo '${{ inputs.modules }}' | sed 's|github.com/nelsong6/||g' | tr ' ' ', ')"
+          git commit -m "deps: update $(echo '${{ inputs.modules }}' | sed 's|github.com/romaine-life/||g' | tr ' ' ', ')"
           git push
 
   # Delegate the release-cut + downstream dispatch to the shared reusable
