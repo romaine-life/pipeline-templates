@@ -35,7 +35,7 @@ jobs:
           ssh-key: ${{ secrets.push_ssh_key }}
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v1
+        uses: opentofu/setup-opentofu@v2
 
       - name: Upgrade Providers & Generate Locks
         run: |
