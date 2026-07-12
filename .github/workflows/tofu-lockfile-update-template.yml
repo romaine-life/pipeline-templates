@@ -8,6 +8,13 @@ on:
         required: false
         type: string
         default: 'tofu/provider'
+    secrets:
+      push_ssh_key:
+        description: >-
+          Optional write deploy key. Callers whose default branch is protected
+          by a ruleset pass this so the lockfile push lands via the ruleset's
+          DeployKey bypass; GITHUB_TOKEN pushes would be rejected there.
+        required: false
 
 permissions:
   contents: write
@@ -22,6 +29,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          # Empty when the caller passes no key; actions/checkout treats an
+          # empty ssh-key as unset and falls back to GITHUB_TOKEN auth.
+          ssh-key: ${{ secrets.push_ssh_key }}
 
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1
