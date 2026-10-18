@@ -76,42 +76,32 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      # Guard against duplicate tags at the same sha. If the latest release
-      # is already pointed at current HEAD, no-op. Protects the concurrent
-      # case where both go-dependency-update-template (post-bump) and a
-      # consumer's release.yml (from the Nelson-push that the bump landed
-      # on top of) converge on the same commit.
+      # Versions come from git tags, not releases. A tag can exist without a
+      # release (a module tag pushed by hand, e.g. fzt-terminal v0.1.98);
+      # counting releases then reuses that tag's number, and gh release create
+      # silently attaches the new release to the old tag's commit.
+      #
+      # Guard against duplicate releases at the same sha. If HEAD already has a
+      # released version tag, no-op. Protects the concurrent case where both
+      # go-dependency-update-template (post-bump) and a consumer's release.yml
+      # (from the Nelson-push that the bump landed on top of) converge on the
+      # same commit. A version tag at HEAD with no release gets released as-is
+      # rather than skipped or renumbered.
       - name: Skip if HEAD already released
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREFIX: ${{ inputs.version-prefix }}
         run: |
           head_sha=$(git rev-parse HEAD)
-          latest_tag=$(gh release list -R ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName // empty')
-          if [ -z "$latest_tag" ]; then
-            echo "No existing releases; will cut the first one"
-            echo "skip=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          # Use the TAG's commit sha, not the release's targetCommitish.
-          # targetCommitish stores the ref at release-creation time (often
-          # "main"), which would resolve to whatever main points at NOW —
-          # and NOW is the post-bump HEAD the release job is about to tag,
-          # so the comparison was always true. git rev-list -1 follows the
-          # tag to its actual commit sha. fetch-depth: 0 above ensures all
-          # tags are available in the checkout.
-          latest_sha=$(git rev-list -1 "$latest_tag" 2>/dev/null || echo "")
-          if [ -z "$latest_sha" ]; then
-            echo "Tag $latest_tag not found locally — proceeding without guard"
-            echo "skip=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          if [ "$latest_sha" = "$head_sha" ]; then
-            echo "HEAD ($head_sha) already released as $latest_tag — skipping"
+          existing=$(git tag --points-at HEAD -l "${PREFIX}.*" --sort=-v:refname | head -1)
+          if [ -n "$existing" ] && gh release view "$existing" -R ${{ github.repository }} >/dev/null 2>&1; then
+            echo "HEAD ($head_sha) already released as $existing — skipping"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
-            echo "HEAD ($head_sha) differs from latest release ($latest_tag -> $latest_sha) — proceeding"
+            [ -n "$existing" ] && echo "HEAD ($head_sha) is tagged $existing with no release — will release that tag"
             echo "skip=false" >> $GITHUB_OUTPUT
+            echo "existing=$existing" >> $GITHUB_OUTPUT
           fi
 
       - name: Create release
@@ -119,21 +109,22 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREFIX: ${{ inputs.version-prefix }}
+          EXISTING: ${{ steps.check.outputs.existing }}
         run: |
-          latest=$(gh release list -R ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName // empty')
-          if [ -z "$latest" ] || [[ "$latest" != ${{ inputs.version-prefix }}.* ]]; then
-            next="${{ inputs.version-prefix }}.0"
+          if [ -n "$EXISTING" ]; then
+            next="$EXISTING"
           else
-            patch=$(echo "$latest" | sed "s|${{ inputs.version-prefix }}\.||")
-            next="${{ inputs.version-prefix }}.$((patch + 1))"
+            latest=$(git tag -l "${PREFIX}.*" --sort=-v:refname | head -1)
+            if [ -z "$latest" ]; then
+              next="${PREFIX}.0"
+            else
+              next="${PREFIX}.$(( ${latest#"${PREFIX}."} + 1 ))"
+            fi
           fi
           sha=$(git rev-parse HEAD)
           echo "Cutting release $next at $sha"
-          gh release create "$next" \
-            -R ${{ github.repository }} \
-            --target "$sha" \
-            --title "$next" \
-            --notes "$(git log --oneline -1)"
+          gh release create "$next"             -R ${{ github.repository }}             --target "$sha"             --title "$next"             --notes "$(git log --oneline -1)"
           echo "new-tag=$next" >> $GITHUB_OUTPUT
 
       # Kick off the repo's artifact-build workflow for the just-cut tag.
