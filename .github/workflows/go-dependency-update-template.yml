@@ -1,8 +1,14 @@
 name: Go Dependency Update Template
 
 # Called by consumer repos on repository_dispatch when an upstream publishes.
-# Bumps the specified modules in go.mod, commits+pushes, then delegates to
+# Bumps the specified modules in go.mod, merges the bump through a pull
+# request once its checks pass, then delegates to
 # release-and-dispatch-template.yml to cut the release and notify downstream.
+#
+# The bump goes through a pull request because consumers require green CI on
+# main (repo ruleset), which a direct push can't satisfy. The branch push, PR
+# and merge use a romaine-life-infra-bootstrap app token (key in Key Vault):
+# a PR opened with the workflow's GITHUB_TOKEN never triggers the PR's CI.
 #
 # Split into two jobs so the release path is a reusable workflow
 # (release-and-dispatch-template.yml) shared with each consumer's release.yml
@@ -74,6 +80,8 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
+          # the bump branch is pushed with the app token, not GITHUB_TOKEN
+          persist-credentials: false
 
       - uses: actions/setup-go@v5
         with:
@@ -105,14 +113,66 @@ jobs:
             git diff ${{ inputs.go-mod-path }}/go.mod
           fi
 
-      - name: Commit and push
+      - name: Azure Login via OIDC
+        if: steps.diff.outputs.changed == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Get app key from Key Vault
+        id: app-key
         if: steps.diff.outputs.changed == 'true'
         run: |
+          KEY=$(az keyvault secret show --vault-name ${{ vars.KEY_VAULT_NAME }} --name infra-bootstrap-github-app-private-key --query value -o tsv)
+          while IFS= read -r line; do [ -n "$line" ] && echo "::add-mask::$line"; done <<< "$KEY"
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "private_key<<$EOF" >> $GITHUB_OUTPUT
+          echo "$KEY" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: Mint app token
+        id: app-token
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: 3942172 # romaine-life-infra-bootstrap
+          private-key: ${{ steps.app-key.outputs.private_key }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Merge the bump through a pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          msg="deps: update $(echo '${{ inputs.modules }}' | sed 's|github.com/romaine-life/||g' | tr ' ' ', ')"
+          branch="deps/${{ github.run_id }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
           git add ${{ inputs.go-mod-path }}/go.mod ${{ inputs.go-mod-path }}/go.sum
-          git commit -m "deps: update $(echo '${{ inputs.modules }}' | sed 's|github.com/romaine-life/||g' | tr ' ' ', ')"
-          git push
+          git commit -m "$msg"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/$branch"
+          pr=$(gh pr create -R "$REPO" --base "$BASE" --head "$branch" --title "$msg" --body "Opened by the go-dependency-update template: $RUN_URL")
+          echo "Opened $pr"
+
+          # Checks register a few seconds after the PR opens; watching before
+          # then reports "no checks" and exits.
+          for i in $(seq 1 30); do
+            n=$(gh pr view "$pr" -R "$REPO" --json statusCheckRollup --jq '.statusCheckRollup | length')
+            [ "$n" -gt 0 ] && break
+            sleep 10
+          done
+          if [ "$n" -eq 0 ]; then echo "::error::no checks started on $pr"; exit 1; fi
+
+          gh pr checks "$pr" -R "$REPO" --watch --fail-fast --interval 20
+          gh pr merge "$pr" -R "$REPO" --squash --delete-branch
 
   # Delegate the release-cut + downstream dispatch to the shared reusable
   # workflow. The exact same template is called directly by each consumer's
