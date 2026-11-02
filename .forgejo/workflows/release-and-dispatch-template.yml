@@ -1,0 +1,174 @@
+name: Release and Dispatch Template
+
+# Forgejo copy of .github/workflows/release-and-dispatch-template.yml.
+#
+# Cuts a release at the current HEAD of the calling repo's branch, optionally
+# dispatches the repo's artifact-build workflow with that tag, pushes the new
+# tag to the GitHub push mirror, and optionally dispatches a workflow in
+# downstream repos. If HEAD already has a released version tag it does nothing,
+# so two callers converging on one commit never cut two tags.
+#
+# Call it from a job with no runs-on:
+#
+#   release:
+#     uses: romaine-life/pipeline-templates/.forgejo/workflows/release-and-dispatch-template.yml@main
+#     secrets: inherit
+#
+# PIPELINE_DISPATCH_TOKEN (romaine-life org secret, nelson, write:repository)
+# makes the dispatches and the mirror sync. The release itself is created with
+# the job's own token.
+
+on:
+  workflow_call:
+    inputs:
+      dispatch-repos:
+        description: |
+          Comma-separated repo names in the caller's owner whose
+          dispatch-workflow is run on main after releasing. Empty = none.
+        required: false
+        type: string
+        default: ''
+      dispatch-workflow:
+        description: 'Workflow file run in each dispatch-repos repo'
+        required: false
+        type: string
+        default: 'dispatch.yml'
+      version-prefix:
+        description: 'Tag prefix for auto-incrementing patch (e.g. v0.1 -> v0.1.0, v0.1.1, ...)'
+        required: false
+        type: string
+        default: 'v0.1'
+      artifact-build-workflow:
+        description: |
+          Optional workflow file in the caller repo (e.g. 'build.yml') run
+          after the release is cut, with a 'tag' input; it checks out the tag
+          and uploads assets to the existing release.
+        required: false
+        type: string
+        default: ''
+    outputs:
+      new-tag:
+        description: 'The tag cut by this run (empty if skipped)'
+        value: ${{ jobs.release.outputs.new-tag }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      new-tag: ${{ steps.release.outputs.new-tag }}
+    env:
+      API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+    steps:
+      # ref=ref_name resolves the branch's HEAD at run time, not the sha
+      # captured when the run was scheduled.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      # Versions come from git tags, not releases: a tag can exist without a
+      # release (a module tag pushed by hand). A version tag at HEAD with no
+      # release is released as-is rather than skipped or renumbered.
+      - name: Skip if HEAD already released
+        id: check
+        env:
+          FJ: ${{ secrets.GITHUB_TOKEN }}
+          PREFIX: ${{ inputs.version-prefix }}
+        run: |
+          head_sha=$(git rev-parse HEAD)
+          existing=$(git tag --points-at HEAD -l "${PREFIX}.*" --sort=-v:refname | head -1)
+          code=000
+          if [ -n "$existing" ]; then
+            code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token $FJ" "$API/releases/tags/$existing")
+          fi
+          if [ "$code" = 200 ]; then
+            echo "HEAD ($head_sha) already released as $existing, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            if [ -n "$existing" ]; then
+              if [ "$code" != 404 ]; then echo "::error::release lookup for $existing returned HTTP $code"; exit 1; fi
+              echo "HEAD ($head_sha) is tagged $existing with no release, releasing that tag"
+            fi
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "existing=$existing" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        id: release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          FJ: ${{ secrets.GITHUB_TOKEN }}
+          PREFIX: ${{ inputs.version-prefix }}
+          EXISTING: ${{ steps.check.outputs.existing }}
+        run: |
+          if [ -n "$EXISTING" ]; then
+            next="$EXISTING"
+          else
+            latest=$(git tag -l "${PREFIX}.*" --sort=-v:refname | head -1)
+            if [ -z "$latest" ]; then
+              next="${PREFIX}.0"
+            else
+              next="${PREFIX}.$(( ${latest#"${PREFIX}."} + 1 ))"
+            fi
+          fi
+          sha=$(git rev-parse HEAD)
+          echo "Cutting release $next at $sha"
+          body=$(jq -n --arg tag "$next" --arg sha "$sha" --arg notes "$(git log --oneline -1)" \
+            '{tag_name: $tag, target_commitish: $sha, name: $tag, body: $notes}')
+          code=$(curl -sS -o response.json -w '%{http_code}' -X POST \
+            -H "Authorization: token $FJ" -H 'Content-Type: application/json' \
+            -d "$body" "$API/releases")
+          if [ "$code" != 201 ]; then
+            echo "::error::creating release $next returned HTTP $code"
+            cat response.json
+            exit 1
+          fi
+          # An existing tag elsewhere would silently carry the release; prove
+          # the tag is on HEAD.
+          git fetch -q origin "refs/tags/$next:refs/tags/$next"
+          tagged=$(git rev-list -n1 "$next")
+          if [ "$tagged" != "$sha" ]; then
+            echo "::error::release $next points at $tagged, not $sha"
+            exit 1
+          fi
+          echo "new-tag=$next" >> "$GITHUB_OUTPUT"
+
+      # The workflow must accept a `tag` input, check out that tag, build, and
+      # upload assets to the existing release.
+      - name: Dispatch artifact build
+        if: steps.check.outputs.skip != 'true' && inputs.artifact-build-workflow != ''
+        env:
+          DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          WF: ${{ inputs.artifact-build-workflow }}
+          REF: ${{ github.ref_name }}
+          TAG: ${{ steps.release.outputs.new-tag }}
+        run: |
+          body=$(jq -n --arg ref "$REF" --arg tag "$TAG" '{ref: $ref, inputs: {tag: $tag}}')
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: token $DT" -H 'Content-Type: application/json' \
+            -d "$body" "$API/actions/workflows/$WF/dispatches"
+          echo "Dispatched $WF with tag=$TAG"
+
+      # The push mirror would carry the tag within its interval; sync now so
+      # GitHub (go install, the Mac jobs) has it at once.
+      - name: Sync push mirror
+        if: steps.check.outputs.skip != 'true'
+        env:
+          DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        run: |
+          curl -sS --fail-with-body -X POST -H "Authorization: token $DT" "$API/push_mirrors-sync"
+
+      - name: Notify downstream consumers
+        if: steps.check.outputs.skip != 'true' && inputs.dispatch-repos != ''
+        env:
+          DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          REPOS: ${{ inputs.dispatch-repos }}
+          WF: ${{ inputs.dispatch-workflow }}
+          OWNER_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository_owner }}
+        run: |
+          for repo in $(echo "$REPOS" | tr ',' ' '); do
+            echo "Dispatching $WF on $repo"
+            curl -sS --fail-with-body -X POST \
+              -H "Authorization: token $DT" -H 'Content-Type: application/json' \
+              -d '{"ref":"main"}' "$OWNER_API/$repo/actions/workflows/$WF/dispatches"
+          done

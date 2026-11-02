@@ -1,0 +1,187 @@
+name: Go Dependency Update Template
+
+# Forgejo copy of .github/workflows/go-dependency-update-template.yml.
+#
+# Bumps the given modules in go.mod, merges the bump through a pull request
+# once its checks pass, then calls release-and-dispatch-template.yml to cut
+# the release and notify downstream.
+#
+# Call it from a job with no runs-on:
+#
+#   update:
+#     uses: romaine-life/pipeline-templates/.forgejo/workflows/go-dependency-update-template.yml@main
+#     secrets: inherit
+#     with:
+#       modules: github.com/romaine-life/fzt
+#
+# The bump goes through a pull request so the caller's required checks run on
+# it. The branch push, PR and merge use PIPELINE_DISPATCH_TOKEN (nelson,
+# write:repository): a push made with the job's own token does not start the
+# PR's CI.
+#
+# Race protection:
+#   - `ref: github.ref_name` on checkout resolves the branch's HEAD at run
+#     time, not a sha captured when the run was scheduled.
+#   - The release is a `uses:` job in the same run, not a second dispatch.
+#   - The release template skips when HEAD is already released.
+
+on:
+  workflow_call:
+    inputs:
+      go-mod-path:
+        description: 'Path to the directory containing go.mod (relative to repo root)'
+        required: false
+        type: string
+        default: '.'
+      modules:
+        description: 'Space-separated list of Go module paths to update'
+        required: true
+        type: string
+      dispatch-repos:
+        description: 'Comma-separated list of repo names to notify after releasing'
+        required: false
+        type: string
+        default: ''
+      dispatch-workflow:
+        description: 'Workflow file run in each dispatch-repos repo'
+        required: false
+        type: string
+        default: 'dispatch.yml'
+      version-prefix:
+        description: 'Tag prefix for auto-incrementing patch (e.g. v0.1 -> v0.1.0)'
+        required: false
+        type: string
+        default: 'v0.1'
+      artifact-build-workflow:
+        description: 'Optional workflow file in the caller repo to run after release'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      changed:
+        description: 'Whether go.mod was updated'
+        value: ${{ jobs.update.outputs.changed }}
+      new-tag:
+        description: 'The tag cut by this run (only set when a release was created)'
+        value: ${{ jobs.release.outputs.new-tag }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          # the bump branch is pushed with PIPELINE_DISPATCH_TOKEN
+          persist-credentials: false
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ inputs.go-mod-path }}/go.mod
+
+      # Module paths stay github.com/romaine-life/...; the source is read
+      # from Forgejo so a bump never waits on the GitHub mirror.
+      - name: Read romaine-life modules from Forgejo
+        run: git config --global url."${{ github.server_url }}/romaine-life/".insteadOf "https://github.com/romaine-life/"
+
+      - name: Update dependencies
+        working-directory: ${{ inputs.go-mod-path }}
+        env:
+          GOPRIVATE: github.com/romaine-life/*
+          GOSUMDB: off
+          MODULES: ${{ inputs.modules }}
+        run: |
+          for mod in $MODULES; do
+            echo "Updating $mod..."
+            go get "${mod}@latest"
+          done
+          go mod tidy
+
+      - name: Check for changes
+        id: diff
+        env:
+          MOD_PATH: ${{ inputs.go-mod-path }}
+        run: |
+          if git diff --quiet "$MOD_PATH/go.mod" "$MOD_PATH/go.sum"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already on latest"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff "$MOD_PATH/go.mod"
+          fi
+
+      - name: Merge the bump through a pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          T: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
+          BASE: ${{ github.ref_name }}
+          MOD_PATH: ${{ inputs.go-mod-path }}
+          MODULES: ${{ inputs.modules }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}
+        run: |
+          msg="deps: update $(echo "$MODULES" | sed 's|github.com/romaine-life/||g' | tr ' ' ', ')"
+          branch="deps/${{ github.run_id }}"
+          git config user.name "forgejo-actions"
+          git config user.email "forgejo-actions@noreply.romaine.life"
+          git checkout -b "$branch"
+          git add "$MOD_PATH/go.mod" "$MOD_PATH/go.sum"
+          git commit -m "$msg"
+          sha=$(git rev-parse HEAD)
+          auth="Authorization: Basic $(printf 'x-access-token:%s' "$T" | base64 -w0)"
+          git -c http.extraHeader="$auth" push "$REMOTE" "HEAD:refs/heads/$branch"
+
+          body=$(jq -n --arg base "$BASE" --arg head "$branch" --arg title "$msg" \
+            --arg body "Opened by the go-dependency-update template: $RUN_URL" \
+            '{base: $base, head: $head, title: $title, body: $body}')
+          code=$(curl -sS -o pr.json -w '%{http_code}' -X POST \
+            -H "Authorization: token $T" -H 'Content-Type: application/json' \
+            -d "$body" "$API/pulls")
+          if [ "$code" != 201 ]; then echo "::error::opening the PR returned HTTP $code"; cat pr.json; exit 1; fi
+          n=$(jq -r .number pr.json)
+          pr=$(jq -r .html_url pr.json)
+          echo "Opened $pr"
+
+          # Checks register a few seconds after the PR opens.
+          count=0
+          for _ in $(seq 1 30); do
+            count=$(curl -sS --fail-with-body -H "Authorization: token $T" "$API/commits/$sha/status" | jq -r .total_count)
+            [ "$count" -gt 0 ] && break
+            sleep 10
+          done
+          if [ "$count" -eq 0 ]; then echo "::error::no checks started on $pr"; exit 1; fi
+
+          # Combined state of every check on the bump commit; 270 x 20 s = 90 min.
+          state=pending
+          for _ in $(seq 1 270); do
+            state=$(curl -sS --fail-with-body -H "Authorization: token $T" "$API/commits/$sha/status" | jq -r .state)
+            case "$state" in
+              success) break ;;
+              failure|error) echo "::error::checks on $pr ended $state"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          if [ "$state" != success ]; then echo "::error::checks on $pr still $state after 90 min"; exit 1; fi
+
+          code=$(curl -sS -o merge.json -w '%{http_code}' -X POST \
+            -H "Authorization: token $T" -H 'Content-Type: application/json' \
+            -d '{"Do":"squash","delete_branch_after_merge":true}' "$API/pulls/$n/merge")
+          if [ "$code" != 200 ]; then echo "::error::merging $pr returned HTTP $code"; cat merge.json; exit 1; fi
+          echo "Merged $pr"
+
+  # The same release template each caller's release.yml uses, so the
+  # dependency-update and direct-push paths share one release logic.
+  release:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    uses: romaine-life/pipeline-templates/.forgejo/workflows/release-and-dispatch-template.yml@main
+    secrets: inherit
+    with:
+      dispatch-repos: ${{ inputs.dispatch-repos }}
+      dispatch-workflow: ${{ inputs.dispatch-workflow }}
+      version-prefix: ${{ inputs.version-prefix }}
+      artifact-build-workflow: ${{ inputs.artifact-build-workflow }}
