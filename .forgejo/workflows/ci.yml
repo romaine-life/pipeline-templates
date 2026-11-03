@@ -20,6 +20,44 @@ jobs:
       - name: Lint the Forgejo workflows
         run: ./actionlint .forgejo/workflows/*.yml
 
+      - name: Check configuration checkout authorization and failure handling
+        run: |
+          node <<'JS'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const yaml = fs.readFileSync('.forgejo/workflows/home-sync.yml', 'utf8').replaceAll('\r', '');
+          const checkout = yaml.indexOf('- name: Update the NAS home-profile checkout');
+          assert.ok(checkout >= 0 && checkout < yaml.indexOf('- name: Publish the complete draft'));
+          const match = yaml.slice(checkout).match(/node <<'JS'\n([\s\S]*?)\n\s+JS/);
+          assert.ok(match, 'execute the actual checkout step');
+          const code = match[1].replace(/^ {10}/gm, '');
+          for (const test of [
+            {repo: 'romaine-life/shell-config-profile-home', status: 0},
+            {repo: 'romaine-life/at-home-tools', status: 0, error: /only the home-profile/},
+            {repo: 'romaine-life/shell-config-profile-home', status: 1, error: /SSH exit 1/},
+            {repo: 'romaine-life/shell-config-profile-home', failure: new Error('timeout'), error: /timeout/}
+          ]) {
+            const calls = [];
+            const run = () => vm.runInNewContext(code, {
+              process: {env: {CHECKOUT_REPOSITORY: test.repo}},
+              require(name) {
+                assert.equal(name, 'node:child_process');
+                return {spawnSync(...args) { calls.push(args); return {status: test.status, error: test.failure}; }};
+              }
+            });
+            if (test.error) assert.throws(run, test.error); else run();
+            assert.equal(calls.length, test.repo === 'romaine-life/shell-config-profile-home' ? 1 : 0);
+            if (calls.length) {
+              assert.equal(calls[0][0], 'ssh');
+              assert.equal(calls[0][1].at(-1), 'Nelson@nas');
+              assert.ok(calls[0][1].includes('StrictHostKeyChecking=yes'));
+              assert.equal(calls[0][2].timeout, 90000);
+            }
+          }
+          console.log('configuration checkout authorization and failure handling passed');
+          JS
+
       - name: Check draft publication before the PC trigger
         run: |
           node <<'JS'

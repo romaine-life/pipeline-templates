@@ -102,6 +102,24 @@ GITHUB_TOKEN. Leave both inputs empty to start tasks without publishing anything
 The legacy release-on-push input remains accepted for existing callers but is no
 longer used: the nonempty release tag is the release signal.
 
+Configuration repositories call this workflow after a push to their default
+branch with `config-merge: true`. The home-profile caller also sets
+`update-home-checkout: true`: before starting any PC, a separate restricted SSH
+key fast-forwards the NAS checkout from Forgejo. Other configuration repositories
+start the PCs without changing that checkout. PR validation requests neither
+side effect. The job serializes checkout and task requests.
+
+The checkout key is `/certs/client/home-sync/checkout_id_ed25519`, stored beside
+the existing release trigger key on the NAS. Its NAS authorized-key entry forces
+only the reviewed Docker/git fast-forward command for
+`/volume1/Files/shell-config-profile-home`; callers cannot select a command or
+checkout path. The container uses a repository-read-only Forgejo credential,
+with automatic git maintenance disabled because Windows worktrees share the
+repository. The checkout step rejects any repository other than
+`romaine-life/shell-config-profile-home`, and a failed pull prevents the PC tasks
+from starting. A manual verification dispatch sets `target-repository` to that
+repository and enables `update-home-checkout` and `config-merge`.
+
 Stage every asset in a **draft** release and pass its tag as `release-tag`. The NAS
 job publishes the complete draft immediately before its SSH requests. A busy runner
 can delay finishing a release, but cannot leave a newly public release waiting in
