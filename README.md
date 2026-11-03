@@ -70,7 +70,7 @@ separate build, put the call after the uploads in that build workflow.
 
 The dedicated forgejo-home-sync Ed25519 private key is generated on the NAS at
 /volume1/docker/forgejo/runner-certs/client/home-sync/id_ed25519 (root, mode 400).
-The runner already mounts /certs/client read-only in its job containers. The
+The job reads it through the runner's existing /certs/client mount. The
 neighboring known_hosts pins the PCs' host keys. Neither file is a workflow
 secret or artifact. Only the public key enters ssh.runnerKeys in the home profile.
 Both apply.ps1 and home-sync.exe restrict each runner key to exactly
@@ -84,3 +84,11 @@ only sudo /usr/syno/sbin/synonet --wake E8:FF:1E:D8:9B:FB eth0. The job SSHs to 
 entry before treadmill's task request, so the packet originates on the real LAN.
 The NAS host key is also pinned in known_hosts. Update that forced wake command
 if state.json's wakeMac changes.
+
+The called job also guards the event itself: a manual dispatch starts live tasks.
+A caller that publishes all assets on a push to main opts in with
+`with: {release-on-push: true}` (at-home-tools). Keep that input false for a
+build that only validates main and publishes on dispatch (fzt-picker).
+PR validation must never depend only on the wrapper job's
+condition being propagated through Forgejo's reusable-workflow expansion. Keep
+the caller job unconditional; the callee owns this guard, including on PR builds.

@@ -3,10 +3,18 @@ name: Home sync
 # The dedicated forced-command key stays on the NAS, in its existing mount.
 on:
   workflow_call:
+    inputs:
+      release-on-push:
+        description: The caller publishes its complete release on a push to main.
+        type: boolean
+        default: false
   workflow_dispatch:
 
 jobs:
   pcs:
+    # Keep this guard inside the called workflow as well: a reusable caller's
+    # condition must never allow PR validation to start the live tasks.
+    if: github.event_name == 'workflow_dispatch' || (inputs.release-on-push && github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: linux
     container:
       image: ghcr.io/catthehacker/ubuntu:act-24.04
