@@ -88,13 +88,19 @@ entry before treadmill's task request, so the packet originates on the real LAN.
 The NAS host key is also pinned in known_hosts. Update that forced wake command
 if state.json's wakeMac changes.
 
-The called job also guards the event itself: a manual dispatch starts live tasks.
-A caller that publishes all assets on a push to main opts in with
-`with: {release-on-push: true}` (at-home-tools). Keep that input false for a
-build that only validates main and publishes on dispatch (fzt-picker).
-PR validation must never depend only on the wrapper job's
-condition being propagated through Forgejo's reusable-workflow expansion. Keep
-the caller job unconditional; the callee owns this guard, including on PR builds.
+The called job guards on the explicit `release-tag`: Forgejo reports
+`workflow_call` inside a reusable workflow, so it cannot filter using the caller's
+push/dispatch event. A release build outputs its tag only after staging every asset.
+PRs and validation-only main builds pass an empty tag. Keep the wrapper job
+unconditional and let the callee guard on that tag. A direct manual dispatch with
+no tag remains the trigger-only smoke test.
+
+For recovery of a complete unpublished draft, manually dispatch this workflow with
+`target-repository: owner/repo` and `release-tag: vX.Y.Z`. That explicit cross-repo
+request uses the existing PIPELINE_DISPATCH_TOKEN; normal repo calls use their own
+GITHUB_TOKEN. Leave both inputs empty to start tasks without publishing anything.
+The legacy release-on-push input remains accepted for existing callers but is no
+longer used: the nonempty release tag is the release signal.
 
 Stage every asset in a **draft** release and pass its tag as `release-tag`. The NAS
 job publishes the complete draft immediately before its SSH requests. A busy runner

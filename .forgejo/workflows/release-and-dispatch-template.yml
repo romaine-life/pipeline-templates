@@ -254,7 +254,9 @@ jobs:
         env:
           DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         run: |
-          curl -sS --fail-with-body -X POST -H "Authorization: token $DT" "$API/push_mirrors-sync"
+          # Reserving a tag also starts sync_on_commit. A concurrent sync can
+          # briefly reject a ref that the first request has just created.
+          curl -sS --fail-with-body --retry 5 --retry-delay 2 -X POST -H "Authorization: token $DT" "$API/push_mirrors-sync"
 
       - name: Notify downstream consumers
         if: steps.check.outputs.skip != 'true' && inputs.dry-run != 'true' && inputs.dispatch-repos != ''
