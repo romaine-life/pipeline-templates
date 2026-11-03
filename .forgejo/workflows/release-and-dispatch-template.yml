@@ -46,25 +46,102 @@ on:
         required: false
         type: string
         default: ''
+      target-repository:
+        description: 'Repository to release when dispatched by an authenticated caller'
+        required: false
+        type: string
+        default: ''
+      target-ref:
+        description: 'Target branch or commit; defaults to the calling workflow ref'
+        required: false
+        type: string
+        default: ''
+      dry-run:
+        description: 'Validate checkout and release access without publishing'
+        required: false
+        type: string
+        default: 'false'
+      status-sha:
+        description: 'Optional target commit to receive the Release validation status'
+        required: false
+        type: string
+        default: ''
     outputs:
       new-tag:
         description: 'The tag cut by this run (empty if skipped)'
         value: ${{ jobs.release.outputs.new-tag }}
 
+  workflow_dispatch:
+    inputs:
+      target-repository:
+        description: 'owner/repo to release'
+        required: true
+        type: string
+      target-ref:
+        description: 'Target branch or commit'
+        required: true
+        type: string
+      dry-run:
+        description: 'Validate without creating a release or dispatching builds'
+        required: false
+        type: string
+        default: 'true'
+      status-sha:
+        description: 'Optional commit to receive the Release validation status'
+        required: false
+        type: string
+        default: ''
+      version-prefix:
+        description: 'Version tag prefix'
+        required: false
+        type: string
+        default: 'v0.1'
+      artifact-build-workflow:
+        description: 'Target workflow to build the release artifacts'
+        required: false
+        type: string
+        default: ''
+      dispatch-repos:
+        description: 'Comma-separated downstream repositories'
+        required: false
+        type: string
+        default: ''
+      dispatch-workflow:
+        description: 'Downstream workflow'
+        required: false
+        type: string
+        default: 'dispatch.yml'
+
+concurrency:
+  group: release-${{ inputs.target-repository || github.repository }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       new-tag: ${{ steps.release.outputs.new-tag }}
     env:
-      API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+      API: ${{ github.server_url }}/api/v1/repos/${{ inputs.target-repository || github.repository }}
+      TARGET_REPOSITORY: ${{ inputs.target-repository || github.repository }}
+      TARGET_REF: ${{ inputs.target-ref || github.ref_name }}
     steps:
       # ref=ref_name resolves the branch's HEAD at run time, not the sha
       # captured when the run was scheduled.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          repository: ${{ inputs.target-repository || github.repository }}
+          ref: ${{ inputs.target-ref || github.ref_name }}
           fetch-depth: 0
+          token: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Validate release access
+        env:
+          T: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sS --fail-with-body -H "Authorization: token $T" "$API" > repository.json
+          jq -e '.permissions.push == true' repository.json > /dev/null
 
       # Versions come from git tags, not releases: a tag can exist without a
       # release (a module tag pushed by hand). A version tag at HEAD with no
@@ -72,7 +149,7 @@ jobs:
       - name: Skip if HEAD already released
         id: check
         env:
-          FJ: ${{ secrets.GITHUB_TOKEN }}
+          FJ: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
           PREFIX: ${{ inputs.version-prefix }}
         run: |
           head_sha=$(git rev-parse HEAD)
@@ -93,11 +170,15 @@ jobs:
             echo "existing=$existing" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Finish dry run
+        if: inputs.dry-run == 'true'
+        run: echo "Validated release access and tags for $TARGET_REPOSITORY at $(git rev-parse HEAD)"
+
       - name: Create release
         id: release
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip != 'true' && inputs.dry-run != 'true'
         env:
-          FJ: ${{ secrets.GITHUB_TOKEN }}
+          FJ: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
           PREFIX: ${{ inputs.version-prefix }}
           EXISTING: ${{ steps.check.outputs.existing }}
         run: |
@@ -136,11 +217,11 @@ jobs:
       # The workflow must accept a `tag` input, check out that tag, build, and
       # upload assets to the existing release.
       - name: Dispatch artifact build
-        if: steps.check.outputs.skip != 'true' && inputs.artifact-build-workflow != ''
+        if: steps.check.outputs.skip != 'true' && inputs.dry-run != 'true' && inputs.artifact-build-workflow != ''
         env:
           DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
           WF: ${{ inputs.artifact-build-workflow }}
-          REF: ${{ github.ref_name }}
+          REF: ${{ inputs.target-ref || github.ref_name }}
           TAG: ${{ steps.release.outputs.new-tag }}
         run: |
           body=$(jq -n --arg ref "$REF" --arg tag "$TAG" '{ref: $ref, inputs: {tag: $tag}}')
@@ -152,23 +233,38 @@ jobs:
       # The push mirror would carry the tag within its interval; sync now so
       # GitHub (go install, the Mac jobs) has it at once.
       - name: Sync push mirror
-        if: steps.check.outputs.skip != 'true'
+        if: steps.check.outputs.skip != 'true' && inputs.dry-run != 'true'
         env:
           DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         run: |
           curl -sS --fail-with-body -X POST -H "Authorization: token $DT" "$API/push_mirrors-sync"
 
       - name: Notify downstream consumers
-        if: steps.check.outputs.skip != 'true' && inputs.dispatch-repos != ''
+        if: steps.check.outputs.skip != 'true' && inputs.dry-run != 'true' && inputs.dispatch-repos != ''
         env:
           DT: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
           REPOS: ${{ inputs.dispatch-repos }}
           WF: ${{ inputs.dispatch-workflow }}
-          OWNER_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository_owner }}
         run: |
+          owner=${TARGET_REPOSITORY%%/*}
           for repo in $(echo "$REPOS" | tr ',' ' '); do
             echo "Dispatching $WF on $repo"
             curl -sS --fail-with-body -X POST \
               -H "Authorization: token $DT" -H 'Content-Type: application/json' \
-              -d '{"ref":"main"}' "$OWNER_API/$repo/actions/workflows/$WF/dispatches"
+              -d '{"ref":"main"}' "${{ github.server_url }}/api/v1/repos/$owner/$repo/actions/workflows/$WF/dispatches"
           done
+
+      - name: Report validation to the caller
+        if: always() && inputs.status-sha != ''
+        env:
+          T: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          SHA: ${{ inputs.status-sha }}
+          RESULT: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}
+        run: |
+          state=success
+          [ "$RESULT" = success ] || state=failure
+          body=$(jq -n --arg state "$state" --arg url "$RUN_URL" \
+            '{state: $state, context: "Release validation", description: "Authenticated release workflow validation", target_url: $url}')
+          curl -sS --fail-with-body -X POST -H "Authorization: token $T" \
+            -H 'Content-Type: application/json' -d "$body" "$API/statuses/$SHA"
