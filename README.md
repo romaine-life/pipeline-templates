@@ -51,3 +51,36 @@ jobs:
 Both need the `PIPELINE_DISPATCH_TOKEN` org secret on romaine-life. The
 copies in `.github/workflows` serve repos still on GitHub; the fzt pair goes
 once every fzt repo and devctl has moved.
+
+## Home release trigger (HOMECFG-110)
+
+After all release assets are uploaded, add a dependent job:
+
+```yaml
+  home-sync:
+    needs: build # final asset upload job(s)
+    if: github.event_name == 'workflow_dispatch'
+    uses: romaine-life/pipeline-templates/.forgejo/workflows/home-sync.yml@main
+```
+
+This runs one linux job on the NAS, wakes treadmill using its state.json wakeMac,
+and starts all three PCs' existing tasks concurrently. Manual dispatch verifies it.
+It does not install or re-register a task. If a release workflow dispatches a
+separate build, put the call after the uploads in that build workflow.
+
+The dedicated forgejo-home-sync Ed25519 private key is generated on the NAS at
+/volume1/docker/forgejo/runner-certs/client/home-sync/id_ed25519 (root, mode 400).
+The runner already mounts /certs/client read-only in its job containers. The
+neighboring known_hosts pins the PCs' host keys. Neither file is a workflow
+secret or artifact. Only the public key enters ssh.runnerKeys in the home profile.
+Both apply.ps1 and home-sync.exe restrict each runner key to exactly
+schtasks /run /tn home-sync. The old GitHub runner key remains valid.
+The inventory here matches the three machines' sshUser and wakeMac in
+shell-config-profile-home/machine/state.json; change both when changing a PC.
+
+Docker's bridge does not forward LAN broadcasts (verified with tcpdump on eth0).
+The same key has a second forced entry in Nelson's NAS authorized_keys that runs
+only sudo /usr/syno/sbin/synonet --wake E8:FF:1E:D8:9B:FB eth0. The job SSHs to that
+entry before treadmill's task request, so the packet originates on the real LAN.
+The NAS host key is also pinned in known_hosts. Update that forced wake command
+if state.json's wakeMac changes.
