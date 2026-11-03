@@ -120,13 +120,13 @@ jobs:
           fs.accessSync(key, fs.constants.R_OK);
           fs.accessSync(hosts, fs.constants.R_OK);
           const start = Date.now();
-          function ssh(name, destination) {
+          function ssh(name, destination, connectionAttempts = 24) {
             return new Promise((resolve, reject) => {
               // No remote command: sshd forces the one authorized command.
               const child = spawn('ssh', ['-T', '-i', key, '-o', 'IdentitiesOnly=yes',
                 '-o', 'BatchMode=yes', '-o', `UserKnownHostsFile=${hosts}`,
                 '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5',
-                '-o', 'ConnectionAttempts=24', destination]);
+                '-o', `ConnectionAttempts=${connectionAttempts}`, destination]);
               let output = '';
               child.stdout.on('data', b => output += b);
               child.stderr.on('data', b => output += b);
@@ -140,8 +140,18 @@ jobs:
           async function trigger(pc) {
             // Docker's bridge drops LAN broadcasts. The NAS key entry forces
             // only sudo /usr/syno/sbin/synonet --wake E8:FF:1E:D8:9B:FB eth0.
-            if (pc.mac) await ssh(`${pc.name} wake ${pc.mac}`, 'Nelson@nas');
-            await ssh(pc.name, `${pc.user}@${pc.name}`);
+            // A missed wake should get another packet within the same SSH budget.
+            const attempts = pc.mac ? 3 : 1;
+            for (let attempt = 1; attempt <= attempts; attempt++) {
+              if (pc.mac) await ssh(`${pc.name} wake ${pc.mac}`, 'Nelson@nas');
+              try {
+                await ssh(pc.name, `${pc.user}@${pc.name}`, pc.mac ? 8 : 24);
+                return;
+              } catch (error) {
+                if (attempt === attempts) throw error;
+                console.log(`${pc.name}: retrying wake after SSH attempt ${attempt}/${attempts}`);
+              }
+            }
           }
           Promise.allSettled(JSON.parse(process.env.MACHINES).map(trigger)).then(results => {
             for (const result of results) if (result.status === 'rejected') {
