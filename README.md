@@ -14,6 +14,9 @@ Repos on Forgejo (https://forgejo.romaine.life) call the templates in
 - `go-dependency-update-template.yml`: bumps `modules` in
   `<go-mod-path>/go.mod`, merges the bump through a PR once its checks pass,
   then calls the release template. It takes the same release inputs.
+- `tofu-plan-apply-template.yml`: plans OpenTofu, posts the plan on pull
+  requests and applies it elsewhere, signing in to Azure with the job's
+  Forgejo identity token (the calling job sets `enable-openid-connect: true`).
 
 Call one from a job with no `runs-on`, pinned to `main`, inheriting secrets:
 
@@ -26,6 +29,7 @@ jobs:
       artifact-build-workflow: build.yml
 ```
 
-Both need the `PIPELINE_DISPATCH_TOKEN` org secret on romaine-life. The
+The release and dependency-update templates need the
+`PIPELINE_DISPATCH_TOKEN` org secret on romaine-life. The
 copies in `.github/workflows` serve repos still on GitHub; the fzt pair goes
 once every fzt repo and devctl has moved.

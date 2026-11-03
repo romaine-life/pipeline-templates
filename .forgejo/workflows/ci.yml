@@ -17,5 +17,8 @@ jobs:
           echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  actionlint.tar.gz" | sha256sum -c -
           tar -xzf actionlint.tar.gz actionlint
 
+      # Forgejo takes an action from another forge by full URL
+      # (uses: https://github.com/owner/repo@ref); actionlint knows only the
+      # GitHub forms.
       - name: Lint the Forgejo workflows
-        run: ./actionlint .forgejo/workflows/*.yml
+        run: ./actionlint -ignore 'specifying action "https://[^"]*" in invalid format' .forgejo/workflows/*.yml

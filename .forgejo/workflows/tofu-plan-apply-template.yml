@@ -1,0 +1,280 @@
+name: OpenTofu Plan & Apply
+
+# Forgejo copy of .github/workflows/tofu-plan-apply-template.yml.
+#
+# Plans the caller's OpenTofu configuration, posts the plan on pull requests,
+# and applies it on other events when it has changes. Azure sign-in uses the
+# job's Forgejo identity token, so the caller's app registration needs a
+# federated credential for issuer https://forgejo.romaine.life/api/actions, and
+# the calling job must enable the token:
+#
+#   tofu:
+#     uses: romaine-life/pipeline-templates/.forgejo/workflows/tofu-plan-apply-template.yml@main
+#     enable-openid-connect: true
+#     secrets: inherit
+#     with:
+#       backend_storage_account: nelsontofu
+#       backend_key: my-app.tfstate
+#
+# The caller's repo variables ARM_CLIENT_ID, ARM_TENANT_ID and
+# ARM_SUBSCRIPTION_ID name the identity.
+
+on:
+  workflow_call:
+    inputs:
+      working_directory:
+        description: 'Directory containing OpenTofu configuration'
+        required: false
+        type: string
+        default: 'tofu'
+      backend_resource_group:
+        description: 'Resource group containing the state storage account'
+        required: false
+        type: string
+        default: 'infra'
+      backend_storage_account:
+        description: 'Name of the Azure Storage Account for state'
+        required: true
+        type: string
+      backend_container:
+        description: 'Blob container name for state files'
+        required: false
+        type: string
+        default: 'tfstate'
+      backend_key:
+        description: 'State file key (e.g., my-app.tfstate)'
+        required: true
+        type: string
+      infra_bootstrap_repo:
+        description: 'GitHub repo containing shared provider definitions'
+        required: false
+        type: string
+        default: 'romaine-life/infra-bootstrap'
+      infra_bootstrap_ref:
+        description: 'Branch or tag of infra-bootstrap to pull providers from'
+        required: false
+        type: string
+        default: 'main'
+      tofu_vars:
+        description: 'Extra -var flags as a string (e.g., -var="foo=bar" -var="baz=qux")'
+        required: false
+        type: string
+        default: ''
+      tofu_version:
+        description: 'OpenTofu version to install'
+        required: false
+        type: string
+        default: '1.9.0'
+      destroy:
+        description: 'Generate a destroy plan instead of a regular plan. Pair with workflow_dispatch on the caller side to keep push-to-main paths non-destructive.'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: https://github.com/opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ inputs.tofu_version }}
+
+      - name: Azure Login via OIDC
+        uses: https://github.com/azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Download shared providers
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          echo "Downloading shared provider definitions from ${{ inputs.infra_bootstrap_repo }}@${{ inputs.infra_bootstrap_ref }}..."
+          curl -fsSL -o shared-providers.tf \
+            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/shared-providers.tf"
+          curl -fsSL -o .terraform.lock.hcl \
+            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/.terraform.lock.hcl"
+
+      - name: Configure OpenTofu provider cache
+        run: |
+          mkdir -p "$HOME/.terraform.d/plugin-cache"
+          echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> "$GITHUB_ENV"
+
+      - name: Cache OpenTofu providers
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: opentofu-providers-${{ runner.os }}-${{ hashFiles(format('{0}/.terraform.lock.hcl', inputs.working_directory)) }}
+          restore-keys: |
+            opentofu-providers-${{ runner.os }}-
+
+      - name: Initialize OpenTofu
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          tofu init \
+            -backend-config="resource_group_name=${{ inputs.backend_resource_group }}" \
+            -backend-config="storage_account_name=${{ inputs.backend_storage_account }}" \
+            -backend-config="container_name=${{ inputs.backend_container }}" \
+            -backend-config="key=${{ inputs.backend_key }}"
+
+      - name: Plan
+        id: plan
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          set -o pipefail
+          DESTROY_FLAG=""
+          if [ "${{ inputs.destroy }}" = "true" ]; then
+            DESTROY_FLAG="-destroy"
+            echo "::warning::Generating DESTROY plan — apply will tear down everything currently in state."
+          fi
+          tofu plan $DESTROY_FLAG -out=tfplan ${{ inputs.tofu_vars }} 2>&1 | tee plan_output.txt
+
+          # Check plan for actual changes using tofu show
+          PLAN_JSON=$(tofu show -json tfplan)
+          RESOURCE_CHANGES=$(echo "$PLAN_JSON" | jq '[.resource_changes[]? | select((.change.actions | . != ["no-op"]) or .change.importing)] | length')
+
+          MODE_LABEL="Infrastructure changes"
+          if [ "${{ inputs.destroy }}" = "true" ]; then
+            MODE_LABEL="DESTROY plan — resources to remove"
+          fi
+
+          echo "Resource changes detected: $RESOURCE_CHANGES"
+          if [ "$RESOURCE_CHANGES" -gt 0 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "### $MODE_LABEL detected ($RESOURCE_CHANGES resources)" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "### No infrastructure changes detected" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          fi
+
+      - name: Post plan to PR
+        if: github.event_name == 'pull_request'
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          FJ: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -o pipefail
+          # tofu colors its output; the comment is plain text.
+          plan=$(sed 's/\x1b\[[0-9;]*m//g' plan_output.txt)
+          if [ "${#plan}" -gt 60000 ]; then
+            plan="${plan:0:60000}
+
+          ... (truncated)"
+          fi
+          # shellcheck disable=SC2016 # the backticks are the comment's code fence
+          body=$(printf '### OpenTofu Plan\n<details>\n<summary>Click to expand plan output</summary>\n\n```\n%s\n```\n</details>\n' "$plan")
+
+          # Update the plan comment an earlier run posted, or post one.
+          id=$(curl -sS --fail-with-body -H "Authorization: token $FJ" "$API/issues/$PR/comments" \
+            | jq -r '[.[] | select(.body | startswith("### OpenTofu Plan"))][0].id // empty')
+          if [ -n "$id" ]; then
+            jq -n --arg body "$body" '{body: $body}' | curl -sS --fail-with-body -o /dev/null -X PATCH \
+              -H "Authorization: token $FJ" -H 'Content-Type: application/json' \
+              --data-binary @- "$API/issues/comments/$id"
+            echo "Updated plan comment $id"
+          else
+            jq -n --arg body "$body" '{body: $body}' | curl -sS --fail-with-body -o /dev/null -X POST \
+              -H "Authorization: token $FJ" -H 'Content-Type: application/json' \
+              --data-binary @- "$API/issues/$PR/comments"
+            echo "Posted plan comment"
+          fi
+
+      - name: Upload plan artifact
+        if: steps.plan.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ inputs.working_directory }}/tfplan
+          retention-days: 1
+
+  apply:
+    name: Apply
+    needs: plan
+    if: github.event_name != 'pull_request' && needs.plan.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: https://github.com/opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ inputs.tofu_version }}
+
+      - name: Azure Login via OIDC
+        uses: https://github.com/azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Download shared providers
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          curl -fsSL -o shared-providers.tf \
+            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/shared-providers.tf"
+          curl -fsSL -o .terraform.lock.hcl \
+            "https://raw.githubusercontent.com/${{ inputs.infra_bootstrap_repo }}/${{ inputs.infra_bootstrap_ref }}/tofu/provider/.terraform.lock.hcl"
+
+      - name: Configure OpenTofu provider cache
+        run: |
+          mkdir -p "$HOME/.terraform.d/plugin-cache"
+          echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> "$GITHUB_ENV"
+
+      - name: Cache OpenTofu providers
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: opentofu-providers-${{ runner.os }}-${{ hashFiles(format('{0}/.terraform.lock.hcl', inputs.working_directory)) }}
+          restore-keys: |
+            opentofu-providers-${{ runner.os }}-
+
+      - name: Initialize OpenTofu
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          tofu init \
+            -backend-config="resource_group_name=${{ inputs.backend_resource_group }}" \
+            -backend-config="storage_account_name=${{ inputs.backend_storage_account }}" \
+            -backend-config="container_name=${{ inputs.backend_container }}" \
+            -backend-config="key=${{ inputs.backend_key }}"
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: ${{ inputs.working_directory }}
+
+      - name: Apply
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+        run: |
+          tofu apply tfplan
+          echo "### Apply successful" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
