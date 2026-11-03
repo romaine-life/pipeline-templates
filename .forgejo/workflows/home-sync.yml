@@ -32,7 +32,8 @@ jobs:
     # Forgejo reports workflow_call here, not the caller's push/dispatch event.
     # Only release paths produce a tag. PRs and validation-only builds pass empty.
     if: github.event_name == 'workflow_dispatch' || inputs.release-tag
-    runs-on: linux
+    # The forced-command SSH key stays on the NAS, not on general Linux runners.
+    runs-on: [linux, nas]
     container:
       image: ghcr.io/catthehacker/ubuntu:act-24.04
     timeout-minutes: 4
