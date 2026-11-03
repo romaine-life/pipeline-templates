@@ -260,11 +260,14 @@ jobs:
           T: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
           SHA: ${{ inputs.status-sha }}
           RESULT: ${{ job.status }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}
+          WORKFLOW_API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          workflow_url=$(curl -sS --fail-with-body -H "Authorization: token $T" "$WORKFLOW_API" | jq -er .html_url)
+          run_url="$workflow_url/actions/runs/$RUN_NUMBER"
           state=success
           [ "$RESULT" = success ] || state=failure
-          body=$(jq -n --arg state "$state" --arg url "$RUN_URL" \
+          body=$(jq -n --arg state "$state" --arg url "$run_url" \
             '{state: $state, context: "Release validation", description: "Authenticated release workflow validation", target_url: $url}')
           curl -sS --fail-with-body -X POST -H "Authorization: token $T" \
             -H 'Content-Type: application/json' -d "$body" "$API/statuses/$SHA"
