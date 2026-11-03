@@ -46,6 +46,10 @@ on:
         required: false
         type: string
         default: ''
+      draft-release:
+        description: Keep the release draft until the artifact build publishes it with the home-sync trigger.
+        type: boolean
+        default: false
       target-repository:
         description: 'Repository to release when dispatched by an authenticated caller'
         required: false
@@ -101,6 +105,10 @@ on:
         required: false
         type: string
         default: ''
+      draft-release:
+        description: 'Keep the release draft for publication by the artifact build'
+        type: boolean
+        default: false
       dispatch-repos:
         description: 'Comma-separated downstream repositories'
         required: false
@@ -181,6 +189,7 @@ jobs:
           FJ: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
           PREFIX: ${{ inputs.version-prefix }}
           EXISTING: ${{ steps.check.outputs.existing }}
+          DRAFT: ${{ inputs.draft-release || false }}
         run: |
           if [ -n "$EXISTING" ]; then
             next="$EXISTING"
@@ -193,9 +202,17 @@ jobs:
             fi
           fi
           sha=$(git rev-parse HEAD)
+          # A Forgejo draft does not create its git tag. Reserve it first so the
+          # artifact build can check it out and later releases cannot reuse it.
+          if [ "$DRAFT" = true ] && [ -z "$EXISTING" ]; then
+            tag_body=$(jq -n --arg tag "$next" --arg sha "$sha" '{tag_name: $tag, target: $sha}')
+            code=$(printf 'header = "Authorization: token %s"\n' "$FJ" | curl -sS -K - -o tag.json -w '%{http_code}' \
+              -X POST -H 'Content-Type: application/json' -d "$tag_body" "$API/tags")
+            if [ "$code" != 201 ]; then echo "::error::reserving tag $next returned HTTP $code"; exit 1; fi
+          fi
           echo "Cutting release $next at $sha"
-          body=$(jq -n --arg tag "$next" --arg sha "$sha" --arg notes "$(git log --oneline -1)" \
-            '{tag_name: $tag, target_commitish: $sha, name: $tag, body: $notes}')
+          body=$(jq -n --arg tag "$next" --arg sha "$sha" --arg notes "$(git log --oneline -1)" --argjson draft "$DRAFT" \
+            '{tag_name: $tag, target_commitish: $sha, name: $tag, body: $notes, draft: $draft}')
           code=$(curl -sS -o response.json -w '%{http_code}' -X POST \
             -H "Authorization: token $FJ" -H 'Content-Type: application/json' \
             -d "$body" "$API/releases")

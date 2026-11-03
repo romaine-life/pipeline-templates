@@ -19,3 +19,71 @@ jobs:
 
       - name: Lint the Forgejo workflows
         run: ./actionlint .forgejo/workflows/*.yml
+
+      - name: Check draft publication before the PC trigger
+        run: |
+          node <<'JS'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const http = require('node:http');
+          const {spawn} = require('node:child_process');
+          const yaml = fs.readFileSync('.forgejo/workflows/home-sync.yml', 'utf8').replaceAll('\r', '');
+          const section = yaml.slice(yaml.indexOf('- name: Publish the complete draft'));
+          const match = section.match(/node <<'JS'\n([\s\S]*?)\n\s+JS/);
+          assert.ok(match, 'test must run the real publication step');
+          const code = match[1].replace(/^ {10}/gm, '');
+          let current, requests;
+          const server = http.createServer((req, res) => {
+            requests.push(req.method);
+            assert.equal(req.headers.authorization, 'token ci-release-token');
+            res.setHeader('Content-Type', 'application/json');
+            if (req.method === 'GET') {
+              assert.equal(req.url, '/releases/tags/v1.2.3');
+              res.statusCode = current.getDenied ? 403 : 200;
+              res.end(JSON.stringify({id: 7, draft: current.draft !== false,
+                prerelease: !!current.prerelease, assets: current.empty ? [] : [{name: 'tool.exe'}]}));
+            } else {
+              assert.equal(req.method, 'PATCH');
+              assert.equal(req.url, '/releases/7');
+              let body = '';
+              req.on('data', chunk => body += chunk);
+              req.on('end', () => {
+                assert.deepEqual(JSON.parse(body), {draft: false});
+                res.statusCode = current.patchDenied ? 403 : 200;
+                res.end('{"draft":false}');
+              });
+            }
+          });
+          (async () => {
+            await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+            try {
+              const cases = [
+                {name: 'ready draft', exit: 0, methods: ['GET', 'PATCH']},
+                {name: 'empty draft', empty: true, exit: 1, methods: ['GET']},
+                {name: 'prerelease', prerelease: true, exit: 1, methods: ['GET']},
+                {name: 'lookup denied', getDenied: true, exit: 1, methods: ['GET']},
+                {name: 'publication denied', patchDenied: true, exit: 1, methods: ['GET', 'PATCH']},
+                {name: 'already public', draft: false, exit: 0, methods: ['GET']},
+                {name: 'no token', token: '', exit: 1, methods: []},
+                {name: 'invalid tag', tag: '../other', exit: 1, methods: []}
+              ];
+              for (current of cases) {
+                requests = [];
+                let output = '';
+                const result = await new Promise((resolve, reject) => {
+                  const child = spawn(process.execPath, ['-e', code], {env: {...process.env,
+                    API: `http://127.0.0.1:${server.address().port}`,
+                    TAG: current.tag ?? 'v1.2.3', TOKEN: current.token ?? 'ci-release-token'}});
+                  child.stdout.on('data', chunk => output += chunk);
+                  child.stderr.on('data', chunk => output += chunk);
+                  child.on('error', reject);
+                  child.on('close', resolve);
+                });
+                assert.equal(result, current.exit, `${current.name}: ${output}`);
+                assert.deepEqual(requests, current.methods, current.name);
+                assert.ok(!output.includes('ci-release-token'), 'token must not reach logs');
+                console.log(`passed: ${current.name}`);
+              }
+            } finally { await new Promise(resolve => server.close(resolve)); }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS

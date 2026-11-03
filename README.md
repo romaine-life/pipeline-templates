@@ -61,6 +61,9 @@ After all release assets are uploaded, add a dependent job:
     needs: build # final asset upload job(s)
     if: github.event_name == 'workflow_dispatch'
     uses: romaine-life/pipeline-templates/.forgejo/workflows/home-sync.yml@main
+    secrets: inherit
+    with:
+      release-tag: ${{ needs.build.outputs.release-tag }}
 ```
 
 This runs one linux job on the NAS, wakes treadmill using its state.json wakeMac,
@@ -92,3 +95,21 @@ build that only validates main and publishes on dispatch (fzt-picker).
 PR validation must never depend only on the wrapper job's
 condition being propagated through Forgejo's reusable-workflow expansion. Keep
 the caller job unconditional; the callee owns this guard, including on PR builds.
+
+Stage every asset in a **draft** release and pass its tag as `release-tag`. The NAS
+job publishes the complete draft immediately before its SSH requests. A busy runner
+can delay finishing a release, but cannot leave a newly public release waiting in
+that queue before the PCs are triggered. The job logs the publication timestamp;
+compare it with each PC's started timestamp to measure release delivery.
+
+For an artifact-build consumer, set `draft-release: true` on the release template
+(and dependency-update template if used), upload all assets while the release is
+draft, and call home-sync after all upload jobs. Both templates default this input
+to false, preserving consumers that do not yet use the PC trigger. A failed draft
+build stays unpublished; dispatch its artifact build with the same tag to retry.
+Never rerun an asset upload over a published release. Omit `release-tag` for the
+manual trigger-only smoke test.
+Forgejo does not create a git tag for a draft release (checked against the live
+API with a temporary unpublished probe, then cleaned up). Draft staging therefore
+reserves the immutable tag first, so artifact builds can check it out and a failed
+build cannot make a later commit reuse its version.

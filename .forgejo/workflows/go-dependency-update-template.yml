@@ -57,6 +57,10 @@ on:
         required: false
         type: string
         default: ''
+      draft-release:
+        description: Keep the release draft until the artifact build publishes it with home-sync.
+        type: boolean
+        default: false
     outputs:
       changed:
         description: 'Whether go.mod was updated'
@@ -185,3 +189,4 @@ jobs:
       dispatch-workflow: ${{ inputs.dispatch-workflow }}
       version-prefix: ${{ inputs.version-prefix }}
       artifact-build-workflow: ${{ inputs.artifact-build-workflow }}
+      draft-release: ${{ inputs.draft-release }}
