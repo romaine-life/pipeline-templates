@@ -87,9 +87,16 @@ jobs:
           go-version-file: ${{ inputs.go-mod-path }}/go.mod
 
       # Module paths stay github.com/romaine-life/...; the source is read
-      # from Forgejo so a bump never waits on the GitHub mirror.
+      # from Forgejo so a bump never waits on the GitHub mirror. The org is
+      # private, so every git call to it, the bump's push included, carries
+      # PIPELINE_DISPATCH_TOKEN (FORGEJO-17).
       - name: Read romaine-life modules from Forgejo
-        run: git config --global url."${{ github.server_url }}/romaine-life/".insteadOf "https://github.com/romaine-life/"
+        env:
+          T: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          ORG: ${{ github.server_url }}/romaine-life/
+        run: |
+          git config --global url."$ORG".insteadOf "https://github.com/romaine-life/"
+          git config --global http."$ORG".extraHeader "Authorization: Basic $(printf 'x-access-token:%s' "$T" | base64 -w0)"
 
       - name: Update dependencies
         working-directory: ${{ inputs.go-mod-path }}
@@ -136,8 +143,7 @@ jobs:
           git add "$MOD_PATH/go.mod" "$MOD_PATH/go.sum"
           git commit -m "$msg"
           sha=$(git rev-parse HEAD)
-          auth="Authorization: Basic $(printf 'x-access-token:%s' "$T" | base64 -w0)"
-          git -c http.extraHeader="$auth" push "$REMOTE" "HEAD:refs/heads/$branch"
+          git push "$REMOTE" "HEAD:refs/heads/$branch"
 
           body=$(jq -n --arg base "$BASE" --arg head "$branch" --arg title "$msg" \
             --arg body "Opened by the go-dependency-update template: $RUN_URL" \
