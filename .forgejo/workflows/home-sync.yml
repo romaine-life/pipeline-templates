@@ -110,7 +110,8 @@ jobs:
           MACHINES: >-
             [{"name":"nelsonpc","user":"nelson"},
              {"name":"upstairspc","user":"upstairspc"},
-             {"name":"treadmill","user":"nelsontreadmill","mac":"E8:FF:1E:D8:9B:FB"}]
+             {"name":"treadmill","user":"nelsontreadmill","mac":"E8:FF:1E:D8:9B:FB"},
+             {"name":"nelsonlaptop","user":"nelsonlaptopuser","away":true}]
         run: |
           node <<'JS'
           const {spawn} = require('node:child_process');
@@ -133,7 +134,10 @@ jobs:
               child.on('error', reject);
               child.on('close', code => {
                 console.log(`${name}: ${Date.now() - start} ms; ${output.trim()}`);
-                code === 0 ? resolve() : reject(new Error(`${name}: SSH exit ${code}`));
+                if (code === 0) return resolve();
+                const error = new Error(`${name}: SSH exit ${code}`);
+                error.unreachable = code === 255 && /timed out|No route to host|Could not resolve hostname|Network is unreachable/.test(output);
+                reject(error);
               });
             });
           }
@@ -148,6 +152,12 @@ jobs:
                 await ssh(pc.name, `${pc.user}@${pc.name}`, pc.mac ? 8 : 24);
                 return;
               } catch (error) {
+                // A PC marked away (the Wi-Fi laptop) can't be woken and is often
+                // asleep or out; it catches up at its next sign-in.
+                if (pc.away && error.unreachable) {
+                  console.log(`${pc.name}: not reachable, so it updates at its next sign-in`);
+                  return;
+                }
                 if (attempt === attempts) throw error;
                 console.log(`${pc.name}: retrying wake after SSH attempt ${attempt}/${attempts}`);
               }

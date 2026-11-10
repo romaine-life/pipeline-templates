@@ -78,8 +78,11 @@ neighboring known_hosts pins the PCs' host keys. Neither file is a workflow
 secret or artifact. Only the public key enters ssh.runnerKeys in the home profile.
 Both apply.ps1 and home-sync.exe restrict each runner key to exactly
 schtasks /run /tn home-sync. The old GitHub runner key remains valid.
-The inventory here matches the three machines' sshUser and wakeMac in
+The inventory here matches the machines' sshUser and wakeMac in
 shell-config-profile-home/machine/state.json; change both when changing a PC.
+A PC marked `away` (nelsonlaptop: Wi-Fi, so no wake) that SSH can't reach is logged
+and skipped instead of failing the job, and catches up at its next sign-in; any other
+failure on it still fails the job.
 
 Docker's bridge does not forward LAN broadcasts (verified with tcpdump on eth0).
 The same key has a second forced entry in Nelson's NAS authorized_keys that runs
