@@ -66,15 +66,16 @@ After all release assets are uploaded, add a dependent job:
       release-tag: ${{ needs.build.outputs.release-tag }}
 ```
 
-This runs one linux job on the NAS, wakes treadmill using its state.json wakeMac,
-and starts all three PCs' existing tasks concurrently. Manual dispatch verifies it.
+This runs one linux job on the runner `nas` (on the home cluster), wakes treadmill
+using its state.json wakeMac, and starts all three PCs' existing tasks concurrently.
+Manual dispatch verifies it.
 It does not install or re-register a task. If a release workflow dispatches a
 separate build, put the call after the uploads in that build workflow.
 
-The dedicated forgejo-home-sync Ed25519 private key is generated on the NAS at
-/volume1/docker/forgejo/runner-certs/client/home-sync/id_ed25519 (root, mode 400).
-The job reads it through the runner's existing /certs/client mount. The
-neighboring known_hosts pins the PCs' host keys. Neither file is a workflow
+The dedicated forgejo-home-sync Ed25519 private key is kept in OpenBao
+`secret/services/forgejo` (`home-sync-key`). The runner mounts it in every job at
+/certs/client/home-sync/id_ed25519 (root, mode 400). The neighboring known_hosts
+(`home-sync-known-hosts`) pins the PCs' host keys. Neither file is a workflow
 secret or artifact. Only the public key enters ssh.runnerKeys in the home profile.
 Both apply.ps1 and home-sync.exe restrict each runner key to exactly
 schtasks /run /tn home-sync. The old GitHub runner key remains valid.
@@ -112,8 +113,8 @@ key fast-forwards the NAS checkout from Forgejo. Other configuration repositorie
 start the PCs without changing that checkout. PR validation requests neither
 side effect. The job serializes checkout and task requests.
 
-The checkout key is `/certs/client/home-sync/checkout_id_ed25519`, stored beside
-the existing release trigger key on the NAS. Its NAS authorized-key entry forces
+The checkout key is `/certs/client/home-sync/checkout_id_ed25519`, from the same
+OpenBao secret (`home-sync-checkout-key`). Its NAS authorized-key entry forces
 only the reviewed Docker/git fast-forward command for
 `/volume1/Files/shell-config-profile-home`; callers cannot select a command or
 checkout path. The container uses a repository-read-only Forgejo credential,
