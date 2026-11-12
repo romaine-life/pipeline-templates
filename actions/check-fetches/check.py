@@ -42,6 +42,8 @@ def findings(path, text):
         if "insteadOf" in line:  # a git rewrite away from that address, not a fetch from it
             continue
         for url in URL.finditer(line):
+            if re.search(r"xmlns(:\w+)?=['\"]$", line[: url.start()]):  # an XML namespace's name, never fetched
+                continue
             host = url.group("host").lower()
             if host.startswith("$") or "{" in host or "." not in host or HOME.match(host):
                 continue

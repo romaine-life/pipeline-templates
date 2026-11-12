@@ -22,6 +22,7 @@ jobs:
       # see https://github.com/foo/bar for why
       - run: curl https://${{ env.HOST }}/x https://$host/y
       - run: git config --global url."$ORG".insteadOf "https://github.com/romaine-life/"
+      - run: echo '<a xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://example.org/ns">' https://example.org/fetched
 """
 
 
@@ -37,7 +38,7 @@ class CheckFetches(unittest.TestCase):
 
     def test_names_internet_uses_and_downloads_only(self):
         out, code = self.run_on({".forgejo/workflows/ci.yml": WORKFLOW})
-        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [5, 7])
+        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [5, 7, 14])
         self.assertEqual(code, 1)
 
     def test_clean_repo_passes(self):
