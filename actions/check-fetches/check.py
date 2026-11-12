@@ -4,8 +4,8 @@
 Home CI fetches actions from Forgejo's mirrors and packages, images and downloads through
 Artifact Keeper, which keep serving what they hold when a source is down (FORGEJO-25).
 This reads every workflow and action in the repo and names each line that reaches past
-them: a `uses:` with an address that isn't Forgejo's, or an http(s) address on another
-host. A line that must reach the internet (a deploy to Azure, say) carries a
+them: a `uses:` with an address that isn't Forgejo's, or an http(s) address on a host
+that isn't Forgejo, OpenProject (both answer at home), `*.home.romaine.life` or local. A line that must reach the internet (a deploy to Azure, say) carries a
 `# internet: <why>` comment, which this accepts. Standard library only, no network.
 """
 
@@ -13,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-HOME = re.compile(r"^(forgejo\.romaine\.life|[a-z0-9.-]+\.home\.romaine\.life|localhost|127\.0\.0\.1|0\.0\.0\.0)$")
+HOME = re.compile(r"^(forgejo\.romaine\.life|openproject\.romaine\.life|[a-z0-9.-]+\.home\.romaine\.life|localhost|127\.0\.0\.1|0\.0\.0\.0)$")
 USES = re.compile(r"^\s*(-\s+)?uses:\s*['\"]?(?P<ref>[^\s'\"#]+)")
 URL = re.compile(r"https?://(?P<host>[^/\s'\"`)\]}>:]+)")
 MARK = re.compile(r"#\s*internet:\s*\S")
