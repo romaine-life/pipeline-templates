@@ -1,0 +1,47 @@
+name: home-cache
+description: >-
+  Points apt, cargo and NuGet at Artifact Keeper (artifacts.home.romaine.life), which keeps
+  serving what it holds when a source is down (FORGEJO-25). The runners already send Go,
+  npm, pip, uv and rustup there; these three read config files, not the environment, so a
+  job that uses them runs this step first.
+runs:
+  using: composite
+  steps:
+    - name: Fetch apt, cargo and NuGet packages through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        set -euo pipefail
+        cache=https://artifacts.home.romaine.life
+        as_root() { if [ "$(id -u)" = 0 ]; then "$@"; else sudo "$@"; fi; }
+        for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+          [ -f "$f" ] || continue
+          as_root sed -i -E \
+            -e "s#https?://(archive|[a-z]{2}\.archive|azure\.archive)\.ubuntu\.com/ubuntu/?#$cache/debian/ubuntu/#g" \
+            -e "s#https?://security\.ubuntu\.com/ubuntu/?#$cache/debian/ubuntu-security/#g" "$f"
+        done
+        cargo_home=${CARGO_HOME:-$HOME/.cargo}
+        mkdir -p "$cargo_home"
+        printf '%s\n' '[source.crates-io]' 'replace-with = "home"' '' '[source.home]' \
+          "registry = \"sparse+$cache/cargo/crates/\"" > "$cargo_home/config.toml"
+        mkdir -p "$HOME/.nuget/NuGet"
+        printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' '    <clear />' \
+          "    <add key=\"home\" value=\"$cache/nuget/nuget/v3/index.json\" protocolVersion=\"3\" />" \
+          '  </packageSources>' '</configuration>' > "$HOME/.nuget/NuGet/NuGet.Config"
+
+    - name: Fetch cargo and NuGet packages through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $cache = 'https://artifacts.home.romaine.life'
+        $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
+        New-Item -ItemType Directory -Force $cargo | Out-Null
+        Set-Content -LiteralPath (Join-Path $cargo 'config.toml') -Encoding utf8NoBOM -Value @(
+          '[source.crates-io]', 'replace-with = "home"', '', '[source.home]', "registry = `"sparse+$cache/cargo/crates/`"")
+        $nuget = Join-Path $env:APPDATA 'NuGet'
+        New-Item -ItemType Directory -Force $nuget | Out-Null
+        Set-Content -LiteralPath (Join-Path $nuget 'NuGet.Config') -Encoding utf8NoBOM -Value @(
+          '<?xml version="1.0" encoding="utf-8"?>', '<configuration>', '  <packageSources>', '    <clear />',
+          "    <add key=`"home`" value=`"$cache/nuget/nuget/v3/index.json`" protocolVersion=`"3`" />",
+          '  </packageSources>', '</configuration>')

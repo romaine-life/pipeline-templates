@@ -2,6 +2,25 @@
 
 Pipeline templates that I don't want cluttering up my bootstrap repo.
 
+## Fetching nothing from the internet
+
+Home CI fetches actions from Forgejo's mirrors (name them bare: `actions/checkout@v4`) and
+everything else through Artifact Keeper at https://artifacts.home.romaine.life, which keeps
+serving what it holds when a source is down (FORGEJO-25). Two composite actions:
+
+- `romaine-life/pipeline-templates/actions/check-fetches@main`: a step in a repo's required
+  CI job, after its checkout. It fails on a `uses:` with an address that isn't Forgejo's, or
+  an http(s) address on a host that isn't Forgejo, `*.home.romaine.life` or local. A line
+  that must reach the internet (a deploy to Azure) carries `# internet: <why>`.
+- `romaine-life/pipeline-templates/actions/home-cache@main`: points apt, cargo and NuGet at
+  Artifact Keeper, for a job that uses them; run it before them. The runners already send
+  Go, npm, pip, uv and rustup there.
+
+A tool a job downloads comes from Artifact Keeper's caches: a GitHub release at
+`https://artifacts.home.romaine.life/general/github/<owner>/<repo>/releases/download/<tag>/<file>`,
+raw.githubusercontent.com at `/general/githubusercontent/<path>`, get.helm.sh at
+`/general/helm-downloads/<file>`.
+
 ## Forgejo templates
 
 Repos on Forgejo (https://forgejo.romaine.life) call the templates in
