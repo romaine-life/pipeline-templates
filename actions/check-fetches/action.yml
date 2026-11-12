@@ -1,0 +1,11 @@
+name: check-fetches
+description: >-
+  Fails when a workflow or action in the repo fetches from the internet instead of through
+  Forgejo's action mirrors and Artifact Keeper (FORGEJO-25). A step in a repo's required
+  CI job, after its checkout.
+runs:
+  using: composite
+  steps:
+    - name: No workflow fetches from the internet
+      shell: bash
+      run: python3 "$GITHUB_ACTION_PATH/check.py" "$GITHUB_WORKSPACE"

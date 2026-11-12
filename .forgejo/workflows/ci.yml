@@ -13,7 +13,7 @@ jobs:
 
       - name: Install actionlint
         run: |
-          curl -sSfL -o actionlint.tar.gz https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          curl -sSfL -o actionlint.tar.gz https://artifacts.home.romaine.life/general/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
           echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  actionlint.tar.gz" | sha256sum -c -
           tar -xzf actionlint.tar.gz actionlint
 
@@ -125,3 +125,47 @@ jobs:
             } finally { await new Promise(resolve => server.close(resolve)); }
           })().catch(error => { console.error(error); process.exitCode = 1; });
           JS
+
+  # The check every repo's CI runs (actions/check-fetches), on its tests and on this repo.
+  check-fetches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The check's tests
+        run: python3 -m unittest discover -v actions/check-fetches/tests
+      - uses: ./actions/check-fetches
+
+  # The setup step (actions/home-cache) on each kind of runner, then a real fetch through it.
+  home-cache-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/home-cache
+      - name: apt reads Ubuntu through Artifact Keeper
+        run: |
+          set -euo pipefail
+          grep -rq 'artifacts.home.romaine.life/debian/ubuntu/' /etc/apt/sources.list /etc/apt/sources.list.d/
+          ! grep -rqE 'https?://(archive|security)\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/
+          sudo apt-get update
+          apt-get download hello
+      - name: cargo reads crates through Artifact Keeper
+        run: |
+          set -euo pipefail
+          command -v cargo >/dev/null || { echo "no cargo in this image; its config is checked instead"; grep -q 'cargo/crates' "${CARGO_HOME:-$HOME/.cargo}/config.toml"; exit 0; }
+          d=$(mktemp -d)
+          cargo init -q --vcs none "$d/probe"
+          printf 'itoa = "1"\n' >> "$d/probe/Cargo.toml"
+          cargo fetch -v --manifest-path "$d/probe/Cargo.toml" 2>&1 | tee "$d/log"
+          grep -q 'artifacts.home.romaine.life' "$d/log"
+
+  home-cache-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/home-cache
+      - name: cargo and NuGet name Artifact Keeper
+        shell: pwsh
+        run: |
+          $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
+          if (-not (Select-String -Quiet -LiteralPath (Join-Path $cargo 'config.toml') -Pattern 'artifacts.home.romaine.life/cargo/crates')) { throw 'cargo config' }
+          if (-not (Select-String -Quiet -LiteralPath (Join-Path $env:APPDATA 'NuGet\NuGet.Config') -Pattern 'artifacts.home.romaine.life/nuget')) { throw 'NuGet config' }
