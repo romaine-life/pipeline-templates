@@ -30,9 +30,12 @@ Repos on Forgejo (https://forgejo.romaine.life) call the templates in
   release at HEAD, runs the repo's `artifact-build-workflow` with a `tag`
   input, syncs the GitHub push mirror, and runs `dispatch-workflow` on `main`
   in each `dispatch-repos` repo.
-- `go-dependency-update-template.yml`: bumps `modules` in
-  `<go-mod-path>/go.mod`, merges the bump through a PR once its checks pass,
-  then calls the release template. It takes the same release inputs.
+- `go-dependency-update-template.yml`: a repo's take-up, called from its
+  `dispatch.yml`, which strip-owner starts. It closes any take-up still open,
+  takes `modules` at their latest in `<go-mod-path>/go.mod`, opens a PR listing
+  the commits each carries, has Forgejo merge it once its checks pass, and
+  exits without waiting on them. The merge is released the way the repo
+  releases every change.
 
 Release workflows inside the private `romaine-life` organization dispatch the
 shared release workflow through the authenticated Actions API. Forgejo's
