@@ -93,14 +93,15 @@ jobs:
       - name: Close the take-ups this one supersedes
         run: |
           api() { printf 'header = "Authorization: token %s"\n' "$T" | curl --config - -sS --fail-with-body -H 'Content-Type: application/json' "$@"; }
-          open=$(api "$API/pulls?state=open&limit=50" | jq -r '.[] | select(.head.ref | startswith("deps/")) | "\(.number) \(.head.ref)"')
-          while read -r n ref; do
-            [ -n "$n" ] || continue
-            api -o /dev/null -X POST -d "$(jq -n --arg b "Superseded by $RUN_URL, which takes the modules at their latest and so carries this (AGENT-242)." '{body: $b}')" "$API/issues/$n/comments"
-            api -o /dev/null -X PATCH -d '{"state":"closed"}' "$API/pulls/$n"
+          api "$API/pulls?state=open&limit=50" | jq -c '.[] | select(.head.ref | startswith("deps/"))' > "$RUNNER_TEMP/open"
+          while read -r pr; do
+            n=$(jq -r .number <<< "$pr"); ref=$(jq -r .head.ref <<< "$pr")
+            # Said in its description: the token has no issue scope, which a comment needs.
+            api -o /dev/null -X PATCH -d "$(jq -n --arg old "$(jq -r '.body // ""' <<< "$pr")" --arg run "$RUN_URL" \
+              '{state: "closed", body: ($old + "\n\nSuperseded by " + $run + ", which takes the modules at their latest and so carries this (AGENT-242).")}')" "$API/pulls/$n"
             api -o /dev/null -X DELETE "$API/branches/$ref"
             echo "Closed #$n ($ref)"
-          done <<< "$open"
+          done < "$RUNNER_TEMP/open"
           git -c credential.helper= \
             -c 'credential.helper=!f() { echo username=x-access-token; printf "password=%s\n" "$T"; }; f' \
             fetch -q "$REMOTE" "$BASE"
