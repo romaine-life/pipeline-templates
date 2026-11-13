@@ -1,0 +1,15 @@
+name: prune-releases
+description: >-
+  Deletes the files of a repo's older releases, keeping those of its newest 10 published
+  releases and of its newest stable one (what home-sync installs). The releases and their
+  tags stay. A step in the release job, after the release is published (NB-2).
+inputs:
+  repository:
+    description: owner/repo whose releases to prune.
+    default: ${{ github.repository }}
+  token:
+    description: A token that can delete that repo's release files.
+    default: ${{ github.token }}
+runs:
+  using: node20
+  main: prune.js

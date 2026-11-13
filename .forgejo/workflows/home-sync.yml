@@ -169,3 +169,16 @@ jobs:
             }
           });
           JS
+
+  # A job of its own, after the release is published: a cleanup that fails shows as this
+  # run's failure without holding back the PCs' update.
+  prune-releases:
+    needs: pcs
+    if: inputs.release-tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: romaine-life/pipeline-templates/actions/prune-releases@main
+        with:
+          repository: ${{ inputs.target-repository || github.repository }}
+          token: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}

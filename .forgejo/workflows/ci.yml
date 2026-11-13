@@ -126,6 +126,14 @@ jobs:
           })().catch(error => { console.error(error); process.exitCode = 1; });
           JS
 
+  # The release cleanup step (actions/prune-releases) that home-sync.yml and release jobs run.
+  prune-releases:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The step's tests
+        run: node --test actions/prune-releases/tests/prune.test.js
+
   # The check every repo's CI runs (actions/check-fetches), on its tests and on this repo.
   check-fetches:
     runs-on: ubuntu-latest

@@ -21,6 +21,21 @@ A tool a job downloads comes from Artifact Keeper's caches: a GitHub release at
 raw.githubusercontent.com at `/general/githubusercontent/<path>`, get.helm.sh at
 `/general/helm-downloads/<file>`.
 
+## Release cleanup (NB-2)
+
+Every release keeps its notes and tag, but only a repo's newest 10 published releases,
+and its newest stable one, keep their files: `romaine-life/pipeline-templates/actions/prune-releases@main`
+deletes the rest. `home-sync.yml` runs it in its own job after publishing a release, so a
+repo released through it needs nothing more. Any other repo whose CI publishes release files
+runs it as the last step of its release job, after the release is published:
+
+```yaml
+      - uses: romaine-life/pipeline-templates/actions/prune-releases@main
+```
+
+It uses the job's own token. A failed cleanup fails that run; the next release's cleanup
+catches up on whatever it left.
+
 ## Forgejo templates
 
 Repos on Forgejo (https://forgejo.romaine.life) call the templates in
