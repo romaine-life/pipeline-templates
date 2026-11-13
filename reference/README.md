@@ -27,9 +27,11 @@ its CI file, and something only one repo needs is written there. A line here mar
 - **A job that builds the program** is skipped only when every changed file is
   documentation (`\.md$|^docs/|^LICENSE$`). **A job that checks a closed set of files**
   (a PowerShell parser, a linter) runs only when one of those files, its script or the
-  workflow changes. **A cheap Linux job whose checks also read documentation** (a
-  trailing-newline or file-name convention over every file) is not gated; gate only what
-  depends on it.
+  workflow changes. **Gating is for jobs worth skipping**: anything on the shared Windows
+  runner, and slow builds. A cheap Linux job (a lint, a few-second test run) may run on
+  every PR with no gate, and must when its checks also read documentation (a
+  trailing-newline or file-name convention over every file); then `changes` needs no diff
+  step.
 - **A job that needs a skipped job is skipped too.** That is right on a PR; a job that must
   run anyway says so in its `if:` (`!failure() && !cancelled()`).
 - **`concurrency` never cancels a run on the default branch.** Forgejo otherwise cancels a
