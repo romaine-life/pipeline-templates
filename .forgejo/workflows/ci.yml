@@ -143,6 +143,18 @@ jobs:
         run: python3 -m unittest discover -v actions/check-fetches/tests
       - uses: ./actions/check-fetches
 
+  # The Azure CLI step (actions/azure-cli): installed through Artifact Keeper, and it runs.
+  azure-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/azure-cli
+      - name: az answers from the tool cache
+        run: |
+          set -euo pipefail
+          case "$(command -v az)" in "$RUNNER_TOOL_CACHE"/azure-cli/*) ;; *) echo "az is $(command -v az)"; exit 1 ;; esac
+          az version
+
   # The setup step (actions/home-cache) on each kind of runner, then a real fetch through it.
   home-cache-linux:
     runs-on: ubuntu-latest

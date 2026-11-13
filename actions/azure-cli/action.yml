@@ -1,0 +1,29 @@
+name: azure-cli
+description: >-
+  Puts the Azure CLI on PATH, installed from PyPI through Artifact Keeper (the runners'
+  PIP_INDEX_URL) rather than Microsoft's install script or apt source (FORGEJO-29). Each
+  version is installed once into the runner's tool cache, which the cluster runner keeps
+  between jobs.
+runs:
+  using: composite
+  steps:
+    - name: Install the Azure CLI through Artifact Keeper
+      shell: bash
+      env:
+        VERSION: 2.92.0
+      run: |
+        set -euo pipefail
+        root="${RUNNER_TOOL_CACHE:?}/azure-cli"
+        dir="$root/$VERSION"
+        mkdir -p "$root"
+        # Jobs on one runner share the tool cache: one installs while the others wait.
+        exec 9>"$root/.lock"
+        flock 9
+        if [ ! -e "$dir/.installed" ]; then
+          rm -rf "$dir"
+          python3 -m venv "$dir"
+          "$dir/bin/pip" install --quiet --disable-pip-version-check "azure-cli==$VERSION"
+          touch "$dir/.installed"
+        fi
+        flock -u 9
+        echo "$dir/bin" >> "$GITHUB_PATH"
