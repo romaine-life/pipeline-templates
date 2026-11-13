@@ -1,13 +1,13 @@
 name: home-cache
 description: >-
-  Points apt, cargo and NuGet at Artifact Keeper (artifacts.home.romaine.life), which keeps
-  serving what it holds when a source is down (FORGEJO-25). The runners already send Go,
-  npm, pip, uv and rustup there; these three read config files, not the environment, so a
-  job that uses them runs this step first.
+  Points apt, cargo, NuGet and OpenTofu's providers at Artifact Keeper
+  (artifacts.home.romaine.life), which keeps serving what it holds when a source is down
+  (FORGEJO-25). The runners already send Go, npm, pip, uv and rustup there; these four read
+  config files, not the environment, so a job that uses them runs this step first.
 runs:
   using: composite
   steps:
-    - name: Fetch apt, cargo and NuGet packages through Artifact Keeper
+    - name: Fetch apt, cargo, NuGet and OpenTofu packages through Artifact Keeper
       if: runner.os != 'Windows'
       shell: bash
       run: |
@@ -28,8 +28,11 @@ runs:
         printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' '    <clear />' \
           "    <add key=\"home\" value=\"$cache/nuget/nuget/v3/index.json\" protocolVersion=\"3\" />" \
           '  </packageSources>' '</configuration>' > "$HOME/.nuget/NuGet/NuGet.Config"
+        printf '%s\n' 'provider_installation {' '  network_mirror {' "    url     = \"$cache/terraform/opentofu/\"" \
+          '    include = ["registry.opentofu.org/*/*"]' '  }' '}' > "$RUNNER_TEMP/tofu.tfrc"
+        echo "TF_CLI_CONFIG_FILE=$RUNNER_TEMP/tofu.tfrc" >> "$GITHUB_ENV"
 
-    - name: Fetch cargo and NuGet packages through Artifact Keeper
+    - name: Fetch cargo, NuGet and OpenTofu packages through Artifact Keeper
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
@@ -45,3 +48,8 @@ runs:
           '<?xml version="1.0" encoding="utf-8"?>', '<configuration>', '  <packageSources>', '    <clear />',
           "    <add key=`"home`" value=`"$cache/nuget/nuget/v3/index.json`" protocolVersion=`"3`" />",
           '  </packageSources>', '</configuration>')
+        $tofu = Join-Path $env:RUNNER_TEMP 'tofu.tfrc'
+        Set-Content -LiteralPath $tofu -Encoding utf8NoBOM -Value @(
+          'provider_installation {', '  network_mirror {', "    url     = `"$cache/terraform/opentofu/`"",
+          '    include = ["registry.opentofu.org/*/*"]', '  }', '}')
+        "TF_CLI_CONFIG_FILE=$tofu" >> $env:GITHUB_ENV

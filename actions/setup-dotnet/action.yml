@@ -1,0 +1,92 @@
+name: setup-dotnet
+description: >-
+  Puts the .NET SDK pinned for a channel (actions/pins.txt) on PATH and in DOTNET_ROOT,
+  downloaded from Microsoft's builds through Artifact Keeper and checked against the pinned
+  SHA-512, with no install script (FORGEJO-29). Each SDK is installed once into the runner's
+  tool cache. Telemetry and the workload update check, which would reach the internet, are
+  off. x64 only.
+inputs:
+  dotnet-version:
+    description: The channel, as pinned in actions/pins.txt (`9.0`).
+    required: true
+outputs:
+  dotnet-version:
+    description: The exact SDK installed.
+    value: ${{ steps.linux.outputs.version || steps.windows.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: linux
+      name: Install the .NET SDK through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        ASKED: ${{ inputs.dotnet-version }}
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        set -euo pipefail
+        read -r version sha < <(awk -v k="$ASKED" '$1 == "dotnet" && $2 == k && $4 == "linux-x64" { print $3, $5 }' "$PINS") || true
+        [ -n "${version:-}" ] || { echo "::error::.NET $ASKED has no linux-x64 pin in pipeline-templates actions/pins.txt"; exit 1; }
+        root="${RUNNER_TOOL_CACHE:?}/dotnet"
+        dir="$root/$version/x64"
+        mkdir -p "$root"
+        # Jobs on one runner share the tool cache: one installs while the others wait.
+        exec 9>"$root/.lock"
+        flock 9
+        if [ ! -e "$dir.complete" ]; then
+          file="dotnet-sdk-$version-linux-x64.tar.gz"
+          tmp=$(mktemp -d)
+          curl -fsSL -o "$tmp/$file" "https://artifacts.home.romaine.life/general/dotnet/Sdk/$version/$file"
+          echo "$sha  $tmp/$file" | sha512sum -c -
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          tar -xzf "$tmp/$file" -C "$dir"
+          rm -rf "$tmp"
+          touch "$dir.complete"
+        fi
+        flock -u 9
+        {
+          echo "DOTNET_ROOT=$dir"
+          echo DOTNET_CLI_TELEMETRY_OPTOUT=1
+          echo DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1
+          echo DOTNET_NOLOGO=1
+        } >> "$GITHUB_ENV"
+        echo "$dir" >> "$GITHUB_PATH"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - id: windows
+      name: Install the .NET SDK through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        ASKED: ${{ inputs.dotnet-version }}
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $pin = Get-Content -LiteralPath $env:PINS | ForEach-Object { $f = -split $_; if ($f[0] -eq 'dotnet' -and $f[1] -eq $env:ASKED -and $f[3] -eq 'win-x64') { , $f } } | Select-Object -First 1
+        if (-not $pin) { throw ".NET $env:ASKED has no win-x64 pin in pipeline-templates actions/pins.txt" }
+        $version = $pin[2]
+        $dir = Join-Path $env:RUNNER_TOOL_CACHE "dotnet\$version\x64"
+        # Jobs on this host share the tool cache: one installs while the others wait. A job
+        # that died holding the lock leaves it abandoned, which still hands it over.
+        $lock = [Threading.Mutex]::new($false, 'pipeline-templates-dotnet')
+        try { [void]$lock.WaitOne() } catch [Threading.AbandonedMutexException] {}
+        try {
+          if (-not (Test-Path -LiteralPath "$dir.complete")) {
+            $file = "dotnet-sdk-$version-win-x64.zip"
+            $tmp = Join-Path $env:RUNNER_TEMP ([guid]::NewGuid())
+            New-Item -ItemType Directory $tmp | Out-Null
+            curl.exe -fsSL -o "$tmp\$file" "https://artifacts.home.romaine.life/general/dotnet/Sdk/$version/$file"
+            if ($LASTEXITCODE) { throw "downloading $file failed" }
+            if ((Get-FileHash -Algorithm SHA512 -LiteralPath "$tmp\$file").Hash -ne $pin[4]) { throw "$file does not match its pinned SHA-512" }
+            if (Test-Path -LiteralPath $dir) { Remove-Item -Recurse -Force -LiteralPath $dir }
+            New-Item -ItemType Directory $dir | Out-Null
+            & "$env:SystemRoot\System32\tar.exe" -xf "$tmp\$file" -C $dir
+            if ($LASTEXITCODE) { throw "extracting $file failed" }
+            Remove-Item -Recurse -Force -LiteralPath $tmp
+            New-Item -ItemType File "$dir.complete" | Out-Null
+          }
+        } finally { $lock.ReleaseMutex() }
+        "DOTNET_ROOT=$dir", 'DOTNET_CLI_TELEMETRY_OPTOUT=1', 'DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=1', 'DOTNET_NOLOGO=1' >> $env:GITHUB_ENV
+        $dir >> $env:GITHUB_PATH
+        "version=$version" >> $env:GITHUB_OUTPUT

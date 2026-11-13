@@ -1,0 +1,13 @@
+# The exact toolchains the setup actions install. A pin moves in a commit when there's a
+# reason to, never on its own. Go comes from each repo's go.mod (actions/setup-go@v6), and
+# OpenTofu from each workflow; Python's patch release is the one the pinned uv knows.
+# <tool> <asked for> <installs> [<platform> <checksum>]
+node 20 20.20.2
+node 22 22.23.5
+node 24 24.22.3
+dotnet 9.0 9.0.321 linux-x64 612bae8e90be6e69b65b904647b88a28d0d8c4d79ed4b208d9fdfa61ab34be57e6fd018ab46c3897dc08aad203380130e6af3e748f742a09aa11f8f189cab7e8
+dotnet 9.0 9.0.321 win-x64 bad4818927b80cf836c3b5865e5e9cbc77c2bbee68cfcf51307a2dde644546719e88a77ebf9664bbcb1848a0d606d8626982af117b157344b6c5da93369f1cf3
+rust stable 1.100.0
+rustup - 1.29.3
+uv - 0.13.8 x86_64-unknown-linux-gnu 5acfd9177cfecf0bf87578f059728215ccc884388988f55f7a65041b57387d91
+uv - 0.13.8 x86_64-pc-windows-msvc 529e78a9cec6cd7e3e014f7ecd8bda0c113969d4ed0f2efeedb85c30943325b8

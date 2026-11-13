@@ -1,0 +1,62 @@
+name: setup-uv
+description: >-
+  Puts the uv pinned in actions/pins.txt on PATH: astral-sh/setup-uv fetches that release
+  from GitHub through Artifact Keeper and checks it against the pinned SHA-256
+  (FORGEJO-29). Each version is installed once into the runner's tool cache. The runners
+  already send uv's packages and Python downloads to Artifact Keeper. x64 only.
+inputs:
+  enable-cache:
+    description: Passed to astral-sh/setup-uv.
+    default: "false"
+  cache-dependency-glob:
+    description: Passed to astral-sh/setup-uv.
+    default: |
+      **/*requirements*.txt
+      **/*requirements*.in
+      **/*constraints*.txt
+      **/*constraints*.in
+      **/pyproject.toml
+      **/uv.lock
+      **/*.py.lock
+outputs:
+  uv-version:
+    description: The exact version installed.
+    value: ${{ steps.linux.outputs.version || steps.windows.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: linux
+      name: Read the pinned uv
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        set -euo pipefail
+        read -r version sha < <(awk '$1 == "uv" && $4 == "x86_64-unknown-linux-gnu" { print $3, $5 }' "$PINS") || true
+        [ -n "${version:-}" ] || { echo "::error::uv has no x86_64-unknown-linux-gnu pin in pipeline-templates actions/pins.txt"; exit 1; }
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
+    - id: windows
+      name: Read the pinned uv
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $pin = Get-Content -LiteralPath $env:PINS | ForEach-Object { $f = -split $_; if ($f[0] -eq 'uv' -and $f[3] -eq 'x86_64-pc-windows-msvc') { , $f } } | Select-Object -First 1
+        if (-not $pin) { throw 'uv has no x86_64-pc-windows-msvc pin in pipeline-templates actions/pins.txt' }
+        "version=$($pin[2])", "sha256=$($pin[4])" >> $env:GITHUB_OUTPUT
+
+    # An empty github-token keeps setup-uv from sending the job's token to Artifact Keeper,
+    # which refuses a request carrying a credential it doesn't know.
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: ${{ steps.linux.outputs.version || steps.windows.outputs.version }}
+        checksum: ${{ steps.linux.outputs.sha256 || steps.windows.outputs.sha256 }}
+        server-url: https://artifacts.home.romaine.life/general/github
+        github-token: ""
+        enable-cache: ${{ inputs.enable-cache }}
+        cache-dependency-glob: ${{ inputs.cache-dependency-glob }}

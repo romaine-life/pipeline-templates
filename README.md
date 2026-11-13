@@ -17,9 +17,11 @@ serving what it holds when a source is down (FORGEJO-25). Composite actions:
   moves in a commit when there's a reason to, never on its own. A line that must reach the
   internet (a deploy to Azure) carries `# internet: <why>`, in a Dockerfile on the line
   above; a Dockerfile home CI never builds says `# check-fetches: not built by home CI`.
-- `romaine-life/pipeline-templates/actions/home-cache@main`: points apt, cargo and NuGet at
-  Artifact Keeper, for a job that uses them; run it before them. The runners already send
-  Go, npm, pip, uv and rustup there.
+- `romaine-life/pipeline-templates/actions/home-cache@main`: points apt, cargo, NuGet and
+  OpenTofu's providers at Artifact Keeper, for a job that uses them; run it before them. The
+  runners already send Go, npm, pip, uv and rustup there. OpenTofu gets a CLI config
+  (`TF_CLI_CONFIG_FILE`) whose only provider source is Artifact Keeper's mirror of
+  registry.opentofu.org, so `tofu init` can't reach anything else.
 - `romaine-life/pipeline-templates/actions/check-image-digests@main`: a step in a home-cluster
   service's manifests job, after it renders them to files (`manifests:`, files or directories).
   It fails on an `image:` or `imageName:` the rendered manifests run that isn't named by digest
@@ -32,6 +34,33 @@ serving what it holds when a source is down (FORGEJO-25). Composite actions:
 - `romaine-life/pipeline-templates/actions/azure-cli@main`: puts the Azure CLI on PATH,
   installed from PyPI through Artifact Keeper into the runner's tool cache, for a job that
   calls `az`. Its version is set in the action and moves when there's a reason to.
+
+Toolchains come from the setup actions here, never from `actions/setup-node`,
+`setup-python`, `setup-dotnet`, `astral-sh/setup-uv`, `opentofu/setup-opentofu` or
+`dtolnay/rust-toolchain` named directly, which download from the internet. Each installs an
+exact version through Artifact Keeper, checks it against a published or pinned checksum,
+and keeps it in the runner's tool cache, so a version is downloaded once per runner. The
+exact versions are pinned in one table, `actions/pins.txt`; a pin moves in a commit when
+there's a reason to.
+
+- `actions/setup-node` with `node-version: "22"`: the Node pinned for that major, then
+  `actions/setup-node` on it, so `cache: npm` (also an input) works as before.
+- `actions/setup-python` with `python-version: "3.12"`: a virtual environment with pip, first
+  on PATH, from a Python the pinned uv installs. The patch release is the newest that uv
+  knows.
+- `actions/setup-uv`: the pinned uv. `enable-cache` and `cache-dependency-glob` are passed
+  through.
+- `actions/setup-dotnet` with `dotnet-version: "9.0"`: the SDK pinned for that channel, in
+  `DOTNET_ROOT` and on PATH, with telemetry and the workload update check off.
+- `actions/setup-opentofu` with `tofu-version: 1.11.0`: that exact OpenTofu, with no wrapper.
+  Each workflow pins its own version.
+- `actions/rust-toolchain`: the pinned stable Rust, or an exact `toolchain` (`1.100.0`,
+  `nightly-2026-08-01`), with `components` and `targets`. It sets `RUSTUP_TOOLCHAIN` for the
+  job, which overrides a `rust-toolchain.toml`, and leaves the runner's default alone.
+
+Each is named like the others: `romaine-life/pipeline-templates/actions/setup-node@main`.
+Go needs no action of ours: `actions/setup-go@v6` downloads the exact version in the repo's
+`go.mod` from `GO_DOWNLOAD_BASE_URL`, which every runner points at Artifact Keeper.
 
 A tool a job downloads comes from Artifact Keeper's caches: a GitHub release at
 `https://artifacts.home.romaine.life/general/github/<owner>/<repo>/releases/download/<tag>/<file>`,

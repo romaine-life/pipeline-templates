@@ -1,0 +1,104 @@
+name: setup-node
+description: >-
+  Puts the Node.js pinned for a major version (actions/pins.txt) on PATH, downloaded from
+  nodejs.org through Artifact Keeper and checked against its SHASUMS256.txt, then hands it
+  to actions/setup-node so its npm cache still works (FORGEJO-29). Each version is
+  installed once into the runner's tool cache. x64 only.
+inputs:
+  node-version:
+    description: The major version, as pinned in actions/pins.txt (`22`).
+    required: true
+  cache:
+    description: Passed to actions/setup-node (`npm`).
+    default: ""
+  cache-dependency-path:
+    description: Passed to actions/setup-node.
+    default: ""
+outputs:
+  node-version:
+    description: The version installed, as actions/setup-node reports it (`v22.23.5`).
+    value: ${{ steps.setup.outputs.node-version }}
+runs:
+  using: composite
+  steps:
+    - id: linux
+      name: Install Node through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        ASKED: ${{ inputs.node-version }}
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        set -euo pipefail
+        version=$(awk -v k="$ASKED" '$1 == "node" && $2 == k { print $3 }' "$PINS")
+        [ -n "$version" ] || { echo "::error::Node $ASKED has no pin in pipeline-templates actions/pins.txt"; exit 1; }
+        root="${RUNNER_TOOL_CACHE:?}/node"
+        dir="$root/$version/x64"
+        mkdir -p "$root"
+        # Jobs on one runner share the tool cache: one installs while the others wait.
+        exec 9>"$root/.lock"
+        flock 9
+        # x64.complete is the marker actions/setup-node looks for beside the folder.
+        if [ ! -e "$dir.complete" ]; then
+          base="https://artifacts.home.romaine.life/general/nodejs/v$version"
+          file="node-v$version-linux-x64.tar.gz"
+          tmp=$(mktemp -d)
+          curl -fsSL -o "$tmp/$file" "$base/$file"
+          curl -fsSL "$base/SHASUMS256.txt" | awk -v f="$file" '$2 == f' > "$tmp/sum"
+          (cd "$tmp" && sha256sum -c sum)
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          tar -xzf "$tmp/$file" -C "$dir" --strip-components=1
+          rm -rf "$tmp"
+          touch "$dir.complete"
+        fi
+        flock -u 9
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - id: windows
+      name: Install Node through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        ASKED: ${{ inputs.node-version }}
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $version = Get-Content -LiteralPath $env:PINS | ForEach-Object { $f = -split $_; if ($f[0] -eq 'node' -and $f[1] -eq $env:ASKED) { $f[2] } } | Select-Object -First 1
+        if (-not $version) { throw "Node $env:ASKED has no pin in pipeline-templates actions/pins.txt" }
+        $dir = Join-Path $env:RUNNER_TOOL_CACHE "node\$version\x64"
+        # Jobs on this host share the tool cache: one installs while the others wait. A job
+        # that died holding the lock leaves it abandoned, which still hands it over.
+        $lock = [Threading.Mutex]::new($false, 'pipeline-templates-node')
+        try { [void]$lock.WaitOne() } catch [Threading.AbandonedMutexException] {}
+        try {
+          # x64.complete is the marker actions/setup-node looks for beside the folder.
+          if (-not (Test-Path -LiteralPath "$dir.complete")) {
+            $base = "https://artifacts.home.romaine.life/general/nodejs/v$version"
+            $file = "node-v$version-win-x64.zip"
+            $tmp = Join-Path $env:RUNNER_TEMP ([guid]::NewGuid())
+            New-Item -ItemType Directory $tmp | Out-Null
+            curl.exe -fsSL -o "$tmp\$file" "$base/$file"
+            if ($LASTEXITCODE) { throw "downloading $file failed" }
+            $sums = curl.exe -fsSL "$base/SHASUMS256.txt"
+            if ($LASTEXITCODE) { throw 'downloading SHASUMS256.txt failed' }
+            $want = $sums | ForEach-Object { $f = -split $_; if ($f[1] -eq $file) { $f[0] } }
+            if (-not $want -or (Get-FileHash -Algorithm SHA256 -LiteralPath "$tmp\$file").Hash -ne $want) { throw "$file does not match SHASUMS256.txt" }
+            & "$env:SystemRoot\System32\tar.exe" -xf "$tmp\$file" -C $tmp
+            if ($LASTEXITCODE) { throw "extracting $file failed" }
+            if (Test-Path -LiteralPath $dir) { Remove-Item -Recurse -Force -LiteralPath $dir }
+            New-Item -ItemType Directory -Force (Split-Path $dir) | Out-Null
+            Move-Item -LiteralPath "$tmp\node-v$version-win-x64" $dir
+            Remove-Item -Recurse -Force -LiteralPath $tmp
+            New-Item -ItemType File "$dir.complete" | Out-Null
+          }
+        } finally { $lock.ReleaseMutex() }
+        "version=$version" >> $env:GITHUB_OUTPUT
+
+    # Finds the version above in the tool cache, so it downloads nothing itself.
+    - id: setup
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ steps.linux.outputs.version || steps.windows.outputs.version }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}

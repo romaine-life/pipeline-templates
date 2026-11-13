@@ -1,0 +1,87 @@
+name: setup-python
+description: >-
+  Puts a Python virtual environment, with pip, first on PATH: the uv pinned in
+  actions/pins.txt installs the Python through the runners' UV_PYTHON_INSTALL_MIRROR, which
+  is Artifact Keeper (FORGEJO-29). The patch release is the newest the pinned uv knows. Each
+  Python is installed once into the runner's tool cache. x64 only.
+inputs:
+  python-version:
+    description: The version (`3.12`, or exact like `3.12.12`).
+    required: true
+outputs:
+  python-version:
+    description: The exact version installed.
+    value: ${{ steps.linux.outputs.version || steps.windows.outputs.version }}
+runs:
+  using: composite
+  steps:
+    # The same uv as actions/setup-uv. That action is not nested here: a composite names it
+    # by branch, so a change adding both could never pass its own CI.
+    - id: uv-linux
+      name: Read the pinned uv
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        set -euo pipefail
+        read -r version sha < <(awk '$1 == "uv" && $4 == "x86_64-unknown-linux-gnu" { print $3, $5 }' "$PINS") || true
+        [ -n "${version:-}" ] || { echo "::error::uv has no x86_64-unknown-linux-gnu pin in pipeline-templates actions/pins.txt"; exit 1; }
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+
+    - id: uv-windows
+      name: Read the pinned uv
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $pin = Get-Content -LiteralPath $env:PINS | ForEach-Object { $f = -split $_; if ($f[0] -eq 'uv' -and $f[3] -eq 'x86_64-pc-windows-msvc') { , $f } } | Select-Object -First 1
+        if (-not $pin) { throw 'uv has no x86_64-pc-windows-msvc pin in pipeline-templates actions/pins.txt' }
+        "version=$($pin[2])", "sha256=$($pin[4])" >> $env:GITHUB_OUTPUT
+
+    # An empty github-token keeps setup-uv from sending the job's token to Artifact Keeper,
+    # which refuses a request carrying a credential it doesn't know.
+    - uses: astral-sh/setup-uv@v6
+      with:
+        version: ${{ steps.uv-linux.outputs.version || steps.uv-windows.outputs.version }}
+        checksum: ${{ steps.uv-linux.outputs.sha256 || steps.uv-windows.outputs.sha256 }}
+        server-url: https://artifacts.home.romaine.life/general/github
+        github-token: ""
+
+    # uv locks its install folder itself, so jobs sharing the tool cache take turns.
+    - id: linux
+      name: Install Python through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        VERSION: ${{ inputs.python-version }}
+      run: |
+        set -euo pipefail
+        export UV_PYTHON_INSTALL_DIR="${RUNNER_TOOL_CACHE:?}/uv-python"
+        uv python install --no-bin "$VERSION"
+        venv="$RUNNER_TEMP/python-$VERSION"
+        uv venv --seed --python-preference only-managed --python "$VERSION" "$venv"
+        echo "UV_PYTHON_INSTALL_DIR=$UV_PYTHON_INSTALL_DIR" >> "$GITHUB_ENV"
+        echo "$venv/bin" >> "$GITHUB_PATH"
+        echo "version=$("$venv/bin/python" -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
+
+    - id: windows
+      name: Install Python through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.python-version }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $env:UV_PYTHON_INSTALL_DIR = Join-Path $env:RUNNER_TOOL_CACHE 'uv-python'
+        uv python install --no-bin $env:VERSION
+        if ($LASTEXITCODE) { throw "uv python install $env:VERSION failed" }
+        $venv = Join-Path $env:RUNNER_TEMP "python-$env:VERSION"
+        uv venv --seed --python-preference only-managed --python $env:VERSION $venv
+        if ($LASTEXITCODE) { throw 'uv venv failed' }
+        "UV_PYTHON_INSTALL_DIR=$env:UV_PYTHON_INSTALL_DIR" >> $env:GITHUB_ENV
+        "$venv\Scripts" >> $env:GITHUB_PATH
+        "version=$(& "$venv\Scripts\python.exe" -c 'import platform; print(platform.python_version())')" >> $env:GITHUB_OUTPUT

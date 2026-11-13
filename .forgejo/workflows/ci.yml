@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       home-cache: ${{ steps.diff.outputs.home-cache }}
+      setup: ${{ steps.diff.outputs.setup }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,11 +28,15 @@ jobs:
         run: |
           if [ "$EVENT" != pull_request ]; then
             echo home-cache=true >> "$GITHUB_OUTPUT"
+            echo setup=true >> "$GITHUB_OUTPUT"
             exit 0
           fi
           files=$(git diff --name-only "$BASE...HEAD")
           if grep -qE '^actions/home-cache/|^\.forgejo/workflows/ci\.yml$' <<< "$files"; then
             echo home-cache=true >> "$GITHUB_OUTPUT"
+          fi
+          if grep -qE '^actions/(setup-[a-z]+/|rust-toolchain/|home-cache/|pins\.txt$)|^\.forgejo/workflows/ci\.yml$' <<< "$files"; then
+            echo setup=true >> "$GITHUB_OUTPUT"
           fi
 
   actionlint:
@@ -253,3 +258,138 @@ jobs:
           $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $cargo 'config.toml') -Pattern 'artifacts.home.romaine.life/cargo/crates')) { throw 'cargo config' }
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $env:APPDATA 'NuGet\NuGet.Config') -Pattern 'artifacts.home.romaine.life/nuget')) { throw 'NuGet config' }
+
+  # The setup actions on both Linux runners (the cluster's, which alone has `nas`, and
+  # upstairspc's WSL one): each installs through Artifact Keeper, and the tool it put on
+  # PATH is the one that runs. setup-python nests astral-sh/setup-uv, setup-node
+  # actions/setup-node.
+  setup-linux:
+    needs: changes
+    if: needs.changes.outputs.setup == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [nas, upstairspc-linux]
+    runs-on: [ubuntu-latest, "${{ matrix.runner }}"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/home-cache
+      - id: node
+        uses: ./actions/setup-node
+        with:
+          node-version: "22"
+      - uses: ./actions/setup-opentofu
+        with:
+          tofu-version: 1.11.0
+      - id: dotnet
+        uses: ./actions/setup-dotnet
+        with:
+          dotnet-version: "9.0"
+      - id: rust
+        uses: ./actions/rust-toolchain
+        with:
+          components: clippy, rustfmt
+      - id: uv
+        uses: ./actions/setup-uv
+      - id: python
+        uses: ./actions/setup-python
+        with:
+          python-version: "3.12"
+      - name: Each tool runs from what its action installed
+        env:
+          WANT_NODE: ${{ steps.node.outputs.node-version }}
+          WANT_DOTNET: ${{ steps.dotnet.outputs.dotnet-version }}
+          WANT_RUST: ${{ steps.rust.outputs.toolchain }}
+          WANT_UV: ${{ steps.uv.outputs.uv-version }}
+          WANT_PYTHON: ${{ steps.python.outputs.python-version }}
+        run: |
+          set -euo pipefail
+          for tool in node tofu dotnet uv; do
+            case "$(command -v "$tool")" in "$RUNNER_TOOL_CACHE"/*) ;; *) echo "$tool is $(command -v "$tool")"; exit 1 ;; esac
+          done
+          case "$(command -v python)" in "$RUNNER_TEMP"/*) ;; *) echo "python is $(command -v python)"; exit 1 ;; esac
+          node=$(node --version); [ "$node" = "$WANT_NODE" ] || { echo "node is $node"; exit 1; }
+          tofu=$(tofu version); [ "${tofu%%$'\n'*}" = "OpenTofu v1.11.0" ] || { echo "tofu is $tofu"; exit 1; }
+          dotnet --info
+          dotnet=$(dotnet --version); [ "$dotnet" = "$WANT_DOTNET" ] || { echo "dotnet is $dotnet"; exit 1; }
+          rustc=$(rustc --version); [[ "$rustc" == "rustc $WANT_RUST "* ]] || { echo "rustc is $rustc"; exit 1; }
+          cargo clippy --version
+          uv=$(uv --version); [[ "$uv" == "uv $WANT_UV"* ]] || { echo "uv is $uv"; exit 1; }
+          python=$(python --version); [ "$python" = "Python $WANT_PYTHON" ] || { echo "python is $python"; exit 1; }
+          pip --version
+      - name: tofu init installs a provider through Artifact Keeper
+        run: |
+          set -euo pipefail
+          grep -q 'artifacts.home.romaine.life/terraform/opentofu/' "$TF_CLI_CONFIG_FILE"
+          d=$(mktemp -d)
+          printf '%s\n' 'terraform {' '  required_providers {' \
+            '    random = { source = "hashicorp/random", version = "3.9.0" }' '  }' '}' > "$d/main.tf"
+          tofu -chdir="$d" init -input=false
+          test -d "$d/.terraform/providers/registry.opentofu.org/hashicorp/random/3.9.0"
+
+  setup-windows:
+    needs: changes
+    if: needs.changes.outputs.setup == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/home-cache
+      - id: node
+        uses: ./actions/setup-node
+        with:
+          node-version: "22"
+      - uses: ./actions/setup-opentofu
+        with:
+          tofu-version: 1.11.0
+      - id: dotnet
+        uses: ./actions/setup-dotnet
+        with:
+          dotnet-version: "9.0"
+      - id: rust
+        uses: ./actions/rust-toolchain
+        with:
+          components: clippy, rustfmt
+      - id: uv
+        uses: ./actions/setup-uv
+      - id: python
+        uses: ./actions/setup-python
+        with:
+          python-version: "3.12"
+      - name: Each tool runs from what its action installed
+        shell: pwsh
+        env:
+          WANT_NODE: ${{ steps.node.outputs.node-version }}
+          WANT_DOTNET: ${{ steps.dotnet.outputs.dotnet-version }}
+          WANT_RUST: ${{ steps.rust.outputs.toolchain }}
+          WANT_UV: ${{ steps.uv.outputs.uv-version }}
+          WANT_PYTHON: ${{ steps.python.outputs.python-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          foreach ($tool in 'node', 'tofu', 'dotnet', 'uv') {
+            $path = (Get-Command $tool).Source
+            if (-not $path.StartsWith($env:RUNNER_TOOL_CACHE)) { throw "$tool is $path" }
+          }
+          $path = (Get-Command python).Source
+          if (-not $path.StartsWith($env:RUNNER_TEMP)) { throw "python is $path" }
+          if ((node --version) -ne $env:WANT_NODE) { throw "node is $(node --version)" }
+          if ((tofu version)[0] -ne 'OpenTofu v1.11.0') { throw "tofu is $((tofu version)[0])" }
+          dotnet --info
+          if ((dotnet --version) -ne $env:WANT_DOTNET) { throw "dotnet is $(dotnet --version)" }
+          if ((rustc --version) -notlike "rustc $env:WANT_RUST *") { throw "rustc is $(rustc --version)" }
+          cargo clippy --version
+          if ((-split (uv --version))[1] -ne $env:WANT_UV) { throw "uv is $(uv --version)" }
+          if ((python --version) -ne "Python $env:WANT_PYTHON") { throw "python is $(python --version)" }
+          pip --version
+      - name: tofu init installs a provider through Artifact Keeper
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          if (-not (Select-String -Quiet -LiteralPath $env:TF_CLI_CONFIG_FILE -Pattern 'artifacts.home.romaine.life/terraform/opentofu/')) { throw 'tofu config' }
+          $d = Join-Path $env:RUNNER_TEMP 'tofu-probe'
+          New-Item -ItemType Directory $d | Out-Null
+          Set-Content -LiteralPath "$d\main.tf" -Value @('terraform {', '  required_providers {',
+            '    random = { source = "hashicorp/random", version = "3.9.0" }', '  }', '}')
+          tofu "-chdir=$d" init -input=false
+          if (-not (Test-Path "$d\.terraform\providers\registry.opentofu.org\hashicorp\random\3.9.0")) { throw 'random 3.9.0 not installed' }

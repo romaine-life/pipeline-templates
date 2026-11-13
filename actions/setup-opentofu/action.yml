@@ -1,0 +1,77 @@
+name: setup-opentofu
+description: >-
+  Puts an exact OpenTofu release on PATH, downloaded from its GitHub release through
+  Artifact Keeper and checked against the release's SHA256SUMS (FORGEJO-29). Each version is
+  installed once into the runner's tool cache. No wrapper: `tofu` is the real binary. Run
+  actions/home-cache before `tofu init` so providers come through Artifact Keeper too.
+inputs:
+  tofu-version:
+    description: The exact release (`1.11.0`).
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install OpenTofu through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        VERSION: ${{ inputs.tofu-version }}
+      run: |
+        set -euo pipefail
+        [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tofu-version must be an exact release, not '$VERSION'"; exit 1; }
+        root="${RUNNER_TOOL_CACHE:?}/opentofu"
+        dir="$root/$VERSION/x64"
+        mkdir -p "$root"
+        # Jobs on one runner share the tool cache: one installs while the others wait.
+        exec 9>"$root/.lock"
+        flock 9
+        if [ ! -e "$dir.complete" ]; then
+          base="https://artifacts.home.romaine.life/general/github/opentofu/opentofu/releases/download/v$VERSION"
+          file="tofu_${VERSION}_linux_amd64.tar.gz"
+          tmp=$(mktemp -d)
+          curl -fsSL -o "$tmp/$file" "$base/$file"
+          curl -fsSL "$base/tofu_${VERSION}_SHA256SUMS" | awk -v f="$file" '$2 == f' > "$tmp/sum"
+          (cd "$tmp" && sha256sum -c sum)
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          tar -xzf "$tmp/$file" -C "$dir"
+          rm -rf "$tmp"
+          touch "$dir.complete"
+        fi
+        flock -u 9
+        echo "$dir" >> "$GITHUB_PATH"
+
+    - name: Install OpenTofu through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.tofu-version }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') { throw "tofu-version must be an exact release, not '$env:VERSION'" }
+        $dir = Join-Path $env:RUNNER_TOOL_CACHE "opentofu\$env:VERSION\x64"
+        # Jobs on this host share the tool cache: one installs while the others wait. A job
+        # that died holding the lock leaves it abandoned, which still hands it over.
+        $lock = [Threading.Mutex]::new($false, 'pipeline-templates-opentofu')
+        try { [void]$lock.WaitOne() } catch [Threading.AbandonedMutexException] {}
+        try {
+          if (-not (Test-Path -LiteralPath "$dir.complete")) {
+            $base = "https://artifacts.home.romaine.life/general/github/opentofu/opentofu/releases/download/v$env:VERSION"
+            $file = "tofu_$($env:VERSION)_windows_amd64.zip"
+            $tmp = Join-Path $env:RUNNER_TEMP ([guid]::NewGuid())
+            New-Item -ItemType Directory $tmp | Out-Null
+            curl.exe -fsSL -o "$tmp\$file" "$base/$file"
+            if ($LASTEXITCODE) { throw "downloading $file failed" }
+            $sums = curl.exe -fsSL "$base/tofu_$($env:VERSION)_SHA256SUMS"
+            if ($LASTEXITCODE) { throw 'downloading SHA256SUMS failed' }
+            $want = $sums | ForEach-Object { $f = -split $_; if ($f[1] -eq $file) { $f[0] } }
+            if (-not $want -or (Get-FileHash -Algorithm SHA256 -LiteralPath "$tmp\$file").Hash -ne $want) { throw "$file does not match SHA256SUMS" }
+            if (Test-Path -LiteralPath $dir) { Remove-Item -Recurse -Force -LiteralPath $dir }
+            New-Item -ItemType Directory $dir | Out-Null
+            & "$env:SystemRoot\System32\tar.exe" -xf "$tmp\$file" -C $dir
+            if ($LASTEXITCODE) { throw "extracting $file failed" }
+            Remove-Item -Recurse -Force -LiteralPath $tmp
+            New-Item -ItemType File "$dir.complete" | Out-Null
+          }
+        } finally { $lock.ReleaseMutex() }
+        $dir >> $env:GITHUB_PATH

@@ -1,0 +1,114 @@
+name: rust-toolchain
+description: >-
+  Installs an exact Rust toolchain through the runners' RUSTUP_DIST_SERVER, which is
+  Artifact Keeper, and makes it the job's toolchain with RUSTUP_TOOLCHAIN, leaving the
+  runner's default alone (FORGEJO-29). `stable` means the release pinned in
+  actions/pins.txt; anything else must already be exact. A runner with no rustup gets the
+  pinned rustup-init from Artifact Keeper, checked against its published SHA-256; on Linux
+  its toolchains then live in the runner's tool cache, kept between jobs. x64 only.
+inputs:
+  toolchain:
+    description: >-
+      `stable` (the pinned release), an exact release (`1.100.0`) or a dated channel
+      (`nightly-2026-08-01`).
+    default: stable
+  components:
+    description: Comma-separated components to add (`clippy, rustfmt`).
+    default: ""
+  targets:
+    description: Comma-separated targets to add.
+    default: ""
+outputs:
+  toolchain:
+    description: The exact toolchain installed.
+    value: ${{ steps.linux.outputs.toolchain || steps.windows.outputs.toolchain }}
+runs:
+  using: composite
+  steps:
+    - id: linux
+      name: Install the Rust toolchain through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        ASKED: ${{ inputs.toolchain }}
+        COMPONENTS: ${{ inputs.components }}
+        TARGETS: ${{ inputs.targets }}
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        set -euo pipefail
+        pinned=$(awk -v k="$ASKED" '$1 == "rust" && $2 == k { print $3 }' "$PINS")
+        toolchain=${pinned:-$ASKED}
+        [[ "$toolchain" =~ ^([0-9]+\.[0-9]+\.[0-9]+|(nightly|beta)-[0-9]{4}-[0-9]{2}-[0-9]{2})$ ]] || {
+          echo "::error::Rust '$ASKED' is not pinned in pipeline-templates actions/pins.txt, nor an exact release or dated channel"; exit 1; }
+        root="${RUNNER_TOOL_CACHE:?}/rust"
+        mkdir -p "$root"
+        # Jobs on one runner share the tool cache: one installs while the others wait.
+        exec 9>"$root/.lock"
+        flock 9
+        if ! command -v rustup >/dev/null; then
+          export RUSTUP_HOME="$root/rustup"
+          echo "RUSTUP_HOME=$RUSTUP_HOME" >> "$GITHUB_ENV"
+          rustup_version=$(awk '$1 == "rustup" { print $3 }' "$PINS")
+          base="https://artifacts.home.romaine.life/general/rust-dist/rustup/archive/$rustup_version/x86_64-unknown-linux-gnu"
+          tmp=$(mktemp -d)
+          curl -fsSL -o "$tmp/rustup-init" "$base/rustup-init"
+          echo "$(curl -fsSL "$base/rustup-init.sha256" | cut -d' ' -f1)  $tmp/rustup-init" | sha256sum -c -
+          chmod +x "$tmp/rustup-init"
+          "$tmp/rustup-init" -y --no-modify-path --profile minimal --default-toolchain none
+          rm -rf "$tmp"
+          bin="${CARGO_HOME:-$HOME/.cargo}/bin"
+          echo "$bin" >> "$GITHUB_PATH"
+          PATH="$bin:$PATH"
+        fi
+        install=(toolchain install "$toolchain" --profile minimal --no-self-update)
+        [ -z "$COMPONENTS" ] || install+=(--component "${COMPONENTS// /}")
+        [ -z "$TARGETS" ] || install+=(--target "${TARGETS// /}")
+        rustup "${install[@]}"
+        flock -u 9
+        echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
+        echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
+
+    - id: windows
+      name: Install the Rust toolchain through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        ASKED: ${{ inputs.toolchain }}
+        COMPONENTS: ${{ inputs.components }}
+        TARGETS: ${{ inputs.targets }}
+        PINS: ${{ github.action_path }}/../pins.txt
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $pins = Get-Content -LiteralPath $env:PINS | ForEach-Object { , (-split $_) }
+        $pinned = $pins | Where-Object { $_[0] -eq 'rust' -and $_[1] -eq $env:ASKED } | ForEach-Object { $_[2] } | Select-Object -First 1
+        $toolchain = if ($pinned) { $pinned } else { $env:ASKED }
+        if ($toolchain -notmatch '^(\d+\.\d+\.\d+|(nightly|beta)-\d{4}-\d{2}-\d{2})$') {
+          throw "Rust '$env:ASKED' is not pinned in pipeline-templates actions/pins.txt, nor an exact release or dated channel" }
+        # Jobs on this host share its rustup: one installs while the others wait. A job that
+        # died holding the lock leaves it abandoned, which still hands it over.
+        $lock = [Threading.Mutex]::new($false, 'pipeline-templates-rust')
+        try { [void]$lock.WaitOne() } catch [Threading.AbandonedMutexException] {}
+        try {
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            $rustup = $pins | Where-Object { $_[0] -eq 'rustup' } | ForEach-Object { $_[2] } | Select-Object -First 1
+            $base = "https://artifacts.home.romaine.life/general/rust-dist/rustup/archive/$rustup/x86_64-pc-windows-msvc"
+            $init = Join-Path $env:RUNNER_TEMP 'rustup-init.exe'
+            curl.exe -fsSL -o $init "$base/rustup-init.exe"
+            if ($LASTEXITCODE) { throw 'downloading rustup-init.exe failed' }
+            $want = -split (curl.exe -fsSL "$base/rustup-init.exe.sha256") | Select-Object -First 1
+            if ($LASTEXITCODE -or (Get-FileHash -Algorithm SHA256 -LiteralPath $init).Hash -ne $want) { throw 'rustup-init.exe does not match its published SHA-256' }
+            & $init -y --no-modify-path --profile minimal --default-toolchain none
+            if ($LASTEXITCODE) { throw 'rustup-init failed' }
+            Remove-Item -LiteralPath $init
+            $bin = Join-Path $(if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }) 'bin'
+            $bin >> $env:GITHUB_PATH
+            $env:PATH = "$bin;$env:PATH"
+          }
+          $install = @('toolchain', 'install', $toolchain, '--profile', 'minimal', '--no-self-update')
+          if ($env:COMPONENTS) { $install += '--component', ($env:COMPONENTS -replace '\s', '') }
+          if ($env:TARGETS) { $install += '--target', ($env:TARGETS -replace '\s', '') }
+          rustup @install
+          if ($LASTEXITCODE) { throw "rustup toolchain install $toolchain failed" }
+        } finally { $lock.ReleaseMutex() }
+        "RUSTUP_TOOLCHAIN=$toolchain" >> $env:GITHUB_ENV
+        "toolchain=$toolchain" >> $env:GITHUB_OUTPUT
