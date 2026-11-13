@@ -25,11 +25,11 @@ name: Go Dependency Update Template
 # at its latest, so it carries what an open one carries; those are closed first, and
 # this one branches from main as it stands after them.
 #
-# Module paths stay github.com/romaine-life/...: a module with a repo on Forgejo is
-# read from there, so a take-up never waits on the GitHub mirror; one without (agent-
-# tools) is read from GitHub with GH_MIRROR_TOKEN. The branch push, PR and merge use
-# PIPELINE_DISPATCH_TOKEN (nelson, write:repository): a push made with the job's own
-# token starts neither the PR's CI nor the merge's push workflows.
+# Module paths stay github.com/romaine-life/...: every module is read from its repo on
+# Forgejo, so a take-up never waits on GitHub. agent-tools' is a copy of GitHub's with
+# pull requests off, so its commits link to GitHub's PRs (FORGEJO-29). The reads, branch
+# push, PR and merge use PIPELINE_DISPATCH_TOKEN (nelson, write:repository): a push made
+# with the job's own token starts neither the PR's CI nor the merge's push workflows.
 
 on:
   workflow_call:
@@ -50,7 +50,6 @@ jobs:
     timeout-minutes: 15
     env:
       T: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
-      GH: ${{ secrets.GH_MIRROR_TOKEN }}
       API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
       REMOTE: ${{ github.server_url }}/${{ github.repository }}.git
       BASE: ${{ github.ref_name }}
@@ -68,26 +67,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Read romaine-life modules from Forgejo, or GitHub where Forgejo has none
+      - name: Read romaine-life modules from Forgejo
         run: |
           org="${{ github.server_url }}/romaine-life/"
-          : > "$RUNNER_TEMP/from-github"
+          : > "$RUNNER_TEMP/prs-on-github"
           git config --global url."$org".insteadOf "https://github.com/romaine-life/"
           git config --global http."$org".extraHeader "Authorization: Basic $(printf 'x-access-token:%s' "$T" | base64 -w0)"
           for mod in $MODULES; do
             repo=${mod#github.com/romaine-life/}
             repo=${repo%%/*}
-            code=$(printf 'header = "Authorization: token %s"\n' "$T" | curl --config - -sS -o /dev/null -w '%{http_code}' "${{ github.server_url }}/api/v1/repos/romaine-life/$repo")
+            code=$(printf 'header = "Authorization: token %s"\n' "$T" | curl --config - -sS -o "$RUNNER_TEMP/repo.json" -w '%{http_code}' "${{ github.server_url }}/api/v1/repos/romaine-life/$repo")
             case "$code" in
               200) ;;
-              404)
-                if [ -z "$GH" ]; then echo "::error::$repo has no repo on Forgejo and GH_MIRROR_TOKEN is not set"; exit 1; fi
-                # The longer prefix wins over the Forgejo rewrite above.
-                git config --global url."https://x-access-token:$GH@github.com/romaine-life/$repo".insteadOf "https://github.com/romaine-life/$repo"
-                echo "$repo" >> "$RUNNER_TEMP/from-github"
-                echo "$repo is read from GitHub" ;;
+              404) echo "::error::$repo has no repo on Forgejo"; exit 1 ;;
               *) echo "::error::looking up $repo on Forgejo returned HTTP $code"; exit 1 ;;
             esac
+            if [ "$(jq -r .has_pull_requests "$RUNNER_TEMP/repo.json")" = false ]; then
+              echo "$repo" >> "$RUNNER_TEMP/prs-on-github"
+            fi
           done
 
       - name: Close the take-ups this one supersedes
@@ -147,7 +144,7 @@ jobs:
             repo=${mod#github.com/romaine-life/}; repo=${repo%%/*}
             title="$title $repo $(short "$new"),"
             git clone -q --bare --filter=blob:none "https://$mod" "$RUNNER_TEMP/$repo.git"
-            if grep -qx "$repo" "$RUNNER_TEMP/from-github"; then web="https://github.com/romaine-life/$repo/pull/"; else web="${{ github.server_url }}/romaine-life/$repo/pulls/"; fi # internet: a link in the PR body, not a fetch
+            if grep -qx "$repo" "$RUNNER_TEMP/prs-on-github"; then web="https://github.com/romaine-life/$repo/pull/"; else web="${{ github.server_url }}/romaine-life/$repo/pulls/"; fi # internet: a link in the PR body, not a fetch
             changes=$(git -C "$RUNNER_TEMP/$repo.git" log --reverse --format=%s "$(ref "$old")..$(ref "$new")" |
               sed -E "s|^(.*) \(#([0-9]+)\)\$|- \1 (${web}\2)|; t; s|^|- |")
             [ -n "$changes" ] || changes="- (no commit list: $old..$new is not in its history)"
