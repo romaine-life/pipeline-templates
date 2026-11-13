@@ -18,7 +18,7 @@ jobs:
           tar -xzf actionlint.tar.gz actionlint
 
       - name: Lint the Forgejo workflows
-        run: ./actionlint .forgejo/workflows/*.yml
+        run: ./actionlint .forgejo/workflows/*.yml reference/*.yml
 
       - name: Check configuration checkout authorization and failure handling
         run: |
