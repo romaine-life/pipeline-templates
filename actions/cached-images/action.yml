@@ -1,0 +1,25 @@
+name: cached-images
+description: >-
+  Rewrites environment variables that hold images named as their registry publishes them
+  (a manifest's names) to the same images through Artifact Keeper, for a job that runs what
+  the home cluster runs (FORGEJO-29). Run it after the step that sets them.
+inputs:
+  vars:
+    description: Names of the environment variables to rewrite, separated by whitespace.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: The step runs in a Linux job
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Write-Host '::error::cached-images runs in a Linux job (the Windows runner has no Python)'
+        exit 1
+    - name: Name the images through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        VARS: ${{ inputs.vars }}
+      # VARS is split into one argument per name.
+      run: python3 "$GITHUB_ACTION_PATH/cached.py" $VARS

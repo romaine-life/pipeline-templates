@@ -1,0 +1,25 @@
+name: check-image-digests
+description: >-
+  Fails when a rendered Kubernetes manifest runs an image not named by digest, so what the
+  home cluster runs changes only in a commit (FORGEJO-29, HC-1). A step in a repo's
+  manifests job, after it renders them to files.
+inputs:
+  manifests:
+    description: Files or directories (every .yaml and .yml under them) of rendered manifests, separated by whitespace.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: The check runs in a Linux job
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Write-Host '::error::check-image-digests reads rendered files: run it in a Linux job (the Windows runner has no Python)'
+        exit 1
+    - name: Every image the manifests run is named by digest
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        MANIFESTS: ${{ inputs.manifests }}
+      # MANIFESTS is split into one argument per path.
+      run: python3 "$GITHUB_ACTION_PATH/check.py" $MANIFESTS

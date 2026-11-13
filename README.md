@@ -6,7 +6,7 @@ Pipeline templates that I don't want cluttering up my bootstrap repo.
 
 Home CI fetches actions from Forgejo's mirrors (name them bare: `actions/checkout@v4`) and
 everything else through Artifact Keeper at https://artifacts.home.romaine.life, which keeps
-serving what it holds when a source is down (FORGEJO-25). Three composite actions:
+serving what it holds when a source is down (FORGEJO-25). Composite actions:
 
 - `romaine-life/pipeline-templates/actions/check-fetches@main`: a step in a repo's required
   CI job, after its checkout. It reads the repo's workflows, actions and Dockerfiles, and
@@ -20,6 +20,15 @@ serving what it holds when a source is down (FORGEJO-25). Three composite action
 - `romaine-life/pipeline-templates/actions/home-cache@main`: points apt, cargo and NuGet at
   Artifact Keeper, for a job that uses them; run it before them. The runners already send
   Go, npm, pip, uv and rustup there.
+- `romaine-life/pipeline-templates/actions/check-image-digests@main`: a step in a home-cluster
+  service's manifests job, after it renders them to files (`manifests:`, files or directories).
+  It fails on an `image:` or `imageName:` the rendered manifests run that isn't named by digest
+  (`<image>:<tag>@sha256:<digest>`). Manifests keep the registry's own names: the cluster's node
+  pulls them through Artifact Keeper by its registry mirrors (home-cluster `vm/user-data.yaml`).
+- `romaine-life/pipeline-templates/actions/cached-images@main`: for a job that runs the image a
+  manifest names, after the step that puts the names in environment variables (`vars:`, their
+  names). It rewrites each to the same image through Artifact Keeper, from Artifact Keeper's own
+  list of its Docker caches.
 - `romaine-life/pipeline-templates/actions/azure-cli@main`: puts the Azure CLI on PATH,
   installed from PyPI through Artifact Keeper into the runner's tool cache, for a job that
   calls `az`. Its version is set in the action and moves when there's a reason to.

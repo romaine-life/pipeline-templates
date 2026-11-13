@@ -171,6 +171,40 @@ jobs:
         run: python3 -m unittest discover -v actions/check-fetches/tests
       - uses: ./actions/check-fetches
 
+  # The rendered-manifest check (actions/check-image-digests) every cluster service's CI runs.
+  check-image-digests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The check's tests
+        run: python3 -m unittest discover -v actions/check-image-digests/tests
+      - name: A rendered manifest, its image named by digest
+        run: |
+          printf '%s\n' 'kind: Pod' 'spec:' '  containers:' \
+            '    - image: docker.io/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f' \
+            > "$RUNNER_TEMP/rendered.yaml"
+      - uses: ./actions/check-image-digests
+        with:
+          manifests: ${{ runner.temp }}/rendered.yaml
+
+  # The image names step (actions/cached-images): Artifact Keeper's caches, then a real pull.
+  cached-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The step's tests
+        run: python3 -m unittest discover -v actions/cached-images/tests
+      - name: An image as a manifest names it
+        run: echo 'ALPINE=alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f' >> "$GITHUB_ENV"
+      - uses: ./actions/cached-images
+        with:
+          vars: ALPINE
+      - name: The image comes from Artifact Keeper
+        run: |
+          set -euo pipefail
+          test "$ALPINE" = artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+          docker pull "$ALPINE"
+
   # The Azure CLI step (actions/azure-cli): installed through Artifact Keeper, and it runs.
   azure-cli:
     runs-on: ubuntu-latest

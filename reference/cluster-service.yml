@@ -58,4 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Render and validate
-        run: echo "kustomize build | kubeconform"
+        run: echo "kustomize build k8s into $RUNNER_TEMP/manifests.yaml, then kubeconform it"
+      - uses: romaine-life/pipeline-templates/actions/check-image-digests@main
+        with:
+          manifests: ${{ runner.temp }}/manifests.yaml
