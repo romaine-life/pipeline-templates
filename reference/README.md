@@ -27,7 +27,9 @@ its CI file, and something only one repo needs is written there. A line here mar
 - **A job that builds the program** is skipped only when every changed file is
   documentation (`\.md$|^docs/|^LICENSE$`). **A job that checks a closed set of files**
   (a PowerShell parser, a linter) runs only when one of those files, its script or the
-  workflow changes.
+  workflow changes. **A cheap Linux job whose checks also read documentation** (a
+  trailing-newline or file-name convention over every file) is not gated; gate only what
+  depends on it.
 - **A job that needs a skipped job is skipped too.** That is right on a PR; a job that must
   run anyway says so in its `if:` (`!failure() && !cancelled()`).
 - **`concurrency` never cancels a run on the default branch.** Forgejo otherwise cancels a
@@ -39,7 +41,11 @@ its CI file, and something only one repo needs is written there. A line here mar
 
 1. Copy its kind's file over `ci.yml`, move the repo's own steps into it, and delete the
    workflows it replaces. Keep `release.yml` and `dispatch.yml` by those names when the
-   repo has them; strip-owner finds them by name.
+   repo has them; strip-owner finds them by name. A Windows app that releases through a
+   dispatch-only `release.yml` keeps doing so: `ci.yml` builds and signs the same program
+   on pull requests and has no Release step or home-sync job (guitar-tabs).
+   Keep the repo's existing `permissions:`: a block added or narrowed is proven only by
+   the next real release or deploy.
 2. Use the repo's default branch in `push.branches` (spotify-player, at-tmux and
    pcloud-sync use `master`).
 3. Check that nothing a build reads is documentation (`go:embed`, `include_str!`, a
