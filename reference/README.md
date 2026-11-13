@@ -36,7 +36,13 @@ its CI file, and something only one repo needs is written there. A line here mar
   run anyway says so in its `if:` (`!failure() && !cancelled()`).
 - **`concurrency` never cancels a run on the default branch.** Forgejo otherwise cancels a
   merge's run when the next merge lands, and strip-owner reads the cancelled run as a
-  failed release.
+  failed release. **A repo whose jobs start containers or services never cancels at all**
+  (`cancel-in-progress: false`): a cancelled job skips its cleanup steps, `if: always()`
+  included, and leaves them running on the runner. A repo that keeps its own concurrency
+  group (one shared by every run) keeps it.
+- **A step that publishes on a push also publishes on a dispatch of the default branch**
+  (`github.event_name != 'pull_request' && github.ref == 'refs/heads/main'`): strip-owner
+  restarts a merge run that never started by dispatching it.
 - **Required checks** on the default branch are every job of the shape, in every repo.
 
 ## Converging a repo
