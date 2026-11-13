@@ -38,16 +38,19 @@ its CI file, and something only one repo needs is written there. A line here mar
   merge's run when the next merge lands, and strip-owner reads the cancelled run as a
   failed release. **A repo whose jobs start containers or services never cancels at all**
   (`cancel-in-progress: false`): a cancelled job skips its cleanup steps, `if: always()`
-  included, and leaves them running on the runner. A repo that keeps its own concurrency
-  group (one shared by every run) keeps it.
+  included, and leaves them running on the runner. A repo whose runs shared one
+  concurrency group keeps it for pushes and deploys; its pull requests get their own
+  (`${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || '<group>' }}`).
 - **A step that publishes on a push also publishes on a dispatch of the default branch**
   (`github.event_name != 'pull_request' && github.ref == 'refs/heads/main'`): strip-owner
   restarts a merge run that never started by dispatching it.
-- **Required checks** on the default branch are every job of the shape, in every repo.
+- **Required checks** on the default branch are every job of the shape, in every repo, plus
+  every other workflow's pull-request check (an `Infrastructure / Plan` from `tofu.yaml`):
+  dropping one quietly stops it gating merges.
 
 ## Converging a repo
 
-1. Copy its kind's file over `ci.yml`, move the repo's own steps into it, and delete the
+1. Copy its kind's file over `ci.yml` (`ci.yaml` where the repo's own checks ban `.yml`), move the repo's own steps into it, and delete the
    workflows it replaces. Keep `release.yml` and `dispatch.yml` by those names when the
    repo has them; strip-owner finds them by name. A Windows app that releases through a
    dispatch-only `release.yml` keeps doing so: `ci.yml` builds and signs the same program
