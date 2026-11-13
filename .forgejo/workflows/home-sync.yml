@@ -52,7 +52,7 @@ jobs:
     # The forced-command SSH key stays on the NAS, not on general Linux runners.
     runs-on: [linux, nas]
     container:
-      image: ghcr.io/catthehacker/ubuntu:act-24.04
+      image: artifacts.home.romaine.life/ghcr/catthehacker/ubuntu:act-24.04@sha256:19619a010b204f44c5340bff7d39b68551109fe6a56a53f75201ea91e05d4270
     timeout-minutes: 4
     steps:
       - name: Update the NAS home-profile checkout

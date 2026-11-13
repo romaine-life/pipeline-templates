@@ -9,9 +9,14 @@ everything else through Artifact Keeper at https://artifacts.home.romaine.life, 
 serving what it holds when a source is down (FORGEJO-25). Three composite actions:
 
 - `romaine-life/pipeline-templates/actions/check-fetches@main`: a step in a repo's required
-  CI job, after its checkout. It fails on a `uses:` with an address that isn't Forgejo's, or
-  an http(s) address on a host that isn't Forgejo, `*.home.romaine.life` or local. A line
-  that must reach the internet (a deploy to Azure) carries `# internet: <why>`.
+  CI job, after its checkout. It reads the repo's workflows, actions and Dockerfiles, and
+  fails on a `uses:` with an address that isn't Forgejo's, an http(s) address on a host that
+  isn't Forgejo, `*.home.romaine.life` or local, or an image not named by digest through
+  Artifact Keeper (`artifacts.home.romaine.life/<cache>/<image>:<tag>@sha256:<digest>`;
+  images the same file builds and our own `forgejo.romaine.life` ones are left alone). A pin
+  moves in a commit when there's a reason to, never on its own. A line that must reach the
+  internet (a deploy to Azure) carries `# internet: <why>`, in a Dockerfile on the line
+  above; a Dockerfile home CI never builds says `# check-fetches: not built by home CI`.
 - `romaine-life/pipeline-templates/actions/home-cache@main`: points apt, cargo and NuGet at
   Artifact Keeper, for a job that uses them; run it before them. The runners already send
   Go, npm, pip, uv and rustup there.

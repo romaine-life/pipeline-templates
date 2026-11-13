@@ -56,6 +56,57 @@ class CheckFetches(unittest.TestCase):
         out, code = self.run_on({"actions/x/action.yml": "runs:\n  steps:\n    - run: wget https://get.helm.sh/helm.tgz\n"})
         self.assertEqual(code, 1)
 
+    def test_names_unpinned_images_in_workflows(self):
+        pinned = "artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:" + "a" * 64
+        workflow = f"""\
+jobs:
+  a:
+    container:
+      image: {pinned}
+    services:
+      db:
+        image: postgres:16
+    steps:
+      - uses: docker://alpine:3.22
+      - run: docker run --rm --network host -v /tmp:/t {pinned} true
+      - run: docker run -d --name x -e A=b "$IMAGE"
+      - run: docker build -t app:check . && docker run --rm app:check
+      - run: docker pull forgejo.romaine.life/nelsong6/app:v1
+      - run: |
+          docker run --rm \\
+            artifacts.home.romaine.life/dockerhub/library/alpine:3.22 true
+      - run: docker run --rm alpine:3.22 wget http://1.1.1.1/  # internet: VPN egress probe
+"""
+        out, code = self.run_on({".forgejo/workflows/ci.yml": workflow})
+        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [7, 9, 15, 17])
+        self.assertEqual(code, 1)
+
+    def test_names_unpinned_images_and_fetches_in_dockerfiles(self):
+        pinned = "artifacts.home.romaine.life/dockerhub/library/node:20-alpine@sha256:" + "b" * 64
+        dockerfile = f"""\
+ARG BASE={pinned}
+FROM ${{BASE}} AS build
+RUN npm ci
+FROM build AS test
+FROM node:20-alpine
+COPY --from=build /app /app
+COPY --from=alpine:3.24 /etc/ssl /etc/ssl
+# internet: the installer fetches its payload from Microsoft as it runs
+ADD https://aka.ms/vs/18/stable/vs_buildtools.exe C:/setup/
+RUN curl -fsSL https://go.dev/dl/go.zip -o go.zip
+FROM scratch
+"""
+        out, code = self.run_on({"Dockerfile": dockerfile, "build/Dockerfile.base": "ARG B=alpine:3.24\nFROM $B\n"})
+        self.assertEqual([n for n, _ in out["Dockerfile"]], [5, 7, 10])
+        self.assertEqual([n for n, _ in out["build/Dockerfile.base"]], [1])
+        self.assertEqual(code, 1)
+
+    def test_skips_a_dockerfile_home_ci_never_builds(self):
+        upstream = "# check-fetches: not built by home CI (upstream's, kept for merges)\nFROM rust\n"
+        out, code = self.run_on({"Dockerfile": upstream})
+        self.assertEqual(out["Dockerfile"], [])
+        self.assertEqual(code, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
