@@ -151,7 +151,7 @@ jobs:
             body="$body$repo $old → $new:"$'\n\n'"$changes"$'\n\n'
           done < "$RUNNER_TEMP/old"
           title=${title%,}
-          printf '%sOpened by %s. https://openproject.romaine.life/wp/PIPT-3\n' "$body" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          printf '%sOpened by %s. https://openproject.home.romaine.life/wp/PIPT-3\n' "$body" "$RUN_URL" > "$RUNNER_TEMP/body.md"
           printf '%s\n\n' "$title" | cat - "$RUNNER_TEMP/body.md" > "$RUNNER_TEMP/message"
           cat "$RUNNER_TEMP/message"
 
