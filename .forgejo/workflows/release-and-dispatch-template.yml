@@ -151,85 +151,62 @@ jobs:
           curl -sS --fail-with-body -H "Authorization: token $T" "$API" > repository.json
           jq -e '.permissions.push == true' repository.json > /dev/null
 
-      # Versions come from git tags, not releases: a tag can exist without a
-      # release (a module tag pushed by hand). A version tag at HEAD with no
-      # release is released as-is rather than skipped or renumbered.
+      - name: Head commit
+        id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # The one numbering step every home release uses (PIPT-7): the commit's tag in the
+      # series if it has one, else the next number, reserved on it.
+      - name: Number the release
+        id: version
+        if: inputs.dry-run != 'true'
+        uses: romaine-life/pipeline-templates/actions/release-version@main
+        with:
+          prefix: ${{ inputs.version-prefix }}
+          publish: 'true'
+          sha: ${{ steps.head.outputs.sha }}
+          repository: ${{ inputs.target-repository || github.repository }}
+          token: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+
       - name: Skip if HEAD already released
         id: check
+        if: inputs.dry-run != 'true'
         env:
           FJ: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
-          PREFIX: ${{ inputs.version-prefix }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          head_sha=$(git rev-parse HEAD)
-          existing=$(git tag --points-at HEAD -l "${PREFIX}.*" --sort=-v:refname | head -1)
-          code=000
-          if [ -n "$existing" ]; then
-            code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token $FJ" "$API/releases/tags/$existing")
-          fi
-          if [ "$code" = 200 ]; then
-            echo "HEAD ($head_sha) already released as $existing, skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            if [ -n "$existing" ]; then
-              if [ "$code" != 404 ]; then echo "::error::release lookup for $existing returned HTTP $code"; exit 1; fi
-              echo "HEAD ($head_sha) is tagged $existing with no release, releasing that tag"
-            fi
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "existing=$existing" >> "$GITHUB_OUTPUT"
-          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: token $FJ" "$API/releases/tags/$TAG")
+          case "$code" in
+            200) echo "$TAG is already released, skipping"; echo "skip=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "skip=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::release lookup for $TAG returned HTTP $code"; exit 1 ;;
+          esac
 
       - name: Finish dry run
         if: inputs.dry-run == 'true'
-        run: echo "Validated release access and tags for $TARGET_REPOSITORY at $(git rev-parse HEAD)"
+        run: echo "Validated release access for $TARGET_REPOSITORY at $(git rev-parse HEAD)"
 
       - name: Create release
         id: release
         if: steps.check.outputs.skip != 'true' && inputs.dry-run != 'true'
         env:
           FJ: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
-          PREFIX: ${{ inputs.version-prefix }}
-          EXISTING: ${{ steps.check.outputs.existing }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ steps.head.outputs.sha }}
           DRAFT: ${{ inputs.draft-release || false }}
         run: |
-          if [ -n "$EXISTING" ]; then
-            next="$EXISTING"
-          else
-            latest=$(git tag -l "${PREFIX}.*" --sort=-v:refname | head -1)
-            if [ -z "$latest" ]; then
-              next="${PREFIX}.0"
-            else
-              next="${PREFIX}.$(( ${latest#"${PREFIX}."} + 1 ))"
-            fi
-          fi
-          sha=$(git rev-parse HEAD)
-          # A Forgejo draft does not create its git tag. Reserve it first so the
-          # artifact build can check it out and later releases cannot reuse it.
-          if [ "$DRAFT" = true ] && [ -z "$EXISTING" ]; then
-            tag_body=$(jq -n --arg tag "$next" --arg sha "$sha" '{tag_name: $tag, target: $sha}')
-            code=$(printf 'header = "Authorization: token %s"\n' "$FJ" | curl -sS -K - -o tag.json -w '%{http_code}' \
-              -X POST -H 'Content-Type: application/json' -d "$tag_body" "$API/tags")
-            if [ "$code" != 201 ]; then echo "::error::reserving tag $next returned HTTP $code"; exit 1; fi
-          fi
-          echo "Cutting release $next at $sha"
-          body=$(jq -n --arg tag "$next" --arg sha "$sha" --arg notes "$(git log --oneline -1)" --argjson draft "$DRAFT" \
+          echo "Cutting release $TAG at $SHA"
+          body=$(jq -n --arg tag "$TAG" --arg sha "$SHA" --arg notes "$(git log -1 --format=%s)" --argjson draft "$DRAFT" \
             '{tag_name: $tag, target_commitish: $sha, name: $tag, body: $notes, draft: $draft}')
           code=$(curl -sS -o response.json -w '%{http_code}' -X POST \
             -H "Authorization: token $FJ" -H 'Content-Type: application/json' \
             -d "$body" "$API/releases")
           if [ "$code" != 201 ]; then
-            echo "::error::creating release $next returned HTTP $code"
+            echo "::error::creating release $TAG returned HTTP $code"
             cat response.json
             exit 1
           fi
-          # An existing tag elsewhere would silently carry the release; prove
-          # the tag is on HEAD.
-          git fetch -q origin "refs/tags/$next:refs/tags/$next"
-          tagged=$(git rev-list -n1 "$next")
-          if [ "$tagged" != "$sha" ]; then
-            echo "::error::release $next points at $tagged, not $sha"
-            exit 1
-          fi
-          echo "new-tag=$next" >> "$GITHUB_OUTPUT"
+          echo "new-tag=$TAG" >> "$GITHUB_OUTPUT"
 
       # The workflow must accept a `tag` input, check out that tag, build, and
       # upload assets to the existing release.

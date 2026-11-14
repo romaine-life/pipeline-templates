@@ -79,6 +79,33 @@ A tool a job downloads comes from Artifact Keeper's caches: a GitHub release at
 raw.githubusercontent.com at `/general/githubusercontent/<path>`, get.helm.sh at
 `/general/helm-downloads/<file>`.
 
+## Versions (PIPT-7)
+
+Every home build's version comes from one step, and none carries a commit hash. A release
+is numbered `<prefix>.N`: the plain count (`v0.1.12`), or for a fork the upstream version
+it's built on (`v0.25.1.4`). A build that isn't released is named after the number it would
+take and its PR and run (`v0.1.13-pr152.871`), or its run alone (`v0.1.13-run871`).
+
+```yaml
+      - id: version
+        uses: romaine-life/pipeline-templates/actions/release-version@main
+        with:
+          prefix: v0.1                     # or prefix-from: Cargo.toml, CMakeLists.txt, package.json
+          # component: coach               # a repo releasing several things: coach-v0.1.N
+```
+
+On a push to the default branch it reserves the tag on the commit (a commit already numbered
+keeps its number) and outputs it as `version` and `tag`; on any other run it reserves
+nothing and `tag` is empty. `publish:` overrides that. The build stamps `version`; the
+release is created on `tag`. `release-and-dispatch-template.yml` numbers through it.
+
+`romaine-life/pipeline-templates/actions/check-versions@main`, a step in a repo's required
+CI job after its checkout (Linux), fails on a workflow or action that creates a tag or
+release without the step, and on a version made from a commit: `git describe`,
+`git rev-parse --short`, a commit cut short, or a version set to the commit. It reads the
+workflows, actions, `build.rs`, `vite.config.*`, a Go `build/` program and `scripts/`. A line
+naming a commit for another reason carries `version-check: <why>`.
+
 ## Release cleanup (NB-2)
 
 Every release keeps its notes and tag, but only a repo's newest 10 published releases,
@@ -100,7 +127,7 @@ Repos on Forgejo (https://forgejo.romaine.life) call the templates in
 `.forgejo/workflows`:
 
 - `release-and-dispatch-template.yml`: cuts the next `<version-prefix>.N`
-  release at HEAD, runs the repo's `artifact-build-workflow` with a `tag`
+  release at HEAD, numbered by `actions/release-version`, runs the repo's `artifact-build-workflow` with a `tag`
   input, syncs the GitHub push mirror, and runs `dispatch-workflow` on `main`
   in each `dispatch-repos` repo.
 - `go-dependency-update-template.yml`: a repo's take-up, called from its

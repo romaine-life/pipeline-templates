@@ -1,0 +1,17 @@
+name: check-versions
+description: >-
+  Fails when a version, tag or release name is made anywhere but actions/release-version,
+  or from a commit hash (PIPT-7). A step in a repo's required CI job, after its checkout.
+runs:
+  using: composite
+  steps:
+    - name: The check runs in a Linux job
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Write-Host '::error::check-versions reads only the repo: run it in a Linux job (the Windows runner has no Python)'
+        exit 1
+    - name: Every version comes from release-version
+      if: runner.os != 'Windows'
+      shell: bash
+      run: python3 "$GITHUB_ACTION_PATH/check.py" "$GITHUB_WORKSPACE"

@@ -167,6 +167,35 @@ jobs:
       - name: The step's tests
         run: node --test actions/prune-releases/tests/prune.test.js
 
+  # The numbering step every release uses (actions/release-version).
+  release-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The step's tests
+        run: node --test actions/release-version/tests/version.test.js
+      - name: A build from this run is named without a commit
+        id: version
+        uses: ./actions/release-version
+        with:
+          prefix: v0.1
+          publish: 'false'
+      - name: The name it gave
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "$VERSION"
+          echo "$VERSION" | grep -Eq '^v0\.1\.[0-9]+-(pr[0-9]+\.|run)[0-9]+$'
+
+  # The version check every repo's CI runs (actions/check-versions), on its tests and on this repo.
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The check's tests
+        run: python3 -m unittest discover -v actions/check-versions/tests
+      - uses: ./actions/check-versions
+
   # The check every repo's CI runs (actions/check-fetches), on its tests and on this repo.
   check-fetches:
     runs-on: ubuntu-latest

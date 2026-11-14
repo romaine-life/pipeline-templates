@@ -1,0 +1,49 @@
+name: release-version
+description: >-
+  The one place a home build's version comes from (PIPT-7). On a release run it reserves the
+  next numbered tag on the commit, prefix.N, or returns the one the commit already has; on any
+  other run it names the build after that number and the PR and run, prefix.N-pr12.345. A
+  version never carries a commit hash. A step before anything stamps, tags or releases.
+inputs:
+  prefix:
+    description: >-
+      The series, such as v0.1 or v1.0. Give this or prefix-from.
+    default: ''
+  prefix-from:
+    description: >-
+      A file holding the version the series is numbered on: Cargo.toml ([package] or
+      [workspace.package] version), CMakeLists.txt (PACKAGE_VERSION or project VERSION) or
+      package.json. A fork numbers on the upstream version it is built on: 0.25.1 gives
+      v0.25.1.N. Give this or prefix.
+    default: ''
+  component:
+    description: >-
+      For a repo that releases more than one thing: tags are component-prefix.N, such as
+      coach-v0.1.4.
+    default: ''
+  publish:
+    description: >-
+      true reserves the tag. Anything else names a build that is not released.
+    default: ${{ github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+  sha:
+    description: The commit a released version is tagged on.
+    default: ${{ github.sha }}
+  pull-request:
+    description: The PR a build that isn't released comes from.
+    default: ${{ github.event.pull_request.number }}
+  repository:
+    description: owner/repo whose tags number the series.
+    default: ${{ github.repository }}
+  token:
+    description: A token that can read that repo's tags, and on a release run create one.
+    default: ${{ github.token }}
+outputs:
+  version:
+    description: The version to stamp into the build and, on a release run, to name the release.
+  tag:
+    description: On a release run the tag reserved on the commit, which equals version; empty otherwise.
+  reserved:
+    description: true when this run created the tag, false when the commit already had it.
+runs:
+  using: node20
+  main: version.js
