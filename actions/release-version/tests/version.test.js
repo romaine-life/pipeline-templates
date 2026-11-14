@@ -98,3 +98,9 @@ test('the series is read from the version a file declares', () => {
   assert.throws(() => prefixFrom('Cargo.toml', '[dependencies]\nversion = "1"\n'), /declares no version/);
   assert.throws(() => prefixFrom('setup.py', ''), /not a Cargo.toml/);
 });
+
+test('a suffix keeps fixed parts after the count', async () => {
+  const f = forgejo([tag('v1.25.24.0'), tag('v1.25.3.0'), tag('v1.25.9')]);
+  assert.equal((await run(f, {series: 'v1.25', suffix: '.0', publish: true, sha: A})).version, 'v1.25.25.0');
+  assert.equal((await run(forgejo([tag('v1.25.24.0')]), {series: 'v1.25', suffix: '.0', publish: false, pullRequest: '7'})).version, 'v1.25.25.0-pr7.871');
+});

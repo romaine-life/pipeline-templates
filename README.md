@@ -92,6 +92,7 @@ take and its PR and run (`v0.1.13-pr152.871`), or its run alone (`v0.1.13-run871
         with:
           prefix: v0.1                     # or prefix-from: Cargo.toml, CMakeLists.txt, package.json
           # component: coach               # a repo releasing several things: coach-v0.1.N
+          # suffix: .0                     # fixed parts after the count: v1.25.N.0
 ```
 
 On a push to the default branch it reserves the tag on the commit (a commit already numbered

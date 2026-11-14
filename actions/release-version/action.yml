@@ -21,6 +21,11 @@ inputs:
       For a repo that releases more than one thing: tags are component-prefix.N, such as
       coach-v0.1.4.
     default: ''
+  suffix:
+    description: >-
+      Fixed numeric parts after the count, for a package format that needs them: prefix
+      v1.25 with suffix .0 numbers v1.25.N.0 (at-terminal's four-part MSIX version).
+    default: ''
   publish:
     description: >-
       true reserves the tag. Anything else names a build that is not released.

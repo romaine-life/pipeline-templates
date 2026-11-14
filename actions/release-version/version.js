@@ -30,7 +30,7 @@ function prefixFrom(file, text) {
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-async function releaseVersion({api, token, series, publish, sha, pullRequest, run, fetch = globalThis.fetch, log = console.log}) {
+async function releaseVersion({api, token, series, suffix = '', publish, sha, pullRequest, run, fetch = globalThis.fetch, log = console.log}) {
   if (!token) throw new Error('missing token');
   if (!series) throw new Error('give prefix or prefix-from');
   const headers = {Authorization: `token ${token}`, 'Content-Type': 'application/json'};
@@ -43,7 +43,7 @@ async function releaseVersion({api, token, series, publish, sha, pullRequest, ru
   };
 
   // Every tag in the series, by number, and the commit each is on.
-  const pattern = new RegExp(`^${escape(series)}\\.(0|[1-9][0-9]*)$`);
+  const pattern = new RegExp(`^${escape(series)}\\.(0|[1-9][0-9]*)${escape(suffix)}$`);
   const numbered = async () => {
     const found = [];
     for (let page = 1, seen = 0, total = Infinity; seen < total; page++) {
@@ -70,7 +70,7 @@ async function releaseVersion({api, token, series, publish, sha, pullRequest, ru
         log(`${sha} is already ${mine.name}`);
         return {version: mine.name, tag: mine.name, reserved: false};
       }
-      const name = `${series}.${next(tags)}`;
+      const name = `${series}.${next(tags)}${suffix}`;
       const response = await call('POST', '/tags', {tag_name: name, target: sha});
       if (response.ok) {
         log(`Reserved ${name} on ${sha}`);
@@ -85,7 +85,7 @@ async function releaseVersion({api, token, series, publish, sha, pullRequest, ru
 
   if (!/^[0-9]+$/.test(String(run || ''))) throw new Error(`run number ${run} is not a number`);
   const from = /^[0-9]+$/.test(String(pullRequest || '')) ? `pr${pullRequest}.${run}` : `run${run}`;
-  const version = `${series}.${next(await numbered())}-${from}`;
+  const version = `${series}.${next(await numbered())}${suffix}-${from}`;
   log(`Build ${version}, not released`);
   return {version, tag: '', reserved: false};
 }
@@ -107,10 +107,13 @@ if (require.main === module) {
     if (!/^v[0-9][0-9A-Za-z.]*$/.test(series)) throw new Error(`prefix ${series} is not v followed by a version, such as v0.1`);
     if (component && !/^[a-z][a-z0-9-]*$/.test(component)) throw new Error(`component ${component} is not a lowercase name`);
     if (component) series = `${component}-${series}`;
+    const suffix = input('suffix');
+    if (!/^(\.[0-9]+)*$/.test(suffix)) throw new Error(`suffix ${suffix} is not fixed numeric parts, such as .0`);
     const result = await releaseVersion({
       api: `${process.env.GITHUB_SERVER_URL}/api/v1/repos/${input('repository')}`,
       token: input('token'),
       series,
+      suffix,
       publish: input('publish') === 'true',
       sha: input('sha'),
       pullRequest: input('pull-request'),
