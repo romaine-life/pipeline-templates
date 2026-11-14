@@ -15,8 +15,8 @@ that reaches past them:
   Images the same file builds, our own forgejo.romaine.life images and names held in a
   variable are left alone;
 - a setup action that downloads its tool from the internet, used directly where
-  pipeline-templates has one that installs it through Artifact Keeper (setup-go before v6,
-  which reads the runners' GO_DOWNLOAD_BASE_URL; setup-helm without its downloadBaseURL);
+  pipeline-templates has one that installs it through Artifact Keeper (setup-helm without
+  its downloadBaseURL), and actions/setup-go, whose install has no lock (PIPT-5);
 - `tofu init` or `tofu providers` in a job with no home-cache step, which points tofu at
   Artifact Keeper's provider mirror;
 - a Cargo git dependency (Cargo.toml `git =`, Cargo.lock `git+`) on a host not at home.
@@ -52,15 +52,17 @@ SETUP = {
     "actions/setup-node": TEMPLATES + "setup-node@main",
     "actions/setup-python": TEMPLATES + "setup-python@main",
     "actions/setup-dotnet": TEMPLATES + "setup-dotnet@main",
+    "actions/setup-go": TEMPLATES + "setup-go@main",
     "astral-sh/setup-uv": TEMPLATES + "setup-uv@main",
     "opentofu/setup-opentofu": TEMPLATES + "setup-opentofu@main",
     "dtolnay/rust-toolchain": TEMPLATES + "rust-toolchain@main",
     "azure/setup-kubectl": "a curl of artifacts.home.romaine.life/general/k8s-dl/release/<v>/... checked against its .sha256",
 }
+# Why each is refused, where it isn't that it downloads from the internet.
+WHY = {"actions/setup-go": "it installs Go with no lock, so jobs taking a new version at once can delete it under each other"}
 # The setup actions pipeline-templates' own wrappers nest, by the wrapper's folder.
 WRAPS = {"setup-node": {"actions/setup-node"}, "setup-go": {"actions/setup-go"}, "setup-uv": {"astral-sh/setup-uv"},
          "setup-python": {"astral-sh/setup-uv"}}
-OLD_GO = re.compile(r"^actions/setup-go@v[1-5](\.|$)")
 TOFU = re.compile(r"(^|[\s;&|(\"'])tofu\s+(\"?-chdir=\S+\s+)?(init|providers)\b")
 HOME_CACHE = re.compile(r"(^|/)actions/home-cache(@|$)")
 JOB = re.compile(r"^  [A-Za-z0-9_-]+:\s*$")
@@ -165,9 +167,7 @@ def setup_problem(ref, nested):
     """Why a `uses:` of a setup action isn't allowed, or None."""
     name = ref.split("@")[0]
     if name in SETUP and name not in nested:
-        return f"uses {ref}: it downloads from the internet; use {SETUP[name]}"
-    if OLD_GO.match(ref):
-        return f"uses {ref}: setup-go before v6 downloads Go from the internet; use actions/setup-go@v6, which reads the runners' GO_DOWNLOAD_BASE_URL"
+        return f"uses {ref}: {WHY.get(name, 'it downloads from the internet')}; use {SETUP[name]}"
     return None
 
 

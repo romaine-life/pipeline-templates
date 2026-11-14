@@ -104,7 +104,7 @@ jobs:
             fetch -q "$REMOTE" "$BASE"
           git reset -q --hard FETCH_HEAD
 
-      - uses: actions/setup-go@v6
+      - uses: romaine-life/pipeline-templates/actions/setup-go@main
         with:
           go-version-file: ${{ inputs.go-mod-path }}/go.mod
           cache: false

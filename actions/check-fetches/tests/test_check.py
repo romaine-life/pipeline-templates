@@ -101,7 +101,7 @@ FROM scratch
         self.assertEqual([n for n, _ in out["build/Dockerfile.base"]], [1])
         self.assertEqual(code, 1)
 
-    def test_names_setup_actions_that_download_from_the_internet(self):
+    def test_names_setup_actions_used_where_pipeline_templates_has_one(self):
         workflow = """\
 jobs:
   a:
@@ -121,14 +121,15 @@ jobs:
       - run: echo done
 """
         out, code = self.run_on({".forgejo/workflows/ci.yml": workflow})
-        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [4, 5, 8, 9])
+        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [4, 5, 6, 8, 9])
         self.assertEqual(code, 1)
 
     def test_a_wrapper_may_nest_the_action_it_wraps(self):
-        action = "runs:\n  using: composite\n  steps:\n    - uses: actions/setup-node@v4\n"
-        out, code = self.run_on({"actions/setup-node/action.yml": action, "actions/other/action.yml": action})
-        self.assertEqual(out["actions/setup-node/action.yml"], [])
-        self.assertEqual([n for n, _ in out["actions/other/action.yml"]], [4])
+        for name in ("setup-node", "setup-go"):
+            action = f"runs:\n  using: composite\n  steps:\n    - uses: actions/{name}@v6\n"
+            out, code = self.run_on({f"actions/{name}/action.yml": action, "actions/other/action.yml": action})
+            self.assertEqual(out[f"actions/{name}/action.yml"], [])
+            self.assertEqual([n for n, _ in out["actions/other/action.yml"]], [4])
 
     def test_names_tofu_init_in_a_job_without_home_cache(self):
         workflow = """\

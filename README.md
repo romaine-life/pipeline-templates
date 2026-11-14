@@ -16,8 +16,9 @@ serving what it holds when a source is down (FORGEJO-25). Composite actions:
   images the same file builds and our own `forgejo.romaine.life` ones are left alone). It
   also fails on a setup action that downloads from the internet where an action here installs
   through Artifact Keeper (actions/setup-node, setup-python, setup-dotnet, astral-sh/setup-uv,
-  opentofu/setup-opentofu, dtolnay/rust-toolchain, azure/setup-kubectl, setup-go before v6,
-  setup-helm without `downloadBaseURL`), on `tofu init` or `tofu providers` in a job with no
+  opentofu/setup-opentofu, dtolnay/rust-toolchain, azure/setup-kubectl, setup-helm without
+  `downloadBaseURL`), on actions/setup-go, whose install has no lock (PIPT-5; this repo's
+  `actions/setup-go` replaces it), on `tofu init` or `tofu providers` in a job with no
   home-cache step, and on a Cargo git dependency on a host not at home. A pin moves in a
   commit when there's a reason to, never on its own. A line that must reach the internet (a
   deploy to Azure) carries `# internet: <why>`, in a Dockerfile on the line above; a
@@ -42,7 +43,8 @@ serving what it holds when a source is down (FORGEJO-25). Composite actions:
 
 Toolchains come from the setup actions here, never from `actions/setup-node`,
 `setup-python`, `setup-dotnet`, `astral-sh/setup-uv`, `opentofu/setup-opentofu` or
-`dtolnay/rust-toolchain` named directly, which download from the internet. Each installs an
+`dtolnay/rust-toolchain` named directly, which download from the internet, nor
+`actions/setup-go`, whose install has no lock. Each installs an
 exact version through Artifact Keeper, checks it against a published or pinned checksum,
 and keeps it in the runner's tool cache, so a version is downloaded once per runner. The
 exact versions are pinned in one table, `actions/pins.txt`; a pin moves in a commit when
