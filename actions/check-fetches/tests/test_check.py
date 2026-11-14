@@ -101,6 +101,72 @@ FROM scratch
         self.assertEqual([n for n, _ in out["build/Dockerfile.base"]], [1])
         self.assertEqual(code, 1)
 
+    def test_names_setup_actions_that_download_from_the_internet(self):
+        workflow = """\
+jobs:
+  a:
+    steps:
+      - uses: actions/setup-node@v4
+      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
+      - uses: romaine-life/pipeline-templates/actions/setup-node@main
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.3.1
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.3.1
+          downloadBaseURL: https://artifacts.home.romaine.life/general/helm-downloads/
+      - run: echo done
+"""
+        out, code = self.run_on({".forgejo/workflows/ci.yml": workflow})
+        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [4, 5, 8, 9])
+        self.assertEqual(code, 1)
+
+    def test_a_wrapper_may_nest_the_action_it_wraps(self):
+        action = "runs:\n  using: composite\n  steps:\n    - uses: actions/setup-node@v4\n"
+        out, code = self.run_on({"actions/setup-node/action.yml": action, "actions/other/action.yml": action})
+        self.assertEqual(out["actions/setup-node/action.yml"], [])
+        self.assertEqual([n for n, _ in out["actions/other/action.yml"]], [4])
+
+    def test_names_tofu_init_in_a_job_without_home_cache(self):
+        workflow = """\
+jobs:
+  cached:
+    steps:
+      - uses: romaine-life/pipeline-templates/actions/home-cache@main
+      - run: tofu -chdir=infra init
+  bare:
+    steps:
+      - name: tofu init needs no comment here
+        run: tofu init -backend=false
+      - run: tofu fmt -check
+      - run: tofu providers lock  # internet: the lock reads the origin registry's signed checksums
+  local:
+    steps:
+      - uses: ./actions/home-cache
+      - run: tofu init
+"""
+        out, code = self.run_on({".forgejo/workflows/ci.yml": workflow})
+        self.assertEqual([n for n, _ in out[".forgejo/workflows/ci.yml"]], [9])
+        self.assertEqual(code, 1)
+
+    def test_names_cargo_git_dependencies_off_home(self):
+        manifest = """\
+[dependencies]
+a = { git = "https://github.com/x/a", rev = "1" }
+b = { git = "https://forgejo.romaine.life/nelsong6/b.git", rev = "2" }
+c = "1"
+"""
+        lock = 'source = "registry+https://github.com/rust-lang/crates.io-index"\nsource = "git+https://github.com/x/a?rev=1#1"\n'
+        out, code = self.run_on({"Cargo.toml": manifest, "Cargo.lock": lock})
+        self.assertEqual([n for n, _ in out["Cargo.toml"]], [2])
+        self.assertEqual([n for n, _ in out["Cargo.lock"]], [2])
+        tool = "# check-fetches: not built by home CI (a local tool)\n" + manifest
+        out, code = self.run_on({"tools/x/Cargo.toml": tool, "tools/x/Cargo.lock": lock})
+        self.assertEqual(code, 0)
+
     def test_skips_a_dockerfile_home_ci_never_builds(self):
         upstream = "# check-fetches: not built by home CI (upstream's, kept for merges)\nFROM rust\n"
         out, code = self.run_on({"Dockerfile": upstream})

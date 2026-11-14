@@ -13,12 +13,19 @@ that reaches past them:
 - an image (a Dockerfile's FROM, a workflow's `image:` or `container:`, `docker://`, or
   `docker run|create|pull`) that isn't named by digest through artifacts.home.romaine.life.
   Images the same file builds, our own forgejo.romaine.life images and names held in a
-  variable are left alone.
+  variable are left alone;
+- a setup action that downloads its tool from the internet, used directly where
+  pipeline-templates has one that installs it through Artifact Keeper (setup-go before v6,
+  which reads the runners' GO_DOWNLOAD_BASE_URL; setup-helm without its downloadBaseURL);
+- `tofu init` or `tofu providers` in a job with no home-cache step, which points tofu at
+  Artifact Keeper's provider mirror;
+- a Cargo git dependency (Cargo.toml `git =`, Cargo.lock `git+`) on a host not at home.
 
 A line that must reach the internet (a deploy to Azure, say) carries a `# internet: <why>`
 comment, which this accepts; in a Dockerfile, where a comment can't share a line with an
-instruction, it goes on the line above. A Dockerfile home CI never builds (one a fork carries
-from upstream) says so in a `# check-fetches: not built by home CI` line, and is skipped.
+instruction, it goes on the line above. A Dockerfile or Cargo.toml home CI never builds (one
+a fork carries from upstream, a local tool) says so in a `# check-fetches: not built by home
+CI` line, and is skipped, with the Cargo.lock beside it.
 Standard library only, no network.
 """
 
@@ -39,6 +46,25 @@ OWN = "forgejo.romaine.life/"
 IMAGE_KEY = re.compile(r"^\s*(-\s+)?(image|container):\s*['\"]?(?P<ref>[^\s'\"#]+)['\"]?\s*(#.*)?$")
 DOCKER_SCHEME = re.compile(r"docker://(?P<ref>[^\s'\"#]+)")
 DOCKER_CMD = re.compile(r"\bdocker\s+(?:container\s+|image\s+)?(?P<verb>run|create|pull)\b(?P<rest>.*)")
+# Setup actions that download their tool from the internet, and what to use instead.
+TEMPLATES = "romaine-life/pipeline-templates/actions/"
+SETUP = {
+    "actions/setup-node": TEMPLATES + "setup-node@main",
+    "actions/setup-python": TEMPLATES + "setup-python@main",
+    "actions/setup-dotnet": TEMPLATES + "setup-dotnet@main",
+    "astral-sh/setup-uv": TEMPLATES + "setup-uv@main",
+    "opentofu/setup-opentofu": TEMPLATES + "setup-opentofu@main",
+    "dtolnay/rust-toolchain": TEMPLATES + "rust-toolchain@main",
+    "azure/setup-kubectl": "a curl of artifacts.home.romaine.life/general/k8s-dl/release/<v>/... checked against its .sha256",
+}
+# The setup actions pipeline-templates' own wrappers nest, by the wrapper's folder.
+WRAPS = {"setup-node": {"actions/setup-node"}, "setup-uv": {"astral-sh/setup-uv"}, "setup-python": {"astral-sh/setup-uv"}}
+OLD_GO = re.compile(r"^actions/setup-go@v[1-5](\.|$)")
+TOFU = re.compile(r"(^|[\s;&|(\"'])tofu\s+(\"?-chdir=\S+\s+)?(init|providers)\b")
+HOME_CACHE = re.compile(r"(^|/)actions/home-cache(@|$)")
+JOB = re.compile(r"^  [A-Za-z0-9_-]+:\s*$")
+CARGO_GIT = re.compile(r"^\s*[\w-]+\s*=.*\bgit\s*=\s*['\"](?P<url>[^'\"]+)|^\s*git\s*=\s*['\"](?P<url2>[^'\"]+)")
+LOCK_GIT = re.compile(r"^\s*source\s*=\s*\"git\+(?P<url>[^\"?#]+)")
 BUILT_TAG = re.compile(r"(?:\s(?:-t|--tag)[\s=]+|^\s*tags:\s*)['\"]?(?P<name>[^\s'\"]+)", re.M)
 # docker run/create options that take no value; every other option takes the next word
 # unless written `--opt=value`.
@@ -53,7 +79,7 @@ def files(root):
     dirs = [forgejo] if forgejo.is_dir() else [root / ".github" / "workflows"]
     found = [p for d in dirs if d.is_dir() for p in sorted(d.iterdir()) if p.suffix in (".yml", ".yaml")]
     skip = {".git", "node_modules", ".claude"}
-    for name in ("action.yml", "action.yaml"):
+    for name in ("action.yml", "action.yaml", "Cargo.toml", "Cargo.lock"):
         found += sorted(p for p in root.rglob(name) if not skip & set(p.parts))
     found += sorted(
         p for p in root.rglob("*")
@@ -134,7 +160,70 @@ def joined(text):
     return out
 
 
-def workflow_findings(text):
+def setup_problem(ref, nested):
+    """Why a `uses:` of a setup action isn't allowed, or None."""
+    name = ref.split("@")[0]
+    if name in SETUP and name not in nested:
+        return f"uses {ref}: it downloads from the internet; use {SETUP[name]}"
+    if OLD_GO.match(ref):
+        return f"uses {ref}: setup-go before v6 downloads Go from the internet; use actions/setup-go@v6, which reads the runners' GO_DOWNLOAD_BASE_URL"
+    return None
+
+
+def units(lines):
+    """The lines grouped by job (a workflow's jobs; a whole action is one)."""
+    groups, current, in_jobs = [], [], False
+    for number, line in lines:
+        if re.match(r"^jobs:\s*$", line):
+            in_jobs = True
+        elif in_jobs and JOB.match(line):
+            groups.append(current)
+            current = []
+        current.append((number, line))
+    groups.append(current)
+    return groups
+
+
+def job_findings(text):
+    """A job that runs tofu init or tofu providers without home-cache, and setup-helm with no downloadBaseURL."""
+    lines = list(enumerate(text.splitlines(), 1))
+    for unit in units(lines):
+        cached = any((u := USES.match(l)) and HOME_CACHE.search(u.group("ref")) for _, l in unit)
+        for i, (number, line) in enumerate(unit):
+            if line.lstrip().startswith("#") or re.match(r"^\s*(-\s+)?(name|description):", line):
+                continue
+            if not cached and TOFU.search(line) and not MARK.search(line):
+                yield number, "tofu fetches providers from the registry: add romaine-life/pipeline-templates/actions/home-cache@main to the job, or mark the line '# internet: <why>'"
+            uses = USES.match(line)
+            if uses and uses.group("ref").split("@")[0] == "azure/setup-helm":
+                indent = len(line) - len(line.lstrip(" -"))
+                step = []
+                for _, rest in unit[i + 1:]:
+                    if rest.strip() and (len(rest) - len(rest.lstrip(" ")) < indent or rest.lstrip().startswith("- ")):
+                        break
+                    step.append(rest)
+                if not any("downloadBaseURL:" in r for r in step):
+                    yield number, "uses azure/setup-helm without downloadBaseURL: set it to https://artifacts.home.romaine.life/general/helm-downloads/"
+
+
+def cargo_findings(path, text):
+    manifest = path.with_name("Cargo.toml")
+    if NOT_BUILT.search(text if path.name == "Cargo.toml" else manifest.read_text(encoding="utf-8", errors="replace") if manifest.is_file() else ""):
+        return
+    pattern = LOCK_GIT if path.name == "Cargo.lock" else CARGO_GIT
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("#") or MARK.search(line):
+            continue
+        m = pattern.search(line)
+        url = m and (m.groupdict().get("url") or m.groupdict().get("url2"))
+        if not url:
+            continue
+        host = URL.match(url)
+        if host and not HOME.match(host.group("host").lower()):
+            yield number, f"git dependency on {host.group('host')}: keep a copy on forgejo.romaine.life and point Cargo there"
+
+
+def workflow_findings(text, nested=frozenset()):
     built = {m.group("name").split(":")[0].split("@")[0] for m in BUILT_TAG.finditer(text)}
 
     def local(ref):
@@ -145,6 +234,11 @@ def workflow_findings(text):
             continue
         if not MARK.search(line):  # the mark excuses a fetch, never an unpinned image
             yield from ((number, why) for why in url_findings(line))
+        uses = USES.match(line)
+        if uses:
+            why = setup_problem(uses.group("ref"), nested)
+            if why:
+                yield number, why
         refs = []
         key = IMAGE_KEY.match(line)
         if key:
@@ -210,8 +304,11 @@ def dockerfile_findings(text):
 def findings(path, text):
     if is_dockerfile(path):
         yield from dockerfile_findings(text)
+    elif path.name in ("Cargo.toml", "Cargo.lock"):
+        yield from cargo_findings(path, text)
     else:
-        yield from workflow_findings(text)
+        nested = WRAPS.get(path.parent.name, frozenset()) if path.name in ("action.yml", "action.yaml") else frozenset()
+        yield from sorted(set(workflow_findings(text, nested)) | set(job_findings(text)))
 
 
 def main(argv):
@@ -224,7 +321,7 @@ def main(argv):
     if bad:
         print(f"{bad} line(s) fetch from the internet or run an unpinned image (pipeline-templates actions/check-fetches)")
         return 1
-    print("no workflow, action or Dockerfile fetches from the internet, and every image is pinned")
+    print("no workflow, action, Dockerfile or Cargo manifest fetches from the internet, and every image is pinned")
     return 0
 
 
