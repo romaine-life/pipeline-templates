@@ -58,7 +58,8 @@ SETUP = {
     "azure/setup-kubectl": "a curl of artifacts.home.romaine.life/general/k8s-dl/release/<v>/... checked against its .sha256",
 }
 # The setup actions pipeline-templates' own wrappers nest, by the wrapper's folder.
-WRAPS = {"setup-node": {"actions/setup-node"}, "setup-uv": {"astral-sh/setup-uv"}, "setup-python": {"astral-sh/setup-uv"}}
+WRAPS = {"setup-node": {"actions/setup-node"}, "setup-go": {"actions/setup-go"}, "setup-uv": {"astral-sh/setup-uv"},
+         "setup-python": {"astral-sh/setup-uv"}}
 OLD_GO = re.compile(r"^actions/setup-go@v[1-5](\.|$)")
 TOFU = re.compile(r"(^|[\s;&|(\"'])tofu\s+(\"?-chdir=\S+\s+)?(init|providers)\b")
 HOME_CACHE = re.compile(r"(^|/)actions/home-cache(@|$)")

@@ -262,7 +262,7 @@ jobs:
   # The setup actions on both Linux runners (the cluster's, which alone has `nas`, and
   # upstairspc's WSL one): each installs through Artifact Keeper, and the tool it put on
   # PATH is the one that runs. setup-python nests astral-sh/setup-uv, setup-node
-  # actions/setup-node.
+  # actions/setup-node, setup-go actions/setup-go.
   setup-linux:
     needs: changes
     if: needs.changes.outputs.setup == 'true'
@@ -295,6 +295,15 @@ jobs:
         uses: ./actions/setup-python
         with:
           python-version: "3.12"
+      - name: A go.mod whose toolchain line names the Go
+        run: |
+          mkdir -p "$RUNNER_TEMP/go-probe"
+          printf '%s\n' 'module example.com/probe' '' 'go 1.25.0' '' 'toolchain go1.26.2' > "$RUNNER_TEMP/go-probe/go.mod"
+      - id: go
+        uses: ./actions/setup-go
+        with:
+          go-version-file: ${{ runner.temp }}/go-probe/go.mod
+          cache: false
       - name: Each tool runs from what its action installed
         env:
           WANT_NODE: ${{ steps.node.outputs.node-version }}
@@ -302,8 +311,17 @@ jobs:
           WANT_RUST: ${{ steps.rust.outputs.toolchain }}
           WANT_UV: ${{ steps.uv.outputs.uv-version }}
           WANT_PYTHON: ${{ steps.python.outputs.python-version }}
+          WANT_GO: ${{ steps.go.outputs.go-version }}
         run: |
           set -euo pipefail
+          # go-ec7381f6 is the folder setup-go@v6 named itself for the runners'
+          # GO_DOWNLOAD_BASE_URL (PIPT-5); the action's copy must be that one, and the only one.
+          go_dir="$RUNNER_TOOL_CACHE/go-ec7381f6/1.26.2/x64"
+          [ "$(readlink -f "$(command -v go)")" = "$(readlink -f "$go_dir/bin/go")" ] || { echo "go is $(command -v go)"; exit 1; }
+          copies=("$RUNNER_TOOL_CACHE"/go-*/1.26.2)
+          [ "${#copies[@]}" = 1 ] || { echo "Go 1.26.2 is in ${copies[*]}"; exit 1; }
+          [ "$WANT_GO" = 1.26.2 ] || { echo "setup-go reported $WANT_GO"; exit 1; }
+          go=$(go version); [ "$go" = "go version go1.26.2 linux/amd64" ] || { echo "go is $go"; exit 1; }
           for tool in node tofu dotnet uv; do
             case "$(command -v "$tool")" in "$RUNNER_TOOL_CACHE"/*) ;; *) echo "$tool is $(command -v "$tool")"; exit 1 ;; esac
           done
@@ -355,6 +373,16 @@ jobs:
         uses: ./actions/setup-python
         with:
           python-version: "3.12"
+      - name: A go.mod whose toolchain line names the Go
+        shell: pwsh
+        run: |
+          $d = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'go-probe')
+          Set-Content -LiteralPath "$d\go.mod" -Value @('module example.com/probe', '', 'go 1.25.0', '', 'toolchain go1.26.2')
+      - id: go
+        uses: ./actions/setup-go
+        with:
+          go-version-file: ${{ runner.temp }}/go-probe/go.mod
+          cache: false
       - name: Each tool runs from what its action installed
         shell: pwsh
         env:
@@ -363,9 +391,19 @@ jobs:
           WANT_RUST: ${{ steps.rust.outputs.toolchain }}
           WANT_UV: ${{ steps.uv.outputs.uv-version }}
           WANT_PYTHON: ${{ steps.python.outputs.python-version }}
+          WANT_GO: ${{ steps.go.outputs.go-version }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
+          # go-ec7381f6 is the folder setup-go@v6 named itself for the runners'
+          # GO_DOWNLOAD_BASE_URL (PIPT-5); the action's copy must be that one, and the only one.
+          $want = [IO.Path]::GetFullPath((Join-Path $env:RUNNER_TOOL_CACHE 'go-ec7381f6\1.26.2\x64\bin\go.exe'))
+          $path = [IO.Path]::GetFullPath((Get-Command go).Source)
+          if ($path -ne $want) { throw "go is $path" }
+          $copies = @(Get-ChildItem -Directory (Join-Path $env:RUNNER_TOOL_CACHE 'go-*') | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName '1.26.2') })
+          if ($copies.Count -ne 1) { throw "Go 1.26.2 is in $($copies.FullName -join ', ')" }
+          if ($env:WANT_GO -ne '1.26.2') { throw "setup-go reported $env:WANT_GO" }
+          if ((go version) -ne 'go version go1.26.2 windows/amd64') { throw "go is $(go version)" }
           foreach ($tool in 'node', 'tofu', 'dotnet', 'uv') {
             $path = (Get-Command $tool).Source
             if (-not $path.StartsWith($env:RUNNER_TOOL_CACHE)) { throw "$tool is $path" }

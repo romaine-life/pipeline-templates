@@ -62,10 +62,17 @@ there's a reason to.
 - `actions/rust-toolchain`: the pinned stable Rust, or an exact `toolchain` (`1.100.0`,
   `nightly-2026-08-01`), with `components` and `targets`. It sets `RUSTUP_TOOLCHAIN` for the
   job, which overrides a `rust-toolchain.toml`, and leaves the runner's default alone.
+- `actions/setup-go`: the exact Go in `go.mod` (`go-version-file`), from its `toolchain` line,
+  else its `go` line, which must name a patch release (`go 1.26.1`), checked against its
+  published `.sha256`; then `actions/setup-go@v6` on it, so `cache` and
+  `cache-dependency-path` (also inputs) work as before. It installs into the tool-cache folder
+  setup-go@v6 names for the runners' `GO_DOWNLOAD_BASE_URL`, under a lock: setup-go@v6 on its
+  own installs with none, and jobs taking a new version at once can delete it under each
+  other (PIPT-5).
 
 Each is named like the others: `romaine-life/pipeline-templates/actions/setup-node@main`.
-Go needs no action of ours: `actions/setup-go@v6` downloads the exact version in the repo's
-`go.mod` from `GO_DOWNLOAD_BASE_URL`, which every runner points at Artifact Keeper.
+`actions/setup-go` downloads Go from `GO_DOWNLOAD_BASE_URL`, which every runner points at
+Artifact Keeper, and its version comes from each repo's `go.mod` rather than `pins.txt`.
 
 A tool a job downloads comes from Artifact Keeper's caches: a GitHub release at
 `https://artifacts.home.romaine.life/general/github/<owner>/<repo>/releases/download/<tag>/<file>`,

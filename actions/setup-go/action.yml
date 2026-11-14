@@ -1,0 +1,132 @@
+name: setup-go
+description: >-
+  Puts the exact Go a go.mod names on PATH, downloaded from the runner's GO_DOWNLOAD_BASE_URL
+  (Artifact Keeper's go.dev/dl) and checked against its published .sha256, then hands it to
+  actions/setup-go@v6 so its module cache still works. Each version is installed once, under
+  a lock, into the tool-cache folder setup-go@v6 looks in for that base URL: setup-go's own
+  install has no lock, so jobs installing one version at once can delete it under each other
+  (PIPT-5). x64 only.
+inputs:
+  go-version-file:
+    description: >-
+      The go.mod to read. Its `toolchain go1.X.Y` line wins, else its `go 1.X.Y` line, which
+      must name a patch release.
+    default: go.mod
+  cache:
+    description: Passed to actions/setup-go.
+    default: "true"
+  cache-dependency-path:
+    description: Passed to actions/setup-go.
+    default: ""
+outputs:
+  go-version:
+    description: The version installed, as actions/setup-go reports it (`1.26.1`).
+    value: ${{ steps.setup.outputs.go-version }}
+runs:
+  using: composite
+  steps:
+    - id: linux
+      name: Install Go through Artifact Keeper
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        GO_MOD: ${{ inputs.go-version-file }}
+      run: |
+        set -euo pipefail
+        # setup-go@v6 trims trailing slashes, then names its tool-cache folder after the URL.
+        base=$(printf %s "${GO_DOWNLOAD_BASE_URL:-}" | sed 's:/*$::')
+        [ -n "$base" ] || { echo "::error::GO_DOWNLOAD_BASE_URL is not set on runner $RUNNER_NAME; every home runner points it at https://artifacts.home.romaine.life/general/go-dl"; exit 1; }
+        [ -f "$GO_MOD" ] || { echo "::error::$GO_MOD not found"; exit 1; }
+        version=$(awk '$1 == "toolchain" { sub(/\r$/, "", $2); sub(/^go/, "", $2); print $2; exit }' "$GO_MOD")
+        line="toolchain go$version"
+        if [ -z "$version" ]; then
+          version=$(awk '$1 == "go" { sub(/\r$/, "", $2); print $2; exit }' "$GO_MOD")
+          line="go $version"
+        fi
+        [ -n "$version" ] || { echo "::error::$GO_MOD has no go or toolchain line"; exit 1; }
+        if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::$GO_MOD says '$line', with no patch release; name the exact one ('go $version.N'), or add a 'toolchain go$version.N' line"; exit 1
+        fi
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$GO_MOD says '$line', which is not an exact Go release (1.X.Y)"; exit 1; }
+        root="${RUNNER_TOOL_CACHE:?}/go-$(printf %s "$base" | sha256sum | cut -c1-8)"
+        dir="$root/$version/x64"
+        mkdir -p "$root"
+        # Jobs on one runner share the tool cache: one installs while the others wait.
+        exec 9>"$root/.lock"
+        flock 9
+        # x64.complete is the marker actions/setup-go looks for beside the folder.
+        if [ ! -e "$dir.complete" ]; then
+          file="go$version.linux-amd64.tar.gz"
+          tmp=$(mktemp -d)
+          curl -fsSL -o "$tmp/$file" "$base/$file"
+          want=$(curl -fsSL "$base/$file.sha256" | tr -d '[:space:]')
+          echo "$want  $tmp/$file" | sha256sum -c -
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          tar -xzf "$tmp/$file" -C "$dir" --strip-components=1
+          rm -rf "$tmp"
+          touch "$dir.complete"
+        fi
+        flock -u 9
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - id: windows
+      name: Install Go through Artifact Keeper
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        GO_MOD: ${{ inputs.go-version-file }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        # setup-go@v6 trims trailing slashes, then names its tool-cache folder after the URL.
+        $base = "$env:GO_DOWNLOAD_BASE_URL".TrimEnd('/')
+        if (-not $base) { throw "GO_DOWNLOAD_BASE_URL is not set on runner $env:RUNNER_NAME; every home runner points it at https://artifacts.home.romaine.life/general/go-dl" }
+        if (-not (Test-Path -LiteralPath $env:GO_MOD -PathType Leaf)) { throw "$env:GO_MOD not found" }
+        $mod = Get-Content -LiteralPath $env:GO_MOD
+        $version = $mod | ForEach-Object { $f = -split $_; if ($f[0] -eq 'toolchain') { $f[1] -replace '^go' } } | Select-Object -First 1
+        $line = "toolchain go$version"
+        if (-not $version) {
+          $version = $mod | ForEach-Object { $f = -split $_; if ($f[0] -eq 'go') { $f[1] } } | Select-Object -First 1
+          $line = "go $version"
+        }
+        if (-not $version) { throw "$env:GO_MOD has no go or toolchain line" }
+        if ($version -match '^\d+\.\d+$') {
+          throw "$env:GO_MOD says '$line', with no patch release; name the exact one ('go $version.N'), or add a 'toolchain go$version.N' line" }
+        if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "$env:GO_MOD says '$line', which is not an exact Go release (1.X.Y)" }
+        $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($base)))
+        $dir = Join-Path $env:RUNNER_TOOL_CACHE "go-$($hash.Substring(0, 8).ToLowerInvariant())\$version\x64"
+        # Jobs on this host share the tool cache: one installs while the others wait. A job
+        # that died holding the lock leaves it abandoned, which still hands it over.
+        $lock = [Threading.Mutex]::new($false, 'pipeline-templates-go')
+        try { [void]$lock.WaitOne() } catch [Threading.AbandonedMutexException] {}
+        try {
+          # x64.complete is the marker actions/setup-go looks for beside the folder.
+          if (-not (Test-Path -LiteralPath "$dir.complete")) {
+            $file = "go$version.windows-amd64.zip"
+            $tmp = Join-Path $env:RUNNER_TEMP ([guid]::NewGuid())
+            New-Item -ItemType Directory $tmp | Out-Null
+            curl.exe -fsSL -o "$tmp\$file" "$base/$file"
+            if ($LASTEXITCODE) { throw "downloading $file failed" }
+            $sum = curl.exe -fsSL "$base/$file.sha256"
+            if ($LASTEXITCODE) { throw "downloading $file.sha256 failed" }
+            $want = "$sum".Trim()
+            if (-not $want -or (Get-FileHash -Algorithm SHA256 -LiteralPath "$tmp\$file").Hash -ne $want) { throw "$file does not match $file.sha256" }
+            & "$env:SystemRoot\System32\tar.exe" -xf "$tmp\$file" -C $tmp
+            if ($LASTEXITCODE) { throw "extracting $file failed" }
+            if (Test-Path -LiteralPath $dir) { Remove-Item -Recurse -Force -LiteralPath $dir }
+            New-Item -ItemType Directory -Force (Split-Path $dir) | Out-Null
+            Move-Item -LiteralPath "$tmp\go" $dir
+            Remove-Item -Recurse -Force -LiteralPath $tmp
+            New-Item -ItemType File "$dir.complete" | Out-Null
+          }
+        } finally { $lock.ReleaseMutex() }
+        "version=$version" >> $env:GITHUB_OUTPUT
+
+    # Finds the version above in the tool cache, so it downloads nothing itself. Its
+    # go-version output is the one this action reports.
+    - id: setup
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ steps.linux.outputs.version || steps.windows.outputs.version }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
