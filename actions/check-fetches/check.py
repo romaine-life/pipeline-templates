@@ -79,9 +79,9 @@ FLAGS = {"--rm", "--read-only", "--init", "--privileged", "-d", "--detach", "-i"
 def files(root):
     """The workflows Forgejo runs, every action the repo defines, and every Dockerfile."""
     forgejo = root / ".forgejo" / "workflows"
-    dirs = [forgejo] if forgejo.is_dir() else [root / ".github" / "workflows"]
+    dirs = [forgejo]
     found = [p for d in dirs if d.is_dir() for p in sorted(d.iterdir()) if p.suffix in (".yml", ".yaml")]
-    skip = {".git", "node_modules", ".claude"}
+    skip = {".git", "node_modules", ".claude", "_ci"}
     for name in ("action.yml", "action.yaml", "Cargo.toml", "Cargo.lock"):
         found += sorted(p for p in root.rglob(name) if not skip & set(p.parts))
     found += sorted(

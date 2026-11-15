@@ -8,7 +8,7 @@ runs:
   steps:
     - name: The check runs in a Linux job
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
       run: |
         Write-Host '::error::check-fetches reads only the repo: run it in a Linux job (the Windows runner has no Python)'
         exit 1

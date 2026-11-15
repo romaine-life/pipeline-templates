@@ -34,7 +34,7 @@ runs:
 
     - name: Fetch cargo, NuGet and OpenTofu packages through Artifact Keeper
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
       run: |
         $ErrorActionPreference = 'Stop'
         $cache = 'https://artifacts.home.romaine.life'

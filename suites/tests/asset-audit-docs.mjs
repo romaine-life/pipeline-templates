@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {templates} from '../lib.mjs';
+const audit=JSON.parse(fs.readFileSync(new URL('./asset-contracts.json',import.meta.url),'utf8'));
+const file=path.join(templates,'suites/README.md'),before=fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+const start='<!-- asset-contract-audit:start -->',end='<!-- asset-contract-audit:end -->';
+const lines=[start,'','## Published asset compatibility audit','',`This audit read all ${audit.repositories.length+audit.noRelease.length} current home repositories matching the inventory/conventions and their origin default branches. ${audit.repositories.length} have published releases; ${audit.repositories.filter(row=>row.assets.length).length} attach assets. The current published names and home-sync requirements are captured in [asset-contracts.json](tests/asset-contracts.json). The home-sync input is [machine/state.json](https://forgejo.romaine.life/romaine-life/shell-config-profile-home/src/branch/main/machine/state.json), blob \`${audit.homeState.blob}\`. No consumer is edited here.`,'','The JSON below is the naming/packaging portion of the migration .ci.json, merged with the project paths, pinned dependencies, features, publication grants and input sets required earlier. Go cmd names and Cargo binary/library names must follow those source conventions. The audit test passes representative builder outputs through the real archive/rename/metadata code and checks every existing attached name and every home-sync asset requirement. It tests the naming boundary, not compilation of all consumer source trees.','', 'Standard Go OS/architecture names already match at-claude, auth, fzt-automate, guitar-tabs, gvoice-tui and recorder. Rust Windows/Linux targets now derive the same OS/architecture naming where possible, preserving fisch, shows-remote, string-lab and the looper/tuner executables. PowerShell keeps at-commands.zip. The other rows need the shown rename/packaging data or declared genuine worker outputs. Shared ZIP signature sidecars and joined image.txt pins may be additive; no existing consumer asset is removed.',''];
+for(const row of audit.repositories.filter(row=>row.assets.length)) {
+ lines.push(`### ${row.repository}`,'',`Observed release: [${row.tag}](https://forgejo.romaine.life/${row.repository}/releases/tag/${row.tag}). Assets: ${row.assets.map(name=>'`'+name+'`').join(', ')}.`,'');
+ if(row.note)lines.push(row.note,'');
+ lines.push('```json',JSON.stringify(row.config,null,2),'```','');
+}
+lines.push('### Releases without attached payload names','',audit.repositories.filter(row=>!row.assets.length).map(row=>`[${row.repository}](https://forgejo.romaine.life/${row.repository})`).join(', ')+'. These publish images, notes or source tags; the old publisher did not attach a named payload. Configuring an optional source archive later is a new asset, not an existing download contract.','','### Repositories without a published release','',audit.noRelease.map(repo=>`[${repo}](https://forgejo.romaine.life/${repo})`).join(', ')+'. Their eventual first asset names have no existing release consumer contract in this audit.','',end);
+const section=lines.join('\n');
+const updated=before.includes(start)?before.slice(0,before.indexOf(start))+section+before.slice(before.indexOf(end)+end.length):before.trimEnd()+'\n\n'+section+'\n';
+if(process.argv.includes('--check')){if(updated!==before)throw new Error('asset audit docs differ; run node suites/tests/asset-audit-docs.mjs');}
+else fs.writeFileSync(file,updated);

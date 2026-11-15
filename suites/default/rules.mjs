@@ -1,0 +1,69 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+import YAML from 'yaml';
+import {tracked} from '../lib.mjs';
+
+const check = /(?:\b(?:gofmt|actionlint|kubeconform|markdownlint|pytest|ctest|PSScriptAnalyzer)\b|\bgo\s+(?:vet|test)\b|\bcargo\s+(?:fmt|clippy|test|nextest)\b|\bnode\s+[^\n]*--test\b|\bpython[\d.]*\s+[^\n]*-m\s+unittest\b|\b(?:npm|pnpm)\s+(?:test|run\s+(?:lint|check|test))\b|\btofu\s+(?:fmt|validate|plan)\b|\bdotnet\s+(?:test|format)\b|\b(?:check|test|lint|validate|parse)[-/.\w]*\.(?:m?js|py|ps1|sh)\b)/i;
+const prOnly = expression => /github\.event_name\s*==\s*['"]pull_request['"]/.test(expression || '') && !/\|\|/.test(expression || '');
+export function scriptText(text, read = () => null, seen = new Set(), from = '') {
+  let result = text;
+  for (const match of text.matchAll(/(?:^|[\s'"(])([\w./-]+\.(?:m?js|cjs|py|ps1|sh))\b/gm)) {
+    const relative = match[1];
+    const file = path.posix.normalize(relative.startsWith('.') ? path.posix.join(path.posix.dirname(from), relative) : relative);
+    if (seen.has(file) || file.split('/').includes('..') || file.startsWith('/')) continue;
+    seen.add(file);
+    const child = read(file);
+    if (child !== null) result += `\n${scriptText(child, read, seen, file)}`;
+  }
+  return result;
+}
+export function dependencies() {
+  const files = new Set();
+  const read = file => {
+    files.add(file);
+    return fs.existsSync(file) && fs.statSync(file).isFile() ? fs.readFileSync(file, 'utf8') : null;
+  };
+  for (const file of tracked().filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f))) scriptText(fs.readFileSync(file, 'utf8'), read);
+  return [...files];
+}
+export function violations(text, read) {
+  const document = YAML.parseDocument(text, {uniqueKeys: true});
+  if (document.errors.length) return document.errors.map(e => e.message);
+  const workflow = document.toJS();
+  const bad = [];
+  if (!workflow || typeof workflow !== 'object') return ['workflow must be a mapping'];
+  const events = workflow.on;
+  const triggers = typeof events === 'string' ? {[events]: null} : Array.isArray(events) ? Object.fromEntries(events.map(e => [e, null])) : events || {};
+  if ('schedule' in triggers) bad.push('scheduled checks rerun unchanged code');
+  for (const [event, settings] of Object.entries(triggers)) {
+    if (settings && ('paths' in settings || 'paths-ignore' in settings)) bad.push(`${event}: trigger paths prevent skipped statuses`);
+  }
+  const cancel = String(workflow.concurrency?.['cancel-in-progress']).replace(/\s/g, '');
+  if (!["${{github.event_name=='pull_request'}}", '${{github.event_name=="pull_request"}}'].includes(cancel)) {
+    bad.push('workflow concurrency must cancel exactly pull_request runs');
+  }
+  if (!String(workflow.concurrency?.group).includes('github.ref')) bad.push('concurrency group must include github.ref to isolate PRs');
+  for (const [name, job] of Object.entries(workflow.jobs || {})) {
+    for (const step of job.steps || []) {
+      const commands = scriptText(step.run || '', read);
+      if (/\b(?:sleep|Start-Sleep|setTimeout|setInterval)\b/i.test(commands) && /\b(?:while|until|for|retry|retries)\b/i.test(commands)) bad.push(`${name}: loop waits on a runner`);
+      if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
+      if (/\b(?:while|until)\b/.test(commands) && /\b(?:curl|wget|fetch)\s*[(\s]/.test(commands)) bad.push(`${name}: request loop holds a runner`);
+      const isCheck = check.test(commands) || /\/(?:check-|lint|test)/.test(step.uses || '') || /^(?:check|test|lint|validate|plan|parse)(?:-|$)/i.test(name);
+      if (isCheck && !prOnly(job.if) && !prOnly(step.if)) bad.push(`${name}: check must be guarded by github.event_name == 'pull_request'`);
+    }
+    if (job.uses && !prOnly(job.if) && /(?:check|test|lint|validate|plan)/i.test(name)) bad.push(`${name}: reusable checks must be PR-only`);
+  }
+  return [...new Set(bad)];
+}
+export function main() {
+  let bad = 0;
+  for (const file of tracked().filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f))) {
+    const errors = violations(fs.readFileSync(file, 'utf8'), p => fs.existsSync(p) && fs.statSync(p).isFile() ? fs.readFileSync(p, 'utf8') : null);
+    for (const error of errors) console.error(`${file}: ${error}`);
+    bad += errors.length;
+  }
+  if (bad) throw new Error(`${bad} CI rule violations`);
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();

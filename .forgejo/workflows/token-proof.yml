@@ -1,0 +1,26 @@
+name: Publishing token proof
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+concurrency:
+  group: publishing-token-proof-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  publishing-api:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/suite
+      - id: proof
+        run: node suites/tests/token-proof.mjs
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PIN_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+      - if: always()
+        run: node suites/tests/token-proof.mjs cleanup
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PIN_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          CI_TOKEN_PROOF_STATE: ${{ steps.proof.outputs.state }}

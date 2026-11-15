@@ -45,12 +45,13 @@ class CheckFetches(unittest.TestCase):
         out, code = self.run_on({".forgejo/workflows/ci.yml": "jobs:\n  a:\n    steps:\n      - uses: actions/checkout@v4\n"})
         self.assertEqual(code, 0)
 
-    def test_reads_github_workflows_only_without_forgejo_ones(self):
+    def test_never_reads_github_workflows_even_after_forgejo_cleanup(self):
         bad = "jobs:\n  a:\n    steps:\n      - uses: https://github.com/a/b@v1\n"
         out, _ = self.run_on({".forgejo/workflows/ci.yml": "on: push\n", ".github/workflows/old.yml": bad})
         self.assertNotIn(".github/workflows/old.yml", out)
         out, code = self.run_on({".github/workflows/old.yml": bad})
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 0)
+        self.assertNotIn(".github/workflows/old.yml", out)
 
     def test_reads_composite_actions(self):
         out, code = self.run_on({"actions/x/action.yml": "runs:\n  steps:\n    - run: wget https://get.helm.sh/helm.tgz\n"})

@@ -1,0 +1,163 @@
+name: Suite cluster-service
+'on':
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+  push: null
+  workflow_dispatch: null
+concurrency:
+  group: suite-cluster-service-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  GOMAXPROCS: '4'
+  CARGO_BUILD_JOBS: '4'
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ vars.CI_SUITES_REF || 'main' }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/inputs.mjs cluster-service
+      id: scope
+      env:
+        BASE: ${{ github.event.pull_request.base.sha }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - run: node _ci/suites/release.mjs scope cluster-service
+      id: release
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+      if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name == 'pull_request' || (github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    outputs:
+      fingerprints: ${{ steps.scope.outputs.fingerprints }}
+      suite-sha: ${{ steps.scope.outputs.suite-sha }}
+      reuse: ${{ steps.scope.outputs.reuse }}
+      service-test: ${{ steps.scope.outputs.service-test }}
+      parse-legacy: ${{ steps.scope.outputs.parse-legacy }}
+      manifests: ${{ steps.scope.outputs.manifests }}
+      image: ${{ steps.scope.outputs.image }}
+      platforms: ${{ steps.scope.outputs.platforms }}
+      windows-powershell: ${{ steps.scope.outputs.windows-powershell }}
+      source-release: ${{ steps.scope.outputs.source-release }}
+      prefix: ${{ steps.scope.outputs.prefix }}
+      prefix-from: ${{ steps.scope.outputs.prefix-from }}
+      suffix: ${{ steps.scope.outputs.suffix }}
+      node: ${{ steps.scope.outputs.node }}
+      tofu: ${{ steps.scope.outputs.tofu }}
+      postgres: ${{ steps.scope.outputs.postgres }}
+      manticore: ${{ steps.scope.outputs.manticore }}
+      greenmail: ${{ steps.scope.outputs.greenmail }}
+      build: ${{ steps.release.outputs.build }}
+      joined-image: ${{ steps.scope.outputs.joined-image }}
+      has-services: ${{ steps.scope.outputs.has-services }}
+  check-manifests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/cluster-service/manifests.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.manifests == 'true'
+  check-image:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/services.mjs start
+      if: needs.scope.outputs.has-services == 'true'
+    - run: node _ci/suites/cluster-service/image.mjs check
+    - name: Remove job services
+      if: always()
+      run: node _ci/suites/services.mjs stop
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.image == 'true' && needs.scope.outputs.joined-image == ''
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/release-version
+      with:
+        prefix: ${{ needs.scope.outputs.prefix }}
+        prefix-from: ${{ needs.scope.outputs.prefix-from }}
+        suffix: ${{ needs.scope.outputs.suffix }}
+        publish: 'true'
+      id: version
+    - run: node _ci/suites/cluster-service/image.mjs publish
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+    - run: node _ci/suites/release.mjs image
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+        DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+    - run: node _ci/suites/cluster-service/pin.mjs
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+        PIN_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+    needs: scope
+    if: (github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) && needs.scope.outputs.build
+      == 'true' && needs.scope.outputs.joined-image == ''
+    enable-openid-connect: true
+
+  reused-checks:
+    needs:
+    - scope
+    - check-manifests
+    - check-image
+    if: always() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.fingerprints != '{}'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/reuse.mjs publish
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CI_FINGERPRINTS: ${{ needs.scope.outputs.fingerprints }}

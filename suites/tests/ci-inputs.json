@@ -1,0 +1,54 @@
+{
+  "home-cache": [
+    "actions/home-cache/**"
+  ],
+  "setup": [
+    "actions/setup-*/**",
+    "actions/rust-toolchain/**",
+    "actions/home-cache/**",
+    "actions/pins.txt",
+    "suites/**/*.mjs",
+    "suites/**/*.ps1",
+    "suites/package*.json",
+    "actions/suite/**"
+  ],
+  "actionlint": [
+    ".forgejo/workflows/**",
+    "suites/**/*.yml",
+    "suites/tests/lint.mjs",
+    "suites/tools.mjs"
+  ],
+  "suites": [
+    "suites/**/*.mjs",
+    "suites/**/*.ps1",
+    "suites/**/*.yml",
+    "suites/package*.json",
+    "suites/tests/fixtures/**",
+    "suites/tests/pin-audit.json",
+    "actions/suite/**",
+    "actions/release-version/**",
+    "actions/prune-releases/**",
+    "suites/README.md"
+  ],
+  "prune-releases": [
+    "actions/prune-releases/**"
+  ],
+  "release-version": [
+    "actions/release-version/**"
+  ],
+  "check-versions": [
+    "actions/check-versions/**"
+  ],
+  "check-fetches": [
+    "actions/check-fetches/**"
+  ],
+  "check-image-digests": [
+    "actions/check-image-digests/**"
+  ],
+  "cached-images": [
+    "actions/cached-images/**"
+  ],
+  "azure-cli": [
+    "actions/azure-cli/**"
+  ]
+}

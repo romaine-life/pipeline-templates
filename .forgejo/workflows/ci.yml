@@ -2,9 +2,7 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
-  workflow_dispatch:
+    types: [ opened, synchronize, reopened ]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,42 +14,36 @@ jobs:
     outputs:
       home-cache: ${{ steps.diff.outputs.home-cache }}
       setup: ${{ steps.diff.outputs.setup }}
+      actionlint: ${{ steps.diff.outputs.actionlint }}
+      suites: ${{ steps.diff.outputs.suites }}
+      prune-releases: ${{ steps.diff.outputs.prune-releases }}
+      release-version: ${{ steps.diff.outputs.release-version }}
+      check-versions: ${{ steps.diff.outputs.check-versions }}
+      check-fetches: ${{ steps.diff.outputs.check-fetches }}
+      check-image-digests: ${{ steps.diff.outputs.check-image-digests }}
+      cached-images: ${{ steps.diff.outputs.cached-images }}
+      azure-cli: ${{ steps.diff.outputs.azure-cli }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: romaine-life/pipeline-templates/actions/check-fetches@main
+      - uses: ./actions/suite
       - id: diff
         env:
-          EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ "$EVENT" != pull_request ]; then
-            echo home-cache=true >> "$GITHUB_OUTPUT"
-            echo setup=true >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          files=$(git diff --name-only "$BASE...HEAD")
-          if grep -qE '^actions/home-cache/|^\.forgejo/workflows/ci\.yml$' <<< "$files"; then
-            echo home-cache=true >> "$GITHUB_OUTPUT"
-          fi
-          if grep -qE '^actions/(setup-[a-z]+/|rust-toolchain/|home-cache/|pins\.txt$)|^\.forgejo/workflows/ci\.yml$' <<< "$files"; then
-            echo setup=true >> "$GITHUB_OUTPUT"
-          fi
+        run: node suites/tests/scope.mjs
+    if: github.event_name == 'pull_request'
 
   actionlint:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.actionlint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install actionlint
-        run: |
-          curl -sSfL -o actionlint.tar.gz https://artifacts.home.romaine.life/general/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
-          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  actionlint.tar.gz" | sha256sum -c -
-          tar -xzf actionlint.tar.gz actionlint
-
-      - name: Lint the Forgejo workflows
-        run: ./actionlint .forgejo/workflows/*.yml reference/*.yml
+      - uses: ./actions/suite
+      - name: Lint workflows with the kept actionlint
+        run: node suites/tests/lint.mjs --own
 
       - name: Check configuration checkout authorization and failure handling
         run: |
@@ -161,6 +153,8 @@ jobs:
 
   # The release cleanup step (actions/prune-releases) that home-sync.yml and release jobs run.
   prune-releases:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.prune-releases == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -169,6 +163,8 @@ jobs:
 
   # The numbering step every release uses (actions/release-version).
   release-version:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.release-version == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -189,6 +185,8 @@ jobs:
 
   # The version check every repo's CI runs (actions/check-versions), on its tests and on this repo.
   check-versions:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.check-versions == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -198,6 +196,8 @@ jobs:
 
   # The check every repo's CI runs (actions/check-fetches), on its tests and on this repo.
   check-fetches:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.check-fetches == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -207,6 +207,8 @@ jobs:
 
   # The rendered-manifest check (actions/check-image-digests) every cluster service's CI runs.
   check-image-digests:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.check-image-digests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -223,6 +225,8 @@ jobs:
 
   # The image names step (actions/cached-images): Artifact Keeper's caches, then a real pull.
   cached-images:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.cached-images == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -241,6 +245,8 @@ jobs:
 
   # The Azure CLI step (actions/azure-cli): installed through Artifact Keeper, and it runs.
   azure-cli:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.azure-cli == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -253,6 +259,8 @@ jobs:
 
   # The setup step (actions/home-cache) on each kind of runner, then a real fetch through it.
   home-cache-linux:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.home-cache == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -261,7 +269,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -rq 'artifacts.home.romaine.life/debian/ubuntu/' /etc/apt/sources.list /etc/apt/sources.list.d/
-          ! grep -rqE 'https?://(archive|security)\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/
+          if grep -rqE 'https?://(archive|security)\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/; then exit 1; fi
           sudo apt-get update
           apt-get download hello
       - name: cargo reads crates through Artifact Keeper
@@ -276,13 +284,13 @@ jobs:
 
   home-cache-windows:
     needs: changes
-    if: needs.changes.outputs.home-cache == 'true'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.home-cache == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./actions/home-cache
       - name: cargo and NuGet name Artifact Keeper
-        shell: pwsh
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
         run: |
           $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $cargo 'config.toml') -Pattern 'artifacts.home.romaine.life/cargo/crates')) { throw 'cargo config' }
@@ -293,12 +301,10 @@ jobs:
   # astral-sh/setup-uv, setup-node actions/setup-node, setup-go actions/setup-go.
   setup-linux:
     needs: changes
-    if: needs.changes.outputs.setup == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [nas]
-    runs-on: [ubuntu-latest, "${{ matrix.runner }}"]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.setup == 'true'
+    runs-on:
+      - ubuntu-latest
+      - nas
     steps:
       - uses: actions/checkout@v4
       - uses: ./actions/home-cache
@@ -372,10 +378,18 @@ jobs:
             '    random = { source = "hashicorp/random", version = "3.9.0" }' '  }' '}' > "$d/main.tf"
           tofu -chdir="$d" init -input=false
           test -d "$d/.terraform/providers/registry.opentofu.org/hashicorp/random/3.9.0"
+      - uses: ./actions/suite
+      - name: Execute suite scripts on real fixture projects
+        run: node suites/tests/fixtures.mjs
+        env:
+          AT_TERMINAL_PFX: ${{ secrets.AT_TERMINAL_PFX }}
+          AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
+          CI_FIXTURE_DOCKER: '1'
+    name: setup-linux (nas)
 
   setup-windows:
     needs: changes
-    if: needs.changes.outputs.setup == 'true'
+    if: github.event_name == 'pull_request' && needs.changes.outputs.setup == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -402,7 +416,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: A go.mod whose toolchain line names the Go
-        shell: pwsh
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
         run: |
           $d = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'go-probe')
           Set-Content -LiteralPath "$d\go.mod" -Value @('module example.com/probe', '', 'go 1.25.0', '', 'toolchain go1.26.2')
@@ -412,7 +426,7 @@ jobs:
           go-version-file: ${{ runner.temp }}/go-probe/go.mod
           cache: false
       - name: Each tool runs from what its action installed
-        shell: pwsh
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
         env:
           WANT_NODE: ${{ steps.node.outputs.node-version }}
           WANT_DOTNET: ${{ steps.dotnet.outputs.dotnet-version }}
@@ -423,6 +437,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
+          $commandLine = (Get-CimInstance Win32_Process -Filter "ProcessId = $PID").CommandLine
+          if ($commandLine -notmatch '(?i)-NoProfile\b' -or $commandLine -notmatch '(?i)-NonInteractive\b') { throw 'Windows CI loaded an interactive/profile shell' }
+          Write-Output 'Windows CI process flags: NoProfile, NonInteractive'
           # go-ec7381f6 is the folder setup-go@v6 named itself for the runners'
           # GO_DOWNLOAD_BASE_URL (PIPT-5); the action's copy must be that one, and the only one.
           $want = [IO.Path]::GetFullPath((Join-Path $env:RUNNER_TOOL_CACHE 'go-ec7381f6\1.26.2\x64\bin\go.exe'))
@@ -448,7 +465,7 @@ jobs:
           if ((python --version) -ne "Python $env:WANT_PYTHON") { throw "python is $(python --version)" }
           pip --version
       - name: tofu init installs a provider through Artifact Keeper
-        shell: pwsh
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
@@ -459,3 +476,59 @@ jobs:
             '    random = { source = "hashicorp/random", version = "3.9.0" }', '  }', '}')
           tofu "-chdir=$d" init -input=false
           if (-not (Test-Path "$d\.terraform\providers\registry.opentofu.org\hashicorp\random\3.9.0")) { throw 'random 3.9.0 not installed' }
+      - uses: ./actions/suite
+      - name: Execute suite scripts on real fixture projects
+        run: node suites/tests/fixtures.mjs
+        env:
+          AT_TERMINAL_PFX: ${{ secrets.AT_TERMINAL_PFX }}
+          AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
+          CI_FIXTURE_DOCKER: '1'
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+
+  service-runtime:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.suites == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        slot: [ one, two ]
+    env:
+      CI_SERVICE_PAIR: ${{ github.run_id }}-${{ github.run_attempt }}
+      CI_SERVICE_SLOT: ${{ matrix.slot }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: node suites/tests/services.mjs
+      - name: Remove services and prove no owned resources remain
+        if: always()
+        run: node suites/services.mjs stop
+
+  service-cancellation:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.suites == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node suites/tests/cancel-services.mjs
+      - if: always()
+        run: node suites/tests/cancel-services.mjs cleanup
+  suite-tests-linux:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.suites == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/suite
+      - run: npm test --prefix suites
+  suite-tests-windows:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.suites == 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/suite
+      - run: npm test --prefix suites

@@ -57,7 +57,7 @@ runs:
     - id: windows
       name: Install the .NET SDK through Artifact Keeper
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
       env:
         ASKED: ${{ inputs.dotnet-version }}
         PINS: ${{ github.action_path }}/../pins.txt

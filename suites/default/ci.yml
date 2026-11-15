@@ -1,0 +1,110 @@
+name: Suite default
+'on':
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+concurrency:
+  group: suite-default-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  GOMAXPROCS: '4'
+  CARGO_BUILD_JOBS: '4'
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ vars.CI_SUITES_REF || 'main' }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/inputs.mjs default
+      id: scope
+      env:
+        BASE: ${{ github.event.pull_request.base.sha }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: github.event_name == 'pull_request' || (github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    outputs:
+      fingerprints: ${{ steps.scope.outputs.fingerprints }}
+      suite-sha: ${{ steps.scope.outputs.suite-sha }}
+      reuse: ${{ steps.scope.outputs.reuse }}
+      service-test: ${{ steps.scope.outputs.service-test }}
+      parse-legacy: ${{ steps.scope.outputs.parse-legacy }}
+      fetches: ${{ steps.scope.outputs.fetches }}
+      rules: ${{ steps.scope.outputs.rules }}
+      platforms: ${{ steps.scope.outputs.platforms }}
+      windows-powershell: ${{ steps.scope.outputs.windows-powershell }}
+      source-release: ${{ steps.scope.outputs.source-release }}
+      prefix: ${{ steps.scope.outputs.prefix }}
+      prefix-from: ${{ steps.scope.outputs.prefix-from }}
+      suffix: ${{ steps.scope.outputs.suffix }}
+      node: ${{ steps.scope.outputs.node }}
+      tofu: ${{ steps.scope.outputs.tofu }}
+      postgres: ${{ steps.scope.outputs.postgres }}
+      manticore: ${{ steps.scope.outputs.manticore }}
+      greenmail: ${{ steps.scope.outputs.greenmail }}
+      has-services: ${{ steps.scope.outputs.has-services }}
+  check-fetches:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/default/fetches.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.fetches == 'true'
+  check-rules:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/default/rules.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.rules == 'true'
+
+  reused-checks:
+    needs:
+    - scope
+    - check-fetches
+    - check-rules
+    if: always() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.fingerprints != '{}'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/reuse.mjs publish
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CI_FINGERPRINTS: ${{ needs.scope.outputs.fingerprints }}

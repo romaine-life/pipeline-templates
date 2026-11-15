@@ -1,0 +1,26 @@
+name: Suite scripts
+description: Install the suite scripts' locked dependencies and keep compiler caches outside the checkout.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      if: runner.os != 'Windows'
+      env:
+        SCRIPTS: ${{ github.action_path }}/../../suites
+      run: |
+        set -euo pipefail
+        root="${CI_CACHE_ROOT:-${RUNNER_TOOL_CACHE:-$HOME/.cache}/ci-suites}"
+        mkdir -p "$root/go-build" "$root/go-mod" "$root/npm"
+        npm ci --prefix "$SCRIPTS" --cache "$root/npm" --prefer-offline --no-audit --no-fund
+        printf 'GOCACHE=%s\nGOMODCACHE=%s\nnpm_config_cache=%s\nGOMAXPROCS=4\nCARGO_BUILD_JOBS=4\n' "$root/go-build" "$root/go-mod" "$root/npm" >> "$GITHUB_ENV"
+    - shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+      if: runner.os == 'Windows'
+      env:
+        SCRIPTS: ${{ github.action_path }}/../../suites
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $root = if ($env:CI_CACHE_ROOT) { $env:CI_CACHE_ROOT } else { 'D:\ci\cache' }
+        foreach ($name in 'go-build', 'go-mod', 'npm') { New-Item -ItemType Directory -Force (Join-Path $root $name) | Out-Null }
+        npm ci --prefix $env:SCRIPTS --cache (Join-Path $root 'npm') --prefer-offline --no-audit --no-fund
+        if ($LASTEXITCODE) { throw 'npm ci failed' }
+        @("GOCACHE=$root\go-build", "GOMODCACHE=$root\go-mod", "npm_config_cache=$root\npm", 'GOMAXPROCS=4', 'CARGO_BUILD_JOBS=4') | Add-Content $env:GITHUB_ENV

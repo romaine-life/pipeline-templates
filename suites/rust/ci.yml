@@ -1,0 +1,214 @@
+name: Suite rust
+'on':
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
+concurrency:
+  group: suite-rust-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  GOMAXPROCS: '4'
+  CARGO_BUILD_JOBS: '4'
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ vars.CI_SUITES_REF || 'main' }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/inputs.mjs rust
+      id: scope
+      env:
+        BASE: ${{ github.event.pull_request.base.sha }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    if: github.event_name == 'pull_request'
+    outputs:
+      fingerprints: ${{ steps.scope.outputs.fingerprints }}
+      suite-sha: ${{ steps.scope.outputs.suite-sha }}
+      reuse: ${{ steps.scope.outputs.reuse }}
+      service-test: ${{ steps.scope.outputs.service-test }}
+      parse-legacy: ${{ steps.scope.outputs.parse-legacy }}
+      format: ${{ steps.scope.outputs.format }}
+      test: ${{ steps.scope.outputs.test }}
+      platforms: ${{ steps.scope.outputs.platforms }}
+      windows-powershell: ${{ steps.scope.outputs.windows-powershell }}
+      source-release: ${{ steps.scope.outputs.source-release }}
+      prefix: ${{ steps.scope.outputs.prefix }}
+      prefix-from: ${{ steps.scope.outputs.prefix-from }}
+      suffix: ${{ steps.scope.outputs.suffix }}
+      node: ${{ steps.scope.outputs.node }}
+      tofu: ${{ steps.scope.outputs.tofu }}
+      postgres: ${{ steps.scope.outputs.postgres }}
+      manticore: ${{ steps.scope.outputs.manticore }}
+      greenmail: ${{ steps.scope.outputs.greenmail }}
+      has-services: ${{ steps.scope.outputs.has-services }}
+      test-linux: ${{ steps.scope.outputs.test-linux }}
+      test-windows: ${{ steps.scope.outputs.test-windows }}
+      typos: ${{ steps.scope.outputs.typos }}
+      machete: ${{ steps.scope.outputs.machete }}
+  check-format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/format.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.format == 'true'
+  check-test-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/test.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.test-linux == 'true'
+  check-test-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/test.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.test-windows == 'true'
+    defaults:
+      run:
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+  check-services:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/services.mjs start
+      if: needs.scope.outputs.has-services == 'true'
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/test.mjs
+    - name: Remove job services
+      if: always()
+      run: node _ci/suites/services.mjs stop
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.service-test == 'true' && needs.scope.outputs.has-services == 'true'
+  check-typos:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/lint.mjs typos
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.typos == 'true'
+  check-machete:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/lint.mjs machete
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.machete == 'true'
+
+  reused-checks:
+    needs:
+    - scope
+    - check-format
+    - check-test-linux
+    - check-test-windows
+    - check-services
+    - check-typos
+    - check-machete
+    if: always() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.fingerprints != '{}'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/reuse.mjs publish
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CI_FINGERPRINTS: ${{ needs.scope.outputs.fingerprints }}
