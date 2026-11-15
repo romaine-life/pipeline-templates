@@ -2,4 +2,3 @@ self-hosted-runner:
   labels:
     - linux
     - nas
-    - upstairspc-linux

@@ -288,17 +288,16 @@ jobs:
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $cargo 'config.toml') -Pattern 'artifacts.home.romaine.life/cargo/crates')) { throw 'cargo config' }
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $env:APPDATA 'NuGet\NuGet.Config') -Pattern 'artifacts.home.romaine.life/nuget')) { throw 'NuGet config' }
 
-  # The setup actions on both Linux runners (the cluster's, which alone has `nas`, and
-  # upstairspc's WSL one): each installs through Artifact Keeper, and the tool it put on
-  # PATH is the one that runs. setup-python nests astral-sh/setup-uv, setup-node
-  # actions/setup-node, setup-go actions/setup-go.
+  # The setup actions on the cluster runner: each installs through Artifact Keeper,
+  # and the tool it put on PATH is the one that runs. setup-python nests
+  # astral-sh/setup-uv, setup-node actions/setup-node, setup-go actions/setup-go.
   setup-linux:
     needs: changes
     if: needs.changes.outputs.setup == 'true'
     strategy:
       fail-fast: false
       matrix:
-        runner: [nas, upstairspc-linux]
+        runner: [nas]
     runs-on: [ubuntu-latest, "${{ matrix.runner }}"]
     steps:
       - uses: actions/checkout@v4
