@@ -17,12 +17,25 @@ export const tools = {
     linux:['0.10.0',`${mirror}/github/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-unknown-linux-musl.tar.gz`,'1fbb35e135660d04a2d5e42b59c7874d39b3deb17de56330b25b713ec59f849b','sccache-v0.10.0-x86_64-unknown-linux-musl/sccache'],
     win32:['0.10.0',`${mirror}/github/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-pc-windows-msvc.zip`,'6d8823b5c13e0dba776d88c537229256ecb2f01a1d775b507fd141cb55d30578','sccache-v0.10.0-x86_64-pc-windows-msvc/sccache.exe']
   },
-  helm: ['3.22.1', `${mirror}/helm-downloads/helm-v3.22.1-linux-amd64.tar.gz`, '896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea', 'linux-amd64/helm'],
-  kustomize: ['5.8.3', `${mirror}/github/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz`, 'cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61', 'kustomize'],
-  kubeconform: ['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz`, '9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883', 'kubeconform'],
+  // Windows builds too, so ci-check renders a repository's manifests on a home PC.
+  helm: {
+    linux:['3.22.1', `${mirror}/helm-downloads/helm-v3.22.1-linux-amd64.tar.gz`, '896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea', 'linux-amd64/helm'],
+    win32:['3.22.1', `${mirror}/helm-downloads/helm-v3.22.1-windows-amd64.zip`, '32ce9f4509b81782c9740898c43946e1f97c4d93ec5d10222c9b6eeec21ea043', 'windows-amd64/helm.exe']
+  },
+  kustomize: {
+    linux:['5.8.3', `${mirror}/github/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz`, 'cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61', 'kustomize'],
+    win32:['5.8.3', `${mirror}/github/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_windows_amd64.zip`, '763c4040ff01435bfce39661072452ebdf1cf2808bb91f5708ab4420834fbd42', 'kustomize.exe']
+  },
+  kubeconform: {
+    linux:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz`, '9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883', 'kubeconform'],
+    win32:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-windows-amd64.zip`, 'e3f56102bcf4f50b034a567e2482a1c5330799983ddd655952310211aef73d93', 'kubeconform.exe']
+  },
   actionlint: ['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz`, '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757', 'actionlint'],
   osslsigncode: ['2.8-2', 'https://artifacts.home.romaine.life/debian/ubuntu/pool/universe/o/osslsigncode/osslsigncode_2.8-2_amd64.deb', '1aee7be603102633e80b4c67cd939bba2e16a62813e4a3035696727783f632b0', 'usr/bin/osslsigncode']
 };
+// Windows' own tar (bsdtar) reads zips and tarballs; a GNU tar earlier on PATH, as in Git
+// Bash, takes a C: path for a remote host.
+const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
 export async function tool(name) {
   if (process.env[`CI_TOOL_${name.toUpperCase()}`]) return process.env[`CI_TOOL_${name.toUpperCase()}`];
   const spec=tools[name];
@@ -42,13 +55,13 @@ export async function tool(name) {
     fs.writeFileSync(archive, bytes);
     if (fullPackage) {
       const packageDir=path.join(temp,'package');fs.mkdirSync(packageDir);
-      run('tar',['-xf',archive,'-C',packageDir]);fs.chmodSync(path.join(temp,binary),0o755);
+      run(tar,['-xf',archive,'-C',packageDir]);fs.chmodSync(path.join(temp,binary),0o755);
       try{fs.renameSync(packageDir,path.join(root,'package'));}catch(error){if(!fs.existsSync(executable))throw error;}
       return executable;
     }
     if (url.endsWith('.deb')) run('dpkg-deb',['-x',archive,temp]);
     else if (url.endsWith('.zip') && process.platform==='linux') run('unzip',['-q',archive,binary,'-d',temp]);
-    else run('tar', ['-xf', archive, '-C', temp, binary]);
+    else run(tar, ['-xf', archive, '-C', temp, binary]);
     fs.mkdirSync(path.dirname(executable), {recursive: true});
     try { fs.renameSync(path.join(temp, binary), executable); }
     catch (error) { if (!fs.existsSync(executable)) throw error; }
