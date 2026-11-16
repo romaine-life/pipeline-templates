@@ -10,6 +10,9 @@ runs:
       run: |
         set -euo pipefail
         root="${CI_CACHE_ROOT:-${RUNNER_TOOL_CACHE:-$HOME/.cache}/ci-suites}"
+        # The suite checkout and the build output aren't the repository's: left untracked,
+        # Go stamps every release +dirty (vcs.modified).
+        if [ -d "$GITHUB_WORKSPACE/.git/info" ]; then printf '/_ci/\n/dist/\n' >> "$GITHUB_WORKSPACE/.git/info/exclude"; fi
         mkdir -p "$root/go-build" "$root/go-mod" "$root/npm"
         npm ci --prefix "$SCRIPTS" --cache "$root/npm" --prefer-offline --no-audit --no-fund
         printf 'GOCACHE=%s\nGOMODCACHE=%s\nnpm_config_cache=%s\nGOMAXPROCS=4\nCARGO_BUILD_JOBS=4\n' "$root/go-build" "$root/go-mod" "$root/npm" >> "$GITHUB_ENV"
@@ -20,6 +23,8 @@ runs:
       run: |
         $ErrorActionPreference = 'Stop'
         $root = if ($env:CI_CACHE_ROOT) { $env:CI_CACHE_ROOT } else { 'D:\ci\cache' }
+        $info = Join-Path $env:GITHUB_WORKSPACE '.git\info'
+        if (Test-Path -LiteralPath $info) { Add-Content -LiteralPath (Join-Path $info 'exclude') -Value '/_ci/', '/dist/' }
         foreach ($name in 'go-build', 'go-mod', 'npm') { New-Item -ItemType Directory -Force (Join-Path $root $name) | Out-Null }
         npm ci --prefix $env:SCRIPTS --cache (Join-Path $root 'npm') --prefer-offline --no-audit --no-fund
         if ($LASTEXITCODE) { throw 'npm ci failed' }
