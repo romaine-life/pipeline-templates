@@ -297,10 +297,92 @@
         }
       }
     },
+    "romaine-life/guitar-tabs": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "."
+            ]
+          }
+        ]
+      }
+    },
+    "romaine-life/gvoice-tui": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "."
+            ]
+          }
+        ]
+      }
+    },
     "romaine-life/macrocraft": {
       "suites": [
         "docs"
       ]
+    },
+    "romaine-life/recorder": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "."
+            ]
+          }
+        ]
+      }
     },
     "romaine-life/shell-config-profile-1": {
       "suites": [
