@@ -4,7 +4,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import {capture,hash,suites} from './lib.mjs';
 import {inputs,matches} from './input-patterns.mjs';
-import {embedded,dockerSources,docLinks} from './dependencies.mjs';
+import {embedded,docLinks} from './dependencies.mjs';
 import {packagingInputs,packagingMetadata,settings} from './release/inputs.mjs';
 
 export const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);

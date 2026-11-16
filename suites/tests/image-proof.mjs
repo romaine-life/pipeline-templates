@@ -25,12 +25,16 @@ export async function cleanup(file) {
   }
   if(capture('docker',['ps','-aq','--filter',`name=^${state.id}-registry$`]))run('docker',['rm','-fv',`${state.id}-registry`]);
   if(fs.existsSync(state.root)){const cwd=process.cwd();try {process.chdir(state.root);cleanupRuntime();}finally{process.chdir(cwd);}}
+  for(const image of new Set(state.images || [])) {
+    if(!image.startsWith(`ci-image-proof-${state.id}:`) && !/^127\.0\.0\.1:\d+\/image-proof:ci-image-proof-\d+-\d+-\d+$/.test(image))throw new Error('invalid proof image ownership');
+    if(capture('docker',['image','ls','-q',image]))run('docker',['image','rm',image]);
+  }
   fs.rmSync(state.root,{recursive:true,force:true});
 }
 if(process.argv[2]==='cleanup')await cleanup(process.env.CI_IMAGE_PROOF_STATE);
 else {
   const cwd=process.cwd(),root=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(),'image-proof-'));
-  const state={root,id:`ci-services-${randomUUID()}`,prefix:`ci-image-proof-${process.env.GITHUB_RUN_NUMBER}-${process.env.GITHUB_RUN_ATTEMPT || '1'}`,sha:capture('git',['rev-parse','HEAD']),tags:[]},file=path.join(root,'owned.json');
+  const state={root,id:`ci-services-${randomUUID()}`,prefix:`ci-image-proof-${process.env.GITHUB_RUN_NUMBER}-${process.env.GITHUB_RUN_ATTEMPT || '1'}`,sha:capture('git',['rev-parse','HEAD']),tags:[],images:[]},file=path.join(root,'owned.json');
   const save=()=>fs.writeFileSync(file,JSON.stringify(state));save();output('state',file);
   let monitor;
   try {
@@ -45,7 +49,7 @@ else {
     fs.writeFileSync('k8s/image/runtime.conf','runtime v1\n');
     fs.writeFileSync('program.c','int main(void) { return 0; }\n');
     fs.writeFileSync('.gitignore','dist/\nowned.json\n.ci-*\nparts/\n');
-    run('git',['init','--initial-branch=main']);run('git',['config','user.name','image-proof']);run('git',['config','user.email','image-proof@noreply.romaine.life']);
+    run('git',['init','--initial-branch=main']);run('git',['remote','add','origin',root]);run('git',['config','user.name','image-proof']);run('git',['config','user.email','image-proof@noreply.romaine.life']);
     const commit=()=>{run('git',['add','.']);run('git',['commit','-m','proof inputs']);return capture('git',['rev-parse','HEAD']);};
     commit();
     const cfg={version:1,release:{toolchains:['go'],image:'cluster',runtimeChecks:[{asset:'program',args:['--version']}]},cluster:{image,dockerfile:'k8s/image/Dockerfile',context:'k8s/image',pinFile:'k8s/values.yaml',pinFields:{'release.tag':'tag','release.commit':'commit'}}};
@@ -54,7 +58,7 @@ else {
     let pushes=0;
     const publish=async(section,mode,login,fingerprint)=>{
       assert.equal(mode,'publish');const local=`ci-image-proof-${state.id}:build`;
-      buildImage(section,local,fingerprint);pushImage(local,`${image}:${process.env.VERSION}`);pushes++;
+      const remote=`${image}:${process.env.VERSION}`;state.images.push(local,remote);save();buildImage(section,local,fingerprint);pushImage(local,remote);pushes++;
     };
     async function release(number,publishImage) {
       const tag=`${state.prefix}-${number}`;state.tags.push(tag);save();process.env.VERSION=tag;
@@ -64,7 +68,7 @@ else {
       await request(`${api()}/releases/${rel.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({draft:false})});
       return tag;
     }
-    const first=await release(1,async()=>{await publish(cfg.cluster,'publish',null,imageFingerprint(cfg,'cluster'));fs.copyFileSync('.ci-image-pin','dist/image.txt');fs.writeFileSync('dist/image-inputs.json',JSON.stringify({version:1,image,pin:fs.readFileSync('.ci-image-pin','utf8'),fingerprint:imageFingerprint(cfg,'cluster')}));});
+    const first=await release(1,async()=>{await publish(cfg.cluster,'publish',null,imageFingerprint(cfg,'cluster'));cfg.cluster.imageSource=capture('git',['rev-parse','HEAD']);fs.writeFileSync('k8s/values.yaml',`image: ${fs.readFileSync('.ci-image-pin','utf8')}\nrelease:\n  tag: initial\n  commit: ${state.sha}\n`);assert.equal((await publishJoinedImage(cfg,publish)).published,false);});
     const originalPin=fs.readFileSync('.ci-image-pin','utf8');
     const values=`image: ${originalPin}\nrelease:\n  tag: ${first}\n  commit: ${state.sha}\n`;
     fs.writeFileSync('k8s/values.yaml',values);commit();

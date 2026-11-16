@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {api, post, request, tracked, requirePublish, capture, output, hash, templates} from './lib.mjs';
 import {config} from './config.mjs';
 import {inputs, relevant} from './input-patterns.mjs';
-import {embedded, dockerSources, docLinks} from './dependencies.mjs';
+import {embedded, docLinks} from './dependencies.mjs';
 const require = createRequire(import.meta.url);
 
 export async function stage({url = api(), tag = process.env.VERSION, sha = process.env.GITHUB_SHA, files, token = process.env.TOKEN}) {

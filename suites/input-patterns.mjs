@@ -36,6 +36,8 @@ export function matches(file, glob) {
 export function relevant(files, job, cfg) {
   if (!inputs[job]) throw new Error(`unknown check: ${job}`);
   let standard = inputs[job];
+  const image=job==='cluster-service.image'?cfg.cluster:job==='web-app.image'?cfg.web:job==='release.build' && cfg.release?.image?cfg[cfg.release.image]:null;
+  if(image)standard=standard.filter(pattern=>!(pattern==='Dockerfile' && image.dockerfile && image.dockerfile!=='Dockerfile') && !(pattern==='.dockerignore' && image.context && image.context!=='.'));
   if (job === 'web-app.test') standard = (cfg.web?.packages || ['.']).flatMap(pkg => inputs[job].map(p => pkg === '.' ? p : `${pkg}/${p}`));
   const patterns = [...standard, ...(cfg.inputs?.[job] || []), ...(job==='release.package' ? [] : ['.ci.json'])];
   return files.some(f => patterns.some(p => matches(f, p)));

@@ -1,8 +1,7 @@
 import {imageInputs} from './image-inputs.mjs';
-import fs from 'node:fs';
 import {capture, output} from './lib.mjs';
 import {config} from './config.mjs';
-import {embedded, dockerSources, docLinks} from './dependencies.mjs';
+import {embedded, docLinks} from './dependencies.mjs';
 
 import {inputs,relevant} from './input-patterns.mjs';
 import path from 'node:path';
