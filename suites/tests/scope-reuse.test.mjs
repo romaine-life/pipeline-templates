@@ -8,6 +8,7 @@ import {spawn} from 'node:child_process';
 import {run,suites} from '../lib.mjs';
 import {testPlatforms} from '../inputs.mjs';
 import {releasePlan} from '../release/plan.mjs';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
 test('fixed platform selectors handle none, one and all reused, undeclared platforms and service-only Linux',()=>{
   const platforms=['ubuntu-latest','windows-latest'];
@@ -28,7 +29,7 @@ test('the real PR scope process plans independent native Windows and Linux-servi
   const server=http.createServer((request,response)=>{assert.match(request.url,/^\/_apis\/artifactcache\/cache\?/);response.writeHead(204).end();});
   try {
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-    fs.writeFileSync(path.join(root,'.ci.json'),JSON.stringify({version:1,go:{platforms:['ubuntu-latest','windows-latest']},service:{postgres:`artifacts.home.romaine.life/dockerhub/library/postgres:17@sha256:${'a'.repeat(64)}`}}));
+    fleetEntry(({version:1,go:{platforms:['ubuntu-latest','windows-latest']},service:{postgres:`artifacts.home.romaine.life/dockerhub/library/postgres:17@sha256:${'a'.repeat(64)}`}}),'test/scope');
     fs.writeFileSync(path.join(root,'main.go'),'package main\n');
     run('git',['init','-b','main'],{cwd:root});run('git',['add','.'],{cwd:root});run('git',['-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-m','fixture'],{cwd:root});
     let text='';

@@ -6,11 +6,12 @@ import os from 'node:os';
 import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import {suites} from '../lib.mjs';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
 function probe(script, args = [], env = {}, cfg = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(),'suite-command-'));
   try {
-    fs.writeFileSync(path.join(root,'.ci.json'),JSON.stringify({version:1,...cfg}));
+    fleetEntry(({version:1,...cfg}),'test/probe');
     fs.writeFileSync(path.join(root,'README.md'),'# A document\n');
     fs.writeFileSync(path.join(root,'config.json'),'{}');
     fs.writeFileSync(path.join(root,'go.mod'),'module example.com/probe\n');

@@ -3,19 +3,32 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {config} from '../config.mjs';
-test('unknown configuration and unsafe paths fail visibly', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-'));
-  const file = path.join(dir,'config.json');
+import {config, fleet, validate} from '../config.mjs';
+
+test('unknown settings and unsafe paths fail visibly', () => {
+  for (const bad of [{}, {suites: ['nope']}, {suites: ['default']}, {suites: ['go', 'go']}, {suites: [], go: {command: 'whatever'}},
+    {suites: [], inputs: {'go.test': ['../other']}}, {suites: [], go: {platforms: ['linux']}}, {suites: [], release: {toolchains: ['go'], prefix: 'v0.1', prefixFrom: 'Cargo.toml'}},
+    ...[[], {}, {'release.tag': 'command'}, {'__proto__.tag': 'tag'}].map(pinFields => ({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields}})),
+    {suites: [], web: {pinFields: {'release.tag': 'tag'}}}]) {
+    assert.throws(() => validate(bad), JSON.stringify(bad));
+  }
+  assert.deepEqual(validate({suites: ['go'], go: {platforms: ['windows-latest', 'ubuntu-latest']}, inputs: {'go.test': ['assets/**']}}).suites, ['go']);
+  assert.equal(validate({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields: {'release.tag': 'tag', 'release.commit': 'commit', 'release.version': 'version'}}}).cluster.pinFields['release.commit'], 'commit');
+});
+
+test('a repository reads its own entry from the fleet list, and one it leaves out has no suites', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-'));
+  const file = path.join(dir, 'fleet.json');
   try {
-    for (const bad of [{version:2},{version:1,go:{command:'whatever'}},{version:1,inputs:{'go.test':['../other']}},{version:1,go:{platforms:['linux']}},{version:1,release:{toolchains:['go'],prefix:'v0.1',prefixFrom:'Cargo.toml'}},
-      ...[[],{}, {'release.tag':'command'}, {'__proto__.tag':'tag'}].map(pinFields=>({version:1,cluster:{pinFile:'k8s/values.yaml',pinFields}})),
-      {version:1,web:{pinFields:{'release.tag':'tag'}}}]) {
-      fs.writeFileSync(file,JSON.stringify(bad)); assert.throws(() => config(file));
-    }
-    fs.writeFileSync(file,JSON.stringify({version:1,go:{platforms:['windows-latest','ubuntu-latest']},inputs:{'go.test':['assets/**']}}));
-    assert.equal(config(file).version,1);
-    fs.writeFileSync(file,JSON.stringify({version:1,cluster:{pinFile:'k8s/values.yaml',pinFields:{'release.tag':'tag','release.commit':'commit','release.version':'version'}}}));
-    assert.equal(config(file).cluster.pinFields['release.commit'],'commit');
-  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+    fs.writeFileSync(file, JSON.stringify({repos: {'o/one': {suites: ['go'], go: {platforms: ['windows-latest']}}}}));
+    const repos = fleet(file);
+    assert.deepEqual(config('o/one', repos).go.platforms, ['windows-latest']);
+    assert.deepEqual(config('o/other', repos), {suites: []});
+    fs.writeFileSync(file, JSON.stringify({repos: {'not a name': {suites: []}}}));
+    assert.throws(() => fleet(file), /owner\/repo/);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('the real fleet list is valid', () => {
+  assert.ok(Object.keys(fleet()).length > 0);
 });

@@ -17,14 +17,3 @@ test('Spotify origin values update the image and the stager release atomically, 
   assert.throws(()=>updatePin(original,{...cfg,pinFields:{'release.missing':'tag'}},pin,values),/existing scalar/);
   assert.throws(()=>updatePin(original,cfg,pin,{tag:'v1',commit:''}),/source commit/);
 });
-
-test('the pin metadata audit covers the release inventory and documents every identified application field',()=>{
-  const read=file=>JSON.parse(fs.readFileSync(new URL(file,import.meta.url),'utf8'));
-  const audit=read('./pin-audit.json'),assets=read('./asset-contracts.json');
-  assert.deepEqual(Object.keys(audit.sources).sort(),[...assets.repositories.map(row=>row.repository),...assets.noRelease].sort());
-  for(const row of audit.pinFiles) {
-    assert.match(row.blob,/^[0-9a-f]{40}$/);assert.ok(audit.sources[row.repository]);
-    const document=fs.readFileSync(new URL('../README.md',import.meta.url),'utf8');
-    assert.ok(document.includes(row.repository));for(const field of Object.keys(row.pinFields))assert.ok(document.includes(field));
-  }
-});

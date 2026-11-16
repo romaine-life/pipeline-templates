@@ -6,6 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {capture,run,suites} from '../lib.mjs';
 import {spawnSync} from 'node:child_process';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
 const cfg={version:1,web:{packages:['frontend']},release:{toolchains:['go','rust','npm','cmake','dotnet','python'],rustTargets:[{target:'x86_64-pc-windows-msvc'}]}};
 test('ordinary source changes never rebuild release targets on a PR',()=>{
@@ -19,7 +20,7 @@ test('ordinary source changes never rebuild release targets on a PR',()=>{
 test('the release CLI in a real git checkout separates source publication from packaging',()=>{
   const cwd=process.cwd(),env={...process.env},dir=fs.mkdtempSync(path.join(os.tmpdir(),'packaging-scope-'));
   try {
-    process.chdir(dir);fs.writeFileSync('.ci.json',JSON.stringify({version:1,release:{toolchains:['rust']}}));
+    process.chdir(dir);fleetEntry(({version:1,release:{toolchains:['rust']}}));
     fs.writeFileSync('Cargo.toml','[package]\nname="app"\nversion="1.0.0"\n[features]\ndefault=[]\n');
     fs.mkdirSync('src');fs.writeFileSync('src/main.rs','fn main() {}');
     run('git',['init','-b','main']);
@@ -27,7 +28,7 @@ test('the release CLI in a real git checkout separates source publication from p
     commit();const base=capture('git',['rev-parse','HEAD']);
     fs.writeFileSync('src/main.rs','fn main() { println!("source-only"); }');commit();
     const cli=()=>{
-      const result=spawnSync(process.execPath,[path.join(suites,'inputs.mjs'),'release'],{cwd:dir,encoding:'utf8',timeout:10000,env:{...env,GITHUB_ACTIONS:'false',GITHUB_EVENT_NAME:'pull_request',BASE:base,GITHUB_OUTPUT:path.join(dir,'outputs')}});
+      const result=spawnSync(process.execPath,[path.join(suites,'inputs.mjs'),'release'],{cwd:dir,encoding:'utf8',timeout:10000,env:{...process.env,GITHUB_ACTIONS:'false',GITHUB_EVENT_NAME:'pull_request',BASE:base,GITHUB_OUTPUT:path.join(dir,'outputs')}});
       assert.equal(result.status,0,`release CLI exited ${result.status}: ${result.stderr || result.error}`);
       return fs.readFileSync('outputs','utf8');
     };
@@ -38,10 +39,6 @@ test('the release CLI in a real git checkout separates source publication from p
   } finally {process.chdir(cwd);process.env=env;fs.rmSync(dir,{recursive:true,force:true});}
 });
 test('packaging compares only release configuration and Cargo feature/profile semantics',()=>{
-  const check=(next,before=cfg)=>packagingChanged(['.ci.json'],next,()=>JSON.stringify(before));
-  assert.equal(check({...cfg,docs:{required:['README.md']},go:{platforms:['windows-latest']},rust:{platforms:['ubuntu-latest']}}),false);
-  assert.equal(check({...cfg,release:{...cfg.release,windowsGui:['./cmd/app']}}),true);
-  assert.equal(check({...cfg,rust:{features:['tls']}}),true);
   const cargo='[package]\nname="app"\nversion="1.0.0"\n[features]\ndefault=["tls"]\ntls=[]\n[profile.release]\nlto=true\n';
   const compare=after=>packagingChanged(['Cargo.toml'],cfg,()=>cargo,()=>after);
   assert.equal(compare(cargo+'\n[dependencies]\nserde="1"\n'),false);

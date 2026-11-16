@@ -1,0 +1,114 @@
+{
+  "repos": {
+    "nelsong6/avatars": {
+      "suites": [
+        "cluster-service",
+        "go"
+      ],
+      "go": {
+        "platforms": [
+          "ubuntu-latest"
+        ]
+      },
+      "service": {
+        "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42"
+      },
+      "cluster": {
+        "renders": [
+          {
+            "kind": "kustomize",
+            "path": "k8s"
+          }
+        ],
+        "image": "forgejo.romaine.life/nelsong6/avatars",
+        "baoRole": "avatars-publish",
+        "baoSecret": "services/avatars-build",
+        "pinFile": "k8s/deployment.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
+      }
+    },
+    "nelsong6/journal-music": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md",
+          "gear.md",
+          "accounts.md"
+        ]
+      }
+    },
+    "nelsong6/vacations": {
+      "suites": [
+        "docs",
+        "python"
+      ]
+    },
+    "romaine-life/ambience": {
+      "suites": [
+        "go",
+        "tofu",
+        "web-app"
+      ],
+      "web": {
+        "packages": [
+          "."
+        ],
+        "node": "24",
+        "image": "romainecr.azurecr.io/ambience",
+        "pinFile": "chart/ambience/values.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
+      },
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "ambience.tfstate"
+        }
+      },
+      "inputs": {
+        "web-app.test": [
+          "cmd/ambience/web/**",
+          "scripts/**/*.mjs",
+          "scripts/fixtures/**",
+          "chart/ambience/**"
+        ]
+      }
+    },
+    "romaine-life/at-claude": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64"
+          }
+        ],
+        "assets": [
+          "dist/at-claude-windows-amd64.exe"
+        ]
+      }
+    },
+    "romaine-life/shell-config-profile-5": {
+      "suites": [
+        "powershell"
+      ],
+      "powershell": {
+        "windowsPowerShell": true
+      }
+    }
+  }
+}

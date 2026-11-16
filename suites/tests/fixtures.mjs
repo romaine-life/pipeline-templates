@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {run, suites, templates, kept} from '../lib.mjs';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 const root = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(),'suite-fixtures-'));
 const previous = process.cwd();
 const write = (file,text) => { fs.mkdirSync(path.dirname(file),{recursive:true}); fs.writeFileSync(file,text); };
@@ -13,7 +14,7 @@ try {
   process.env.VERSION='v0.1.1';
   write('.gitignore','dist/\n**/bin/\n**/obj/\n**/__pycache__/\n**/.pytest_cache/\n**/.venv/\n');
   const goTargets=process.platform==='linux' ? [{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64'},{goos:'darwin',goarch:'arm64'}] : [{goos:'windows',goarch:'amd64'}];
-  write('.ci.json',JSON.stringify({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']},web:{packages:['frontend']},python:{projects:['python-fixture']},docs:{required:['README.md']}}));
+  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']},web:{packages:['frontend']},python:{projects:['python-fixture']},docs:{required:['README.md']}}));
   write('README.md','# Fixture\n');
   write('go.mod','module example.com/fixture\n\ngo 1.26.2\n');
   write('cmd/fixture/main.go','package main\n\nimport "fmt"\n\nvar version string\n\nfunc main() { fmt.Println(version) }\n');
@@ -32,7 +33,7 @@ try {
   write('CMakePresets.json',JSON.stringify({version:3,configurePresets:[{name:'ci',generator:'Ninja',binaryDir:'${sourceDir}/out',cacheVariables:{CMAKE_BUILD_TYPE:'Release',CMAKE_MSVC_DEBUG_INFORMATION_FORMAT:'Embedded'}}]}));
   run('dotnet',['new','xunit','--no-restore','-n','Fixture','-o','dotnet-fixture']);
   run('dotnet',['new','console','--no-restore','-n','App','-o','dotnet-app']);
-  const cfg=JSON.parse(fs.readFileSync('.ci.json','utf8'));cfg.release.dotnetProjects=['dotnet-app/App.csproj'];write('.ci.json',JSON.stringify(cfg));
+  const cfg=currentEntry();cfg.release.dotnetProjects=['dotnet-app/App.csproj'];fleetEntry((cfg));
   run('dotnet',['new','sln','-n','Fixture']);run('dotnet',['sln','Fixture.sln','add','dotnet-fixture/Fixture.csproj','dotnet-app/App.csproj']);
   run('dotnet',['restore','--use-lock-file','--disable-parallel'],{env:{NUGET_PACKAGES:kept('nuget-packages'),VERSION:'0.1.1'}});
   write('python-fixture/pyproject.toml','[project]\nname="fixture-python"\nversion="0.1.0"\nrequires-python=">=3.12"\n[dependency-groups]\ndev=["ruff==0.14.5", "pytest==8.3.5"]\n[build-system]\nrequires=["hatchling==1.27.0"]\nbuild-backend="hatchling.build"\n');
@@ -49,7 +50,7 @@ try {
   process.env.RELEASE_TOOLCHAIN='go';
   for (const name of ['go/format.mjs','go/test.mjs','release/build.mjs','rust/format.mjs','rust/test.mjs','rust/build.mjs','web-app/test.mjs','docs/validate.mjs','powershell/files.mjs','powershell/parse.mjs','tofu/plan.mjs','tofu/apply.mjs','cmake/test.mjs','cmake/build.mjs','dotnet/test.mjs','dotnet/build.mjs','python/test.mjs','python/build.mjs','web-app/build.mjs','powershell/build.mjs']) {script(name);if(name==='release/build.mjs')stage('go');}
   const triple=process.platform==='win32'?'x86_64-pc-windows-msvc':'x86_64-unknown-linux-gnu';
-  cfg.release.rustTargets=[{target:triple}];cfg.release.sourceLists={[`rust-${triple}`]:'rust-inputs.txt'};write('.ci.json',JSON.stringify(cfg));
+  cfg.release.rustTargets=[{target:triple}];cfg.release.sourceLists={[`rust-${triple}`]:'rust-inputs.txt'};fleetEntry((cfg));
   process.env.RELEASE_TOOLCHAIN='rust';process.env.RELEASE_PART=`rust-${triple}`;process.env.RELEASE_TARGET=triple;
   script('release/build.mjs');
   if(!fs.readFileSync('dist/rust-inputs.txt','utf8').includes('src/main.rs'))throw new Error('Cargo source receipt omitted tracked source');
@@ -58,7 +59,7 @@ try {
   if(process.platform==='win32') {
     write('cmd/ffi/main.go','package main\n\nimport \"C\"\n\n//export Answer\nfunc Answer() C.int { return 42 }\n\nfunc main() {}\n');
     run('gofmt',['-w','cmd/ffi/main.go']);
-    cfg.release.goTargets.push({goos:'windows',goarch:'amd64',buildmode:'c-shared',packages:['./cmd/ffi']});write('.ci.json',JSON.stringify(cfg));
+    cfg.release.goTargets.push({goos:'windows',goarch:'amd64',buildmode:'c-shared',packages:['./cmd/ffi']});fleetEntry((cfg));
     process.env.RELEASE_TOOLCHAIN='go';process.env.RELEASE_TARGET='windows-amd64-c-shared';process.env.RELEASE_PART='go-windows-amd64-c-shared';
     script('release/build.mjs');if(!fs.existsSync('dist/ffi-windows-amd64.dll'))throw new Error('native Go C-shared DLL was not staged');stage('c-shared');
   }
@@ -85,15 +86,15 @@ try {
     write('k8s/kustomization.yaml','resources:\n- pod.yaml\n');
     write('chart/Chart.yaml','apiVersion: v2\nname: fixture\nversion: 0.1.0\n');
     write('chart/templates/pod.yaml',pod);
-    write('.ci.json',JSON.stringify({version:1,cluster:{renders:[{kind:'kustomize',path:'k8s'},{kind:'helm',path:'chart'}]}}));
+    fleetEntry(({version:1,cluster:{renders:[{kind:'kustomize',path:'k8s'},{kind:'helm',path:'chart'}]}}));
     script('cluster-service/manifests.mjs');
     if (process.env.CI_FIXTURE_DOCKER === '1') {
       write('Dockerfile','FROM artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f\nENTRYPOINT ["/bin/true"]\n');
       script('cluster-service/image.mjs',['check']);
-      const cfg=JSON.parse(fs.readFileSync('.ci.json','utf8'));
+      const cfg=currentEntry();
       cfg.release={toolchains:['go'],image:'cluster'};
       cfg.cluster.image='forgejo.romaine.life/test/fixture';
-      write('.ci.json',JSON.stringify(cfg));
+      fleetEntry((cfg));
       script('release/image.mjs',['check']);
     }
   }

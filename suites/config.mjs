@@ -1,8 +1,8 @@
-import fs from 'node:fs';
-import {readJSON, safePath} from './lib.mjs';
+import path from 'node:path';
+import {capture, readJSON, safePath, templates} from './lib.mjs';
 
 const fields = {
-  version: null, inputs: null,
+  suites: null, inputs: null,
   go: ['platforms', 'dependencies'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
   release: ['toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
@@ -10,14 +10,40 @@ const fields = {
   web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp'], tofu: ['version', 'backend'], docs: ['required', 'release'],
   powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail']
 };
-export function config(file = '.ci.json') {
-  const value = fs.existsSync(file) ? readJSON(file) : {version: 1};
-  if (value.version !== 1) throw new Error('.ci.json version must be 1');
+export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
+
+export function currentRepository() {
+  if (process.env.CI_REPOSITORY) return process.env.CI_REPOSITORY;
+  if (process.env.GITHUB_REPOSITORY) return process.env.GITHUB_REPOSITORY;
+  const url = capture('git', ['remote', 'get-url', 'origin']).replace(/\.git$/, '');
+  return url.split(/[/:]/).slice(-2).join('/');
+}
+
+export function fleet(file = process.env.CI_FLEET || path.join(templates, 'fleet.json')) {
+  const value = readJSON(file);
+  if (!value.repos || Array.isArray(value.repos) || typeof value.repos !== 'object') throw new Error('fleet.json needs a repos map');
+  for (const [repo, entry] of Object.entries(value.repos)) {
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`fleet.json: not an owner/repo name: ${repo}`);
+    validate(entry, repo);
+  }
+  return value.repos;
+}
+
+// A repository's settings are its entry in the fleet list; one with none has none.
+export function config(repo = currentRepository(), repos = fleet()) {
+  return repos[repo] || {suites: []};
+}
+
+export function validate(value, where = 'fleet entry') {
+  if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error(`${where} must be an object`);
+  if (!Array.isArray(value.suites) || value.suites.some(s => !suiteNames.includes(s) || s === 'default') || new Set(value.suites).size !== value.suites.length) {
+    throw new Error(`${where}: suites must name each suite once (default is always included)`);
+  }
   for (const [key, section] of Object.entries(value)) {
-    if (!(key in fields)) throw new Error(`unknown .ci.json field: ${key}`);
+    if (!(key in fields)) throw new Error(`${where}: unknown field ${key}`);
     if (fields[key]) {
-      if (!section || Array.isArray(section) || typeof section !== 'object') throw new Error(`.ci.json ${key} must be an object`);
-      for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`unknown .ci.json field: ${key}.${field}`);
+      if (!section || Array.isArray(section) || typeof section !== 'object') throw new Error(`${where}: ${key} must be an object`);
+      for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`${where}: unknown field ${key}.${field}`);
     }
   }
   for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['docs','required']]) {

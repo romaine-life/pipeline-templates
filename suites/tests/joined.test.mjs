@@ -7,6 +7,7 @@ import {reserve,stagePart,finalize,materializeAsset} from '../release/protocol.m
 import {deployJoined} from '../release/deploy.mjs';
 import {releasePlan} from '../release/plan.mjs';
 import {completeExternal} from '../release/complete-external.mjs';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
 test('joined release places Go and npm on Linux and only MSVC Rust on Windows',()=>{
   const result=releasePlan({release:{toolchains:['go','rust','npm'],rustTargets:[{target:'x86_64-unknown-linux-gnu'},{target:'x86_64-pc-windows-msvc'}]}});
@@ -20,7 +21,7 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
   try {
     process.chdir(root);
     Object.assign(process.env,{VERSION:'v0.1.1',SOURCE_SHA:'a'.repeat(40),GITHUB_SHA:'a'.repeat(40),GITHUB_EVENT_NAME:'push',GITHUB_REF:'refs/heads/main',DEFAULT_BRANCH:'main',GITHUB_SERVER_URL:'https://forgejo.romaine.life',GITHUB_REPOSITORY:'test/app',TOKEN:'test-token',GITHUB_DISPATCH_TOKEN:'github-token',GITHUB_OUTPUT:path.join(root,'outputs')});
-    fs.writeFileSync('.ci.json',JSON.stringify({version:1,release:{toolchains:['go','rust','npm'],manifest:'bundle.json',checksumManifest:'SHA256SUMS',external:[{id:'macos',repository:'romaine-life/app',workflow:'macos.yml',assets:['macos.tar.gz']}]}}));
+    fleetEntry(({version:1,release:{toolchains:['go','rust','npm'],manifest:'bundle.json',checksumManifest:'SHA256SUMS',external:[{id:'macos',repository:'romaine-life/app',workflow:'macos.yml',assets:['macos.tar.gz']}]}}));
     globalThis.fetch=async(url,options={})=>{
       const u=String(url),method=options.method || 'GET';let result={};
       if(u.startsWith('https://api.github.com')){
@@ -68,12 +69,12 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
     for(const provider of ['github','forgejo']) {
       rel=null;data.clear();id=0;
       process.env.DISPATCH_TOKEN='test-token';
-      fs.writeFileSync('.ci.json',JSON.stringify({version:1,release:{toolchains:[],external:[{id:'macos',provider,repository:'romaine-life/app',workflow:provider==='github'?'macos.yml':'native.yml',assets:['macos.tar.gz']}]}}));
+      fleetEntry(({version:1,release:{toolchains:[],external:[{id:'macos',provider,repository:'romaine-life/app',workflow:provider==='github'?'macos.yml':'native.yml',assets:['macos.tar.gz']}]}}));
       await reserve();assert.equal(await finalize(),false);
       completionReceipt=await stagePart('macos',['macos.tar.gz'],{deferReceipt:true});assert.equal(await finalize('macos','success',completionReceipt),true);
       await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
     }
-    fs.writeFileSync('.ci.json',JSON.stringify({version:1,release:{image:'web'},web:{image:'test.azurecr.io/app'}}));
+    fleetEntry(({version:1,release:{image:'web'},web:{image:'test.azurecr.io/app'}}));
     const calls=[];
     await deployJoined(async(...args)=>calls.push(args),(...args)=>calls.push(args));
     assert.deepEqual(calls[0],['image.txt','.ci-image-pin']);assert.ok(calls[1][1][0].replaceAll('\\','/').endsWith('web-app/deploy.mjs'));

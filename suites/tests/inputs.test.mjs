@@ -11,7 +11,6 @@ test('every check declares positive dependencies and ignores unrelated inputs', 
   for (const [job, patterns] of Object.entries(inputs)) {
     assert.ok(patterns.length, job);
     assert.equal(relevant(['unrelated/video.mp4'], job, {}), false, job);
-    assert.equal(relevant(['.ci.json'], job, {}), job!=='release.package', job);
     if (!['docs.validate','rust.typos'].includes(job)) assert.equal(relevant(['docs/explanation.md'], job, {}), false, job);
     assert.equal(relevant(['assets/embed.txt'], job, {inputs: {[job]: ['assets/embed.txt']}}), true, job);
   }

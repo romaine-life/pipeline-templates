@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {stage, sourceRelease, publish, releaseScope} from '../release.mjs';
 import {run, capture} from '../lib.mjs';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
 test('drafts recover interrupted uploads and published assets are immutable', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(),'release-'));
@@ -59,7 +60,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
   let release=null;const calls=[];
   try {
     process.chdir(dir);
-    fs.writeFileSync('.ci.json',JSON.stringify({version:1,docs:{release:true},release:{dispatch:[{repository:'romaine-life/consumer'}]}}));
+    fleetEntry(({version:1,docs:{release:true},release:{dispatch:[{repository:'romaine-life/consumer'}]}}),'test/source');
     fs.writeFileSync('README.md','# Source\n');
     run('git',['init','-b','main']);run('git',['add','.']);
     run('git',['-c','user.name=test','-c','user.email=test@example.invalid','commit','-m','source']);

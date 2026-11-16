@@ -24,11 +24,11 @@
     "suites/**/*.yml",
     "suites/package*.json",
     "suites/tests/fixtures/**",
-    "suites/tests/pin-audit.json",
     "actions/suite/**",
     "actions/release-version/**",
     "actions/prune-releases/**",
-    "suites/README.md"
+    "suites/README.md",
+    "fleet.json"
   ],
   "prune-releases": [
     "actions/prune-releases/**"

@@ -37,6 +37,6 @@ export function relevant(files, job, cfg) {
   if (!inputs[job]) throw new Error(`unknown check: ${job}`);
   let standard = inputs[job];
   if (job === 'web-app.test') standard = (cfg.web?.packages || ['.']).flatMap(pkg => inputs[job].map(p => pkg === '.' ? p : `${pkg}/${p}`));
-  const patterns = [...standard, ...(cfg.inputs?.[job] || []), ...(job==='release.package' ? [] : ['.ci.json'])];
+  const patterns = [...standard, ...(cfg.inputs?.[job] || [])];
   return files.some(f => patterns.some(p => matches(f, p)));
 }

@@ -30,10 +30,6 @@ export function packagingMetadata(kind,text) {
   return kind==='cargo' ? {features:value.features,profile:value.profile} : {name:value.name,version:value.version,build:value.scripts?.build,prebuild:value.scripts?.prebuild,postbuild:value.scripts?.postbuild};
 }
 export function packagingChanged(files,cfg,readBefore,readAfter=file=>fs.existsSync(file)?fs.readFileSync(file,'utf8'):null) {
-  if(files.includes('.ci.json')) {
-    const before=readBefore('.ci.json');
-    if(canonical(settings(before ? JSON.parse(before) : {}))!==canonical(settings(cfg)))return true;
-  }
   const specification=packagingInputs(cfg);
   if(relevant(files,'release.package',{inputs:{'release.package':specification.patterns}}))return true;
   for(const selector of specification.metadata)for(const file of files.filter(file=>matches(file,selector.path))) {

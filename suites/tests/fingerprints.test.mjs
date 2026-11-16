@@ -30,8 +30,8 @@ test('fingerprints follow code, linked/embedded inputs, configuration, patterns 
     fs.mkdirSync('linked');fs.writeFileSync('linked/data.txt','linked directory');fs.appendFileSync('README.md','[directory](linked/)\n');commit();
     const directory=await fp('docs.validate');fs.unlinkSync('linked/data.txt');commit();assert.notEqual(await fp('docs.validate'),directory);
     const source=await fp();
-    fs.writeFileSync('.ci.json','{"version":1}');commit();const json=await fp('powershell.files');
-    fs.writeFileSync('.ci.json','{"version":1,"docs":{"required":["README.md"]}}');commit();
+    fs.writeFileSync('settings.json','{"version":1}');commit();const json=await fp('powershell.files');
+    fs.writeFileSync('settings.json','{"version":1,"docs":{"required":["README.md"]}}');commit();
     assert.notEqual(await fp('powershell.files'),json);assert.equal(await fp(),source);
     assert.equal(await fp('go.test','ubuntu-latest',{...cfg,docs:{required:['other.md']}}),source);
     assert.notEqual(await fp('go.test','ubuntu-latest',{...cfg,inputs:{'go.test':['extra/**']}}),source);

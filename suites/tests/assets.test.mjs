@@ -11,6 +11,7 @@ import {validateDependencyOwnership} from '../release/selection.mjs';
 import {metadataFiles} from '../release/metadata.mjs';
 import {releasePlan} from '../release/plan.mjs';
 import {hash,run,suites} from '../lib.mjs';
+import {fleetEntry} from './fleet-entry.mjs';
 
 async function fixture(fn) {
   const cwd=process.cwd(),env={...process.env},fetch=globalThis.fetch,root=fs.mkdtempSync(path.join(os.tmpdir(),'asset-contract-'));
@@ -21,7 +22,7 @@ const write=(file,data='payload')=>{fs.mkdirSync(path.dirname(file),{recursive:t
 test('a Windows-only dependency is staged once and both Rust target parts assemble without duplicate names',()=>fixture(async()=>{
   const linux='x86_64-unknown-linux-gnu',windows='x86_64-pc-windows-msvc',bytes=Buffer.from('pinned DLL');
   const cfg={version:1,release:{toolchains:['rust'],rustTargets:[{target:linux},{target:windows}],dependencies:[{toolchain:'rust',targets:[windows],url:'https://artifacts.home.romaine.life/fzt.dll',sha256:hash(bytes),destination:'dist/fzt.dll'}],assetNames:{[`rust-${linux}`]:{[`spotify_player-${linux}`]:'spotify_player'},[`rust-${windows}`]:{[`spotify_player-${windows}.exe`]:'spotify_player.exe'}}}};
-  write('.ci.json',JSON.stringify(cfg));let fetched=0;globalThis.fetch=async()=>{fetched++;return new Response(bytes);};
+  fleetEntry((cfg));let fetched=0;globalThis.fetch=async()=>{fetched++;return new Response(bytes);};
   for(const target of [linux,windows]) {
     process.env.RELEASE_TARGET=target;process.env.RELEASE_PART=`rust-${target}`;
     await dependencies('rust');write(`dist/spotify_player-${target}${target===windows?'.exe':''}`);
@@ -40,7 +41,7 @@ test('rename maps extract loose CMake assets and package real directory ZIPs wit
 }));
 test('per-target archives rename their contained executable and consume it before assembly',()=>fixture(async()=>{
   const target='x86_64-pc-windows-msvc';process.env.RELEASE_TARGET=target;
-  write('.ci.json',JSON.stringify({version:1,release:{toolchains:['rust'],rustTargets:[{target}],archives:[{toolchain:'rust',targets:[target],name:`tuimail-${target}.zip`,sources:[`dist/tuimail-${target}.exe`],entries:{[`tuimail-${target}.exe`]:'tuimail.exe'}}]}}));
+  fleetEntry(({version:1,release:{toolchains:['rust'],rustTargets:[{target}],archives:[{toolchain:'rust',targets:[target],name:`tuimail-${target}.zip`,sources:[`dist/tuimail-${target}.exe`],entries:{[`tuimail-${target}.exe`]:'tuimail.exe'}}]}}));
   write(`dist/tuimail-${target}.exe`);archives('rust');assert.equal(fs.existsSync(`dist/tuimail-${target}.exe`),false);
   assert.deepEqual(Object.keys(unzipSync(fs.readFileSync(`dist/tuimail-${target}.zip`))),['tuimail.exe']);
 }));
