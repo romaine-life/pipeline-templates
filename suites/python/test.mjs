@@ -11,8 +11,9 @@ if (process.argv[1]?.endsWith('/python/test.mjs') || process.argv[1]?.endsWith('
   for (const cwd of config().python?.projects || ['.']) {
     pythonEnvironment(cwd);
     run('uv',['sync','--frozen','--all-groups'],{cwd});
-    run('uv',['run','--frozen','ruff','check','.'],{cwd});
-    run('uv',['run','--frozen','ruff','format','--check','.'],{cwd});
-    run('uv',['run','--frozen','pytest'],{cwd});
+    // CI checks pipeline-templates out into _ci/ inside the repository; it isn't the repository's code.
+    run('uv',['run','--frozen','ruff','check','--config',"extend-exclude = ['_ci']",'.'],{cwd});
+    run('uv',['run','--frozen','ruff','format','--check','--config',"extend-exclude = ['_ci']",'.'],{cwd});
+    run('uv',['run','--frozen','pytest','--ignore=_ci'],{cwd});
   }
 }

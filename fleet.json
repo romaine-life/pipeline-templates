@@ -129,7 +129,14 @@
       "suites": [
         "docs",
         "python"
-      ]
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ]
+      }
     },
     "romaine-life/ambience": {
       "suites": [

@@ -46,6 +46,8 @@ test('toolchain scripts execute standard commands and propagate failures', () =>
     assert.equal(result.status,0,`${script}: ${result.stderr}`);
     assert.deepEqual(trace.filter(t=>t.command).map(t=>t.command),expected,script);
   }
+  const uv = probe('python/test.mjs').trace.filter(t => t.command === 'uv' && t.args[0] === 'run').map(t => t.args.slice(2).join(' '));
+  assert.deepEqual(uv, ["ruff check --config extend-exclude = ['_ci'] .", "ruff format --check --config extend-exclude = ['_ci'] .", 'pytest --ignore=_ci'], 'the suite checkout in _ci/ is not the repository\'s code');
   const gofmt = probe('go/format.mjs').trace.find(t => t.command === 'gofmt');
   assert.match(gofmt.args.at(-1).replaceAll('\\','/'),/gofmt-[^/]+\/main\.go$/,'a CRLF checkout of an LF commit is formatted from an LF copy');
   const committed = probe('go/format.mjs',[],{PROBE_GO_EOL:'lf'}).trace.find(t => t.command === 'gofmt');
