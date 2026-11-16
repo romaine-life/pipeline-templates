@@ -27,6 +27,11 @@
         "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
       }
     },
+    "nelsong6/emulation-screensaver": {
+      "suites": [
+        "docs"
+      ]
+    },
     "nelsong6/journal-biking": {
       "suites": [
         "docs"
@@ -115,6 +120,22 @@
           "CLAUDE.md"
         ],
         "release": true
+      }
+    },
+    "nelsong6/openproject": {
+      "suites": [
+        "cluster-service"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "openproject"
+          }
+        ],
+        "build": false,
+        "smoke": false
       }
     },
     "nelsong6/ux-journal": {
@@ -276,12 +297,77 @@
         }
       }
     },
+    "romaine-life/macrocraft": {
+      "suites": [
+        "docs"
+      ]
+    },
+    "romaine-life/shell-config-profile-1": {
+      "suites": [
+        "powershell"
+      ],
+      "powershell": {
+        "windowsPowerShell": true
+      }
+    },
     "romaine-life/shell-config-profile-5": {
       "suites": [
         "powershell"
       ],
       "powershell": {
         "windowsPowerShell": true
+      }
+    },
+    "romaine-life/shell-config-profile-home": {
+      "suites": [
+        "cluster-service",
+        "powershell"
+      ],
+      "powershell": {
+        "windowsPowerShell": true
+      },
+      "cluster": {
+        "renders": [
+          {
+            "kind": "kustomize",
+            "path": "nas/repo-sync"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      },
+      "inputs": {
+        "cluster-service.manifests": [
+          "nas/repo-sync/**"
+        ]
+      }
+    },
+    "romaine-life/spire-pad": {
+      "suites": [
+        "docs"
+      ]
+    },
+    "romaine-life/string-lab": {
+      "suites": [
+        "release",
+        "rust"
+      ],
+      "rust": {
+        "platforms": [
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "rust"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "rustTargets": [
+          {
+            "target": "x86_64-pc-windows-msvc"
+          }
+        ]
       }
     }
   }
