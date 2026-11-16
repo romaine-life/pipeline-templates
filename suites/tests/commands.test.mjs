@@ -14,6 +14,7 @@ function probe(script, args = [], env = {}, cfg = {}) {
     fleetEntry(({version:1,...cfg}),'test/probe');
     fs.writeFileSync(path.join(root,'README.md'),'# A document\n');
     fs.writeFileSync(path.join(root,'config.json'),'{}');
+    fs.writeFileSync(path.join(root,'main.go'),'package main\r\n');
     fs.writeFileSync(path.join(root,'go.mod'),'module example.com/probe\n');
     fs.writeFileSync(path.join(root,'go.sum'),'dependency checksums\n');
     fs.writeFileSync(path.join(root,'.ci-image-pin'),`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}`);
@@ -45,6 +46,9 @@ test('toolchain scripts execute standard commands and propagate failures', () =>
     assert.equal(result.status,0,`${script}: ${result.stderr}`);
     assert.deepEqual(trace.filter(t=>t.command).map(t=>t.command),expected,script);
   }
+  const gofmt = probe('go/format.mjs').trace.find(t => t.command === 'gofmt');
+  assert.notEqual(gofmt.args.at(-1),'main.go','a CRLF checkout is formatted from an LF copy');
+  assert.match(gofmt.args.at(-1).replaceAll('\\','/'),/gofmt-[^/]+\/main\.go$/);
   const {result} = probe('go/test.mjs',[],{PROBE_FAIL:'go'});
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/go exited 9/);

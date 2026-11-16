@@ -56,6 +56,16 @@ an unknown field fails.
 `web-app`, `tofu`, `docs`, `powershell`. Each `suites/<suite>/ci.yml` has a `scope` job that
 decides from the PR's diff which checks run, and runs the scripts beside it.
 
+## Before a push
+
+`ci-check` (at-home-tools) runs `suites/check.mjs` in a repository's worktree: for the
+commits since the default branch, the check jobs its suites' pull-request run would start,
+through the same scripts. It reads each suite's `ci.yml` for the jobs, their conditions
+and their commands, so a suite change reaches it with no edit there. A test job runs only on
+its own platform, and a few jobs run on the pull request only, each with the reason
+`check.mjs` gives (`ciOnly`): image builds, release builds and packaging, OpenTofu plans,
+and tests that need services on the runner's Docker network.
+
 ## Kept for repositories not yet migrated
 
 `.forgejo/workflows/go-dependency-update-template.yml` and
