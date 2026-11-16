@@ -21,7 +21,7 @@ export async function cleanup(file) {
     const release=await request(`${api()}/releases/tags/${tag}`,{allow404:true});
     if(release){if(release.target_commitish!==state.sha)throw new Error('image proof release source changed');await request(`${api()}/releases/${release.id}`,{method:'DELETE'});}
     await request(`${api()}/tags/${tag}`,{method:'DELETE',allow404:true});
-    await request(`${api()}/statuses/${state.sha}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:'success',context:`Release assets/${tag}`,description:'Image publication proof cleaned up'})});
+    await request(`${api()}/statuses/${state.sha}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:state.passed?'success':'skipped',context:`Release assets/${tag}`,description:'Image publication proof cleaned up'})});
   }
   if(capture('docker',['ps','-aq','--filter',`name=^${state.id}-registry$`]))run('docker',['rm','-fv',`${state.id}-registry`]);
   if(fs.existsSync(state.root)){const cwd=process.cwd();try {process.chdir(state.root);cleanupRuntime();}finally{process.chdir(cwd);}}
@@ -72,7 +72,7 @@ else {
     const second=await release(2,async()=>{const result=await publishJoinedImage(cfg,publish);assert.equal(result.published,false);assert.equal(result.pin,originalPin);});
     assert.equal(pushes,1);
     const pinOnly=updatePin(values,cfg.cluster,fs.readFileSync('.ci-image-pin','utf8'),{tag:second,commit:sourceCommit});
-    assert.equal(pinOnly,values.replace(first,second).replace(state.sha,sourceCommit));
+    assert.equal(pinOnly,values.replace(`  tag: ${first}\n`,`  tag: ${second}\n`).replace(`  commit: ${state.sha}\n`,`  commit: ${sourceCommit}\n`));
     assert.equal((await (await fetch(`http://127.0.0.1:${port}/v2/image-proof/tags/list`)).json()).tags.includes(second),false);
     console.log('PASS source-only: real release assets published, no image tag/push/build, only release tag/commit changed');
     await checkJoinedImage(cfg);
@@ -82,5 +82,6 @@ else {
     await release(3,async()=>{const result=await publishJoinedImage(cfg,publish);assert.equal(result.published,true);assert.notEqual(result.pin,originalPin);});
     assert.equal(pushes,2);
     console.log('PASS image input: changed context COPY source built and pushed a new image with a new digest');
+    state.passed=true;save();
   } finally {monitor?.close();process.chdir(cwd);await cleanup(file);}
 }
