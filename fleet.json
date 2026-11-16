@@ -27,6 +27,56 @@
         "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
       }
     },
+    "nelsong6/journal-biking": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ]
+      }
+    },
+    "nelsong6/journal-career": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ],
+        "release": true
+      }
+    },
+    "nelsong6/journal-dreams": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ]
+      }
+    },
+    "nelsong6/journal-llm-philosophy": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ],
+        "release": true
+      }
+    },
     "nelsong6/journal-music": {
       "suites": [
         "docs"
@@ -39,6 +89,40 @@
           "gear.md",
           "accounts.md"
         ]
+      }
+    },
+    "nelsong6/journal-politics": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ],
+        "release": true
+      }
+    },
+    "nelsong6/journal-psychology-philosophy": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ],
+        "release": true
+      }
+    },
+    "nelsong6/ux-journal": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "release": true
       }
     },
     "nelsong6/vacations": {
