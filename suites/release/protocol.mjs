@@ -150,8 +150,8 @@ export async function finalize(completedPart='',completion='success',receipt) {
   await status(plan,ready?'success':'pending',ready?'Every release asset is complete':`Awaiting release parts: ${missing.join(', ')}`);
   output('ready',ready);output('home-sync',plan.homeSync);output('tag',plan.tag);output('image',plan.image);return ready;
 }
-export async function materializeAsset(name,destination) {
-  const rel=await release(),value=state(rel);
+export async function materializeAsset(name,destination,previous) {
+  const rel=previous || await release(),value=previous ? state(rel,{tagName:rel.tag_name,sha:rel.target_commitish}) : state(rel);
   if(rel.draft)throw new Error('deployment needs a published release');
   const asset=rel.assets.find(a=>a.name===name),receipt=Object.values(value.receipts).flatMap(p=>p.files).find(f=>f.name===name);
   if(!asset || !receipt)throw new Error('release has no declared asset');
