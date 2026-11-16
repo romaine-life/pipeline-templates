@@ -10,7 +10,9 @@ child.spawnSync = (command, args, options) => {
   if (command === 'rustc') stdout = 'rustc 1.100.0 (abc 2026-01-01)';
   if (command === 'python') stdout = 'Python 3.12.10';
   if (command === 'dotnet' && args[0]==='--version') stdout = '9.0.321';
-  if (command === 'git' && args[0] === 'ls-files') stdout = 'README.md\0main.go\0config.json\0';
+  if (command === 'git' && args[0] === 'ls-files') stdout = args.includes('--eol')
+    ? ['README.md','main.go','config.json'].map(f => `i/lf    w/${f === 'main.go' ? process.env.PROBE_GO_EOL || 'crlf' : 'lf'}  attr/                 \t${f}`).join('\0') + '\0'
+    : 'README.md\0main.go\0config.json\0';
   if (command === 'git' && args.includes('--name-only')) stdout = process.env.PROBE_DIFF || '';
   if (command === 'git' && args[0] === 'rev-parse') stdout = 'a'.repeat(40);
   if (command === 'go' && args[0] === 'list') stdout = 'example.com/probe/cmd/probe';

@@ -1,18 +1,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {capture, tracked} from '../lib.mjs';
-// A Windows checkout (core.autocrlf) has CRLF line endings the commit won't, so gofmt reads
-// each such file as Git stores it: a copy with LF endings.
+import {capture} from '../lib.mjs';
+// A Windows checkout (core.autocrlf) has CRLF line endings its commit doesn't, so gofmt
+// reads such a file as Git stores it: a copy with LF endings. A file committed with CRLF
+// is read as it is, and fails.
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'gofmt-'));
 try {
-  const files = tracked().filter(f => f.endsWith('.go')).map(file => {
-    const text = fs.readFileSync(file, 'utf8');
-    if (!text.includes('\r\n')) return {file, path: file};
+  const files = capture('git', ['ls-files', '--eol', '-z']).split('\0').filter(Boolean).flatMap(line => {
+    const [eol, file] = line.split('\t');
+    if (!file.endsWith('.go')) return [];
+    if (!/^i\/lf\s+w\/crlf\b/.test(eol)) return [{file, path: file}];
     const copy = path.join(temp, file);
     fs.mkdirSync(path.dirname(copy), {recursive: true});
-    fs.writeFileSync(copy, text.replaceAll('\r\n', '\n'));
-    return {file, path: copy};
+    fs.writeFileSync(copy, fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n'));
+    return [{file, path: copy}];
   });
   for (let i = 0; i < files.length; i += 50) {
     const batch = files.slice(i, i + 50);
