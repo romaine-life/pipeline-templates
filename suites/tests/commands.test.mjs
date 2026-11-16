@@ -94,7 +94,7 @@ test('Go dependency dispatch opens and queues one PR', () => {
   const newer=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'superseded'},{go:{dependencies:['github.com/romaine-life/fzt']}});
   assert.equal(newer.result.status,0,newer.result.stderr);
   assert.equal(newer.trace.some(t=>t.method==='PATCH' && t.url.endsWith('/pulls/6')),true);
-  assert.equal(newer.trace.some(t=>t.method==='DELETE' && t.url.endsWith('/branches/deps%2Fci-suite-0')),true);
+  assert.equal(newer.trace.some(t=>t.method==='DELETE' && t.url.endsWith('/branches/deps%2F0')),true);
 });
 test('web publication logs into ACR and direct deploy uses the digest pin', () => {
   const cfg={web:{image:'test.azurecr.io/probe',containerApp:'probe',resourceGroup:'test'}};

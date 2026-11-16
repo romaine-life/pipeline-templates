@@ -17,7 +17,7 @@ if (capture('git', ['diff', '--name-only', '--', 'go.mod', 'go.sum'])) {
   const previous=[];
   for (let page=1;;page++) {
     const batch=await request(`${api()}/pulls?state=open&limit=50&page=${page}`,{token});
-    previous.push(...batch.filter(pr=>pr.head.ref.startsWith('deps/ci-suite-')));
+    previous.push(...batch.filter(pr=>/^deps\/\d+$/.test(pr.head.ref)));
     if (batch.length<50) break;
   }
   for (const pr of previous) {
@@ -30,7 +30,8 @@ if (capture('git', ['diff', '--name-only', '--', 'go.mod', 'go.sum'])) {
     }
     if (same) { await queuePR(pr.number,{token});console.log(`Queued: ${pr.html_url}`); process.exit(0); }
   }
-  const branch = `deps/ci-suite-${process.env.GITHUB_RUN_ID}`;
+  // strip-owner follows the take-up a run opened by this name (agent-tools pr/deliver.go).
+  const branch = `deps/${process.env.GITHUB_RUN_ID}`;
   run('git', ['checkout', '-b', branch]);
   run('git', ['add', 'go.mod', 'go.sum']);
   run('git', ['-c', 'user.name=forgejo-actions', '-c', 'user.email=forgejo-actions@noreply.romaine.life', 'commit', '-m', `Take ${modules.join(', ')}`]);

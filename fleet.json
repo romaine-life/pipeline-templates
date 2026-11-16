@@ -102,6 +102,89 @@
         ]
       }
     },
+    "romaine-life/at-home-tools": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ],
+        "dependencies": [
+          "github.com/romaine-life/agent-tools"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v1.0",
+        "homeSync": true,
+        "goStampPackages": [
+          "github.com/romaine-life/at-home-tools/internal/buildinfo"
+        ],
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/...",
+              "github.com/romaine-life/agent-tools/cmd/agent-guidance",
+              "github.com/romaine-life/agent-tools/cmd/claude-pane",
+              "github.com/romaine-life/agent-tools/cmd/pr-logs",
+              "github.com/romaine-life/agent-tools/cmd/pr-ready",
+              "github.com/romaine-life/agent-tools/cmd/pr-status",
+              "github.com/romaine-life/agent-tools/cmd/pr-watch",
+              "github.com/romaine-life/agent-tools/cmd/prompt-links",
+              "github.com/romaine-life/agent-tools/cmd/strip-owner",
+              "github.com/romaine-life/agent-tools/cmd/tmux-strip",
+              "github.com/romaine-life/agent-tools/cmd/wp"
+            ]
+          },
+          {
+            "goos": "linux",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/homesvc",
+              "github.com/romaine-life/agent-tools/cmd/agent-guidance"
+            ]
+          },
+          {
+            "goos": "linux",
+            "goarch": "arm64",
+            "packages": [
+              "./cmd/router-agent"
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "amd64",
+            "packages": [
+              "github.com/romaine-life/agent-tools/cmd/agent-guidance"
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "arm64",
+            "packages": [
+              "github.com/romaine-life/agent-tools/cmd/agent-guidance"
+            ]
+          }
+        ],
+        "windowsGui": [
+          "./cmd/claude-transcripts",
+          "./cmd/event-logs",
+          "./cmd/ics-to-gcal",
+          "./cmd/log-ship"
+        ],
+        "assetNames": {
+          "go-windows-amd64": {
+            "*-windows-amd64.exe": "*.exe"
+          }
+        }
+      }
+    },
     "romaine-life/shell-config-profile-5": {
       "suites": [
         "powershell"

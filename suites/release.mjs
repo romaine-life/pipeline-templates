@@ -76,7 +76,7 @@ export async function dispatch() {
     const url=`${process.env.GITHUB_SERVER_URL}/api/v1/repos/${target.repository}`;
     const repo=await request(url,{token});
     await post(`${url}/actions/workflows/${encodeURIComponent(target.workflow || 'go/dependencies.yml')}/dispatches`,
-      {ref:repo.default_branch,inputs:{'update-dependencies':true}},{token});
+      {ref:repo.default_branch},{token});
   }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

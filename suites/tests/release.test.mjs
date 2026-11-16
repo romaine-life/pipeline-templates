@@ -79,7 +79,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
       else if (u.includes('/releases')) body=release;
       else if (u.endsWith('/romaine-life/consumer')) body={default_branch:'master'};
       else if (u.endsWith('/dispatches')) {
-        assert.deepEqual(JSON.parse(options.body),{ref:'master',inputs:{'update-dependencies':true}});
+        assert.deepEqual(JSON.parse(options.body),{ref:'master'});
         return new Response(null,{status:204});
       }
       return new Response(JSON.stringify(body),{status:200,headers:{'Content-Type':'application/json','x-total-count':'1'}});
