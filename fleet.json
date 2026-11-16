@@ -297,6 +297,112 @@
         }
       }
     },
+    "romaine-life/fzt-automate": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ],
+        "dependencies": [
+          "github.com/romaine-life/fzt",
+          "github.com/romaine-life/fzt-terminal"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "mirror": true,
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "."
+            ]
+          },
+          {
+            "goos": "linux",
+            "goarch": "amd64",
+            "packages": [
+              "."
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "arm64",
+            "packages": [
+              "."
+            ]
+          }
+        ]
+      }
+    },
+    "romaine-life/fzt-terminal": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ],
+        "dependencies": [
+          "github.com/romaine-life/fzt",
+          "github.com/romaine-life/fzt-frontend"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "mirror": true,
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/fzt"
+            ]
+          },
+          {
+            "goos": "linux",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/fzt"
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "arm64",
+            "packages": [
+              "./cmd/fzt"
+            ]
+          },
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "buildmode": "c-shared",
+            "packages": [
+              "./cmd/fztlib"
+            ]
+          }
+        ],
+        "assetNames": {
+          "go-windows-amd64": {
+            "fztlib-windows-amd64.dll": "fzt-windows-amd64.dll"
+          }
+        }
+      }
+    },
     "romaine-life/guitar-tabs": {
       "suites": [
         "go",
