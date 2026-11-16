@@ -233,6 +233,7 @@ jobs:
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
       env:
         VERSION: ${{ needs.reserve.outputs.tag }}
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - run: node _ci/suites/release/protocol.mjs stage
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -397,6 +398,9 @@ jobs:
         AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
         VERSION: ${{ env.CHECK_VERSION }}
     - run: node _ci/suites/release/image.mjs check
+    - name: Remove runtime test container
+      if: always()
+      run: node _ci/suites/release/image.mjs cleanup
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop

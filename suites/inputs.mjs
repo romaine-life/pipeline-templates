@@ -1,3 +1,4 @@
+import {imageInputs} from './image-inputs.mjs';
 import fs from 'node:fs';
 import {capture, output} from './lib.mjs';
 import {config} from './config.mjs';
@@ -30,7 +31,7 @@ export async function scope(suite) {
   if (suite === 'release') add('release.build',[...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources)]);
   if (['go', 'rust'].includes(suite)) add(`${suite}.test`, embedded()[suite]);
   if (suite === 'docs') add('docs.validate', docLinks());
-  if (['cluster-service', 'web-app'].includes(suite) && fs.existsSync('Dockerfile')) add(`${suite}.image`, dockerSources(fs.readFileSync('Dockerfile', 'utf8')));
+  if (['cluster-service', 'web-app'].includes(suite) && cfg[suite==='cluster-service'?'cluster':'web']?.image && cfg[suite==='cluster-service'?'cluster':'web']?.build!==false) add(`${suite}.image`, imageInputs(cfg,suite==='cluster-service'?'cluster':'web'));
   if (suite === 'default') {
     const {dependencies} = await import('./default/rules.mjs');
     cfg.inputs = {...cfg.inputs, 'default.rules': [...(cfg.inputs?.['default.rules'] || []), ...dependencies()]};

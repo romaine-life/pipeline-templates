@@ -1,0 +1,23 @@
+name: Joined image publication proof
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+concurrency:
+  group: image-proof-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  image-publication:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./actions/suite
+      - id: proof
+        run: node suites/tests/image-proof.mjs
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: always()
+        run: node suites/tests/image-proof.mjs cleanup
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_IMAGE_PROOF_STATE: ${{ steps.proof.outputs.state }}

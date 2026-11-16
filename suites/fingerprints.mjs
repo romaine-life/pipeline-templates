@@ -1,3 +1,4 @@
+import {imageInputs,imageLayout} from './image-inputs.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
@@ -37,10 +38,9 @@ export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
     for(const render of configuration.renders){patterns.push(render.path,`${render.path}/**`);if(render.values)patterns.push(render.values);}
   }
   if(check.endsWith('.image')) {
-    const dockerfile=entries.find(entry=>entry.path==='Dockerfile');
-    if(dockerfile)patterns.push(...dockerSources(capture('git',['show',dockerfile.oid])));
-    const section=check==='cluster-service.image'?cfg.cluster:{};
-    configuration={build:section?.build!==false,...(section?.build===false?{image:section.image}:{})};
+    const kind=check==='cluster-service.image'?'cluster':'web',section=cfg[kind] || {};
+    patterns=section.build===false?[]:[...imageInputs(cfg,kind,file=>{const entry=entries.find(e=>e.path===file);return entry?capture('git',['show',entry.oid]):null;}),'ci/smoke/**'];
+    configuration={...imageLayout(section),build:section.build!==false,...(section.build===false?{image:section.image}:{})};
   }
   if(check==='release.package') {
     const release=packagingInputs(cfg);patterns.push(...release.patterns);configuration=settings(cfg);

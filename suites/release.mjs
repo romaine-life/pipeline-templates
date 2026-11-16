@@ -1,3 +1,4 @@
+import {imageInputs} from './image-inputs.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
@@ -43,7 +44,7 @@ export async function releaseScope(suite) {
   const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
   const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'web-app.test' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
   const kinds=cfg.release?.toolchains || [];
-  const extra = suite === 'docs' ? docLinks() : ['web-app','cluster-service'].includes(suite) && fs.existsSync('Dockerfile') ? dockerSources(fs.readFileSync('Dockerfile','utf8')) : kinds.flatMap(kind=>embedded()[kind] || []);
+  const extra = suite === 'docs' ? docLinks() : ['web-app','cluster-service'].includes(suite) && !cfg.web?.staticApp ? imageInputs(cfg,suite==='cluster-service'?'cluster':'web') : [...kinds.flatMap(kind=>embedded()[kind] || []),...(cfg.release?.image ? imageInputs(cfg,cfg.release.image) : [])];
   cfg.inputs = {...cfg.inputs, [job]: [...(cfg.inputs?.[job] || []), ...extra, ...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources),...(cfg.inputs?.['release.package'] || [])]};
   output('build', relevant(files, job, cfg));
 }

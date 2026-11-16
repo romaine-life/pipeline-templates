@@ -4,10 +4,10 @@ import {readJSON, safePath} from './lib.mjs';
 const fields = {
   version: null, inputs: null,
   go: ['platforms', 'dependencies'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
-  release: ['toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  release: ['toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest','runtimeChecks'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
-  cluster: ['renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
-  web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp'], tofu: ['version', 'backend'], docs: ['required', 'release'],
+  cluster: ['dockerfile','context','imageSource','renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
+  web: ['dockerfile','context','imageSource','packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp'], tofu: ['version', 'backend'], docs: ['required', 'release'],
   powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail']
 };
 export function config(file = '.ci.json') {
@@ -119,5 +119,12 @@ export function config(file = '.ci.json') {
   if (value.web?.image && !/^[a-z0-9]+\.azurecr\.io\/[\w./-]+$/.test(value.web.image)) throw new Error('web.image must name an ACR image without a tag');
   if (value.web?.staticApp && (value.web.image || value.web.containerApp || value.web.pinFile || !value.web.resourceGroup || (value.web.packages || ['.']).length!==1)) throw new Error('staticApp needs one package and resourceGroup without an image');
   if (value.web?.containerApp && (value.web.pinFile || !value.web.resourceGroup)) throw new Error('choose a pin PR or a containerApp and resourceGroup');
+  for(const section of ['cluster','web']) {
+    for(const field of ['dockerfile','context'])if(value[section]?.[field]!==undefined)safePath(value[section][field]);
+    if(value[section]?.imageSource && !/^[0-9a-f]{40,64}$/.test(value[section].imageSource))throw new Error('imageSource must be the verified image build commit');
+  }
+  if(value.release?.image && !value[value.release.image].pinFile)throw new Error('joined image needs pinFile');
+  if(value.release?.image && (!Array.isArray(value.release.runtimeChecks) || !value.release.runtimeChecks.length))throw new Error('joined image needs release.runtimeChecks');
+  for(const check of value.release?.runtimeChecks || [])if(Object.keys(check).some(k=>!['asset','args'].includes(k)) || !/^[\w.+-]+$/.test(check.asset || '') || !Array.isArray(check.args) || check.args.some(arg=>typeof arg!=='string'))throw new Error('runtimeChecks needs plain asset names and argument arrays');
   return value;
 }

@@ -10,12 +10,12 @@ const source=()=>process.env.SOURCE_SHA || process.env.GITHUB_SHA;
 const header=()=>`Joined release from ${source()}.`;
 const body=value=>`${header()}\n\n${prefix}${JSON.stringify(value)}\n-->`;
 const release=()=>request(`${api()}/releases/tags/${encodeURIComponent(tag())}`,{allow404:true});
-function state(rel) {
+function state(rel,{tagName=tag(),sha=source()}={}) {
   if(!rel)throw new Error('reserved draft release does not exist');
   const start=rel.body?.indexOf(prefix),end=rel.body?.lastIndexOf('\n-->');
   if(start<0 || end<start)throw new Error('reserved draft has no API-readable release plan; retry reserve first');
   const value=JSON.parse(rel.body.slice(start+prefix.length,end));
-  if(value.plan?.version!==1 || value.plan.tag!==tag() || value.plan.sha!==source() || !/^[0-9a-f]{40,64}$/.test(value.plan.sha))throw new Error('release receipt tag or source SHA differs from the reserved draft');
+  if(value.plan?.version!==1 || value.plan.tag!==tagName || value.plan.sha!==sha || !/^[0-9a-f]{40,64}$/.test(value.plan.sha))throw new Error('release receipt tag or source SHA differs from the reserved draft');
   return value;
 }
 async function save(rel,value) {

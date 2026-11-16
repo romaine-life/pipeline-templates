@@ -73,7 +73,7 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
       completionReceipt=await stagePart('macos',['macos.tar.gz'],{deferReceipt:true});assert.equal(await finalize('macos','success',completionReceipt),true);
       await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
     }
-    fs.writeFileSync('.ci.json',JSON.stringify({version:1,release:{image:'web'},web:{image:'test.azurecr.io/app'}}));
+    fs.writeFileSync('.ci.json',JSON.stringify({version:1,release:{image:'web',runtimeChecks:[{asset:'app',args:['--version']}]},web:{image:'test.azurecr.io/app',pinFile:'values.yaml'}}));
     const calls=[];
     await deployJoined(async(...args)=>calls.push(args),(...args)=>calls.push(args));
     assert.deepEqual(calls[0],['image.txt','.ci-image-pin']);assert.ok(calls[1][1][0].replaceAll('\\','/').endsWith('web-app/deploy.mjs'));

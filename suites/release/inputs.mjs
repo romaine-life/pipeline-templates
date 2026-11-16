@@ -1,3 +1,4 @@
+import {imageInputs} from '../image-inputs.mjs';
 import fs from 'node:fs';
 import TOML from '@iarna/toml';
 import {capture} from '../lib.mjs';
@@ -21,7 +22,7 @@ export function packagingInputs(cfg) {
     patterns.push(...['package-lock.json','npm-shrinkwrap.json','.npmrc','vite.config.*','webpack.config.*','tsconfig*.json'].map(file=>prefix+file));
     metadata.push({path:prefix+'package.json',kind:'npm'});
   }
-  if(cfg.release?.image)patterns.push('Dockerfile','.dockerignore','ci/smoke/**');
+  if(cfg.release?.image)patterns.push(...imageInputs(cfg,cfg.release.image),'ci/smoke/**');
   if(cfg.release?.toolchains?.includes('rust'))metadata.push({path:'**/Cargo.toml',kind:'cargo'});
   return {patterns,metadata};
 }
