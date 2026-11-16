@@ -96,7 +96,7 @@ test('matrix display names and cache provenance identify only toolchain and targ
   assert.equal(release.jobs['check-build'].name,'check-build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})');
 });
 
-test('every pin publisher and dependency PR uses PIPELINE_DISPATCH_TOKEN for auto-merge',()=>{
+test('every pin publisher and dependency PR uses PIPELINE_DISPATCH_TOKEN to open and queue it',()=>{
   for(const suite of ['cluster-service','web-app','release']) {
     const workflow=YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8'));
     for(const job of Object.values(workflow.jobs))for(const step of job.steps || []) {

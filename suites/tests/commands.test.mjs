@@ -56,7 +56,7 @@ test('PRs cannot apply infrastructure or propose pins', () => {
     assert.equal(trace.length,0);
   }
 });
-test('image checks smoke once, publication skips smoke and arms auto-merge for the pin without polling', () => {
+test('image checks smoke once, publication skips smoke and queues the pin without polling', () => {
   const cfg = {cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
   let check = probe('cluster-service/image.mjs',['check'],{},cfg);
   assert.equal(check.result.status,0,check.result.stderr);
@@ -68,7 +68,7 @@ test('image checks smoke once, publication skips smoke and arms auto-merge for t
   const pin = probe('cluster-service/pin.mjs',[],{},cfg);
   assert.equal(pin.result.status,0,pin.result.stderr);
   assert.equal(pin.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
-  assert.equal(pin.trace.some(t=>t.url?.endsWith('/pulls/7/merge') && t.method==='POST'),true);
+  assert.equal(pin.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
 });
 test('Go cross targets, per-target packages and Windows GUI link mode are data',()=>{
   const cfg={release:{toolchains:['go'],goTargets:[{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64',packages:['./cmd/probe']}],windowsGui:['./cmd/probe']}};
@@ -78,14 +78,14 @@ test('Go cross targets, per-target packages and Windows GUI link mode are data',
   assert.ok(builds[0].args.some(a=>a.includes('-H windowsgui')));assert.equal(builds[1].args.some(a=>a.includes('windowsgui')),false);
   assert.ok(builds[1].args.includes('dist/probe-linux-arm64'));
 });
-test('Go dependency dispatch opens and arms auto-merge for one PR', () => {
+test('Go dependency dispatch opens and queues one PR', () => {
   const {result,trace} = probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod'},{go:{dependencies:['github.com/romaine-life/fzt']}});
   assert.equal(result.status,0,result.stderr);
-  assert.equal(trace.some(t=>t.url?.endsWith('/pulls/7/merge')),true);
+  assert.equal(trace.some(t=>t.url?.endsWith('/issues/7/labels')),true);
   const same=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'identical'},{go:{dependencies:['github.com/romaine-life/fzt']}});
   assert.equal(same.result.status,0,same.result.stderr);
   assert.equal(same.trace.some(t=>t.method==='POST' && t.url?.endsWith('/pulls')),false);
-  assert.ok(same.trace.some(t=>t.url?.endsWith('/pulls/6/merge')));
+  assert.ok(same.trace.some(t=>t.url?.endsWith('/issues/6/labels')));
   const newer=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'superseded'},{go:{dependencies:['github.com/romaine-life/fzt']}});
   assert.equal(newer.result.status,0,newer.result.stderr);
   assert.equal(newer.trace.some(t=>t.method==='PATCH' && t.url.endsWith('/pulls/6')),true);
@@ -108,11 +108,11 @@ test('manifest script executes every renderer, strict schemas and digest check',
 });
 
 
-test('bot PRs arm auto-merge on the pushed commit, with no label APIs',()=>{
+test('bot PRs are queued for merge-queue by their queue label',()=>{
   const cfg={cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
   for(const [script,args,settings,extra] of [['cluster-service/image.mjs',['publish'],cfg,{}],['cluster-service/pin.mjs',[],cfg,{}],['go/dependencies.mjs',[],{go:{dependencies:['github.com/romaine-life/fzt']}},{PROBE_DIFF:'go.mod'}]]) {
     const result=probe(script,args,extra,settings);assert.equal(result.result.status,0,result.result.stderr);
-    assert.equal(result.trace.some(t=>t.url?.includes('/labels')),false);
-    if(!script.endsWith('/image.mjs'))assert.deepEqual(result.trace.find(t=>t.url?.endsWith('/pulls/7/merge')).body,{Do:'squash',merge_when_checks_succeed:true,delete_branch_after_merge:true,head_commit_id:'a'.repeat(40)});
+    assert.equal(result.trace.some(t=>t.url?.endsWith('/merge')),false);
+    if(!script.endsWith('/image.mjs'))assert.equal(result.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
   }
 });

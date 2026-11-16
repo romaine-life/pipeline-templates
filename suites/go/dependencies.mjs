@@ -1,7 +1,7 @@
 import {api, capture, post, request, run, requirePublish} from '../lib.mjs';
 import {config} from '../config.mjs';
 import fs from 'node:fs';
-import {armAutoMerge} from '../auto-merge.mjs';
+import {queuePR} from '../queue.mjs';
 requirePublish();
 const modules = config().go?.dependencies || [];
 if (!modules.length || modules.some(m => !/^github\.com\/romaine-life\/[\w.-]+(?:\/[\w.-]+)*$/.test(m))) throw new Error('go.dependencies must name romaine-life modules');
@@ -28,17 +28,16 @@ if (capture('git', ['diff', '--name-only', '--', 'go.mod', 'go.sum'])) {
       const current=fs.existsSync(file) ? fs.readFileSync(file) : null;
       if (old === null ? current !== null : !current || !old.equals(current)) same=false;
     }
-    if (same) { await armAutoMerge(pr.number,pr.head.sha,{token});console.log(`Auto-merge armed: ${pr.html_url}`); process.exit(0); }
+    if (same) { await queuePR(pr.number,{token});console.log(`Queued: ${pr.html_url}`); process.exit(0); }
   }
   const branch = `deps/ci-suite-${process.env.GITHUB_RUN_ID}`;
   run('git', ['checkout', '-b', branch]);
   run('git', ['add', 'go.mod', 'go.sum']);
   run('git', ['-c', 'user.name=forgejo-actions', '-c', 'user.email=forgejo-actions@noreply.romaine.life', 'commit', '-m', `Take ${modules.join(', ')}`]);
-  const sha=capture('git',['rev-parse','HEAD']);
   run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`], {env});
   const pr = await post(`${api()}/pulls`, {base: process.env.DEFAULT_BRANCH, head: branch, title: 'Take Go dependencies',
     body: `Updated ${modules.join(', ')}. https://openproject.home.romaine.life/wp/PIPT-12`},{token});
-  await armAutoMerge(pr.number,sha,{token});
+  await queuePR(pr.number,{token});
   for (const old of previous) {
     await request(`${api()}/pulls/${old.number}`,{token,method:'PATCH',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({state:'closed',body:`${old.body || ''}\n\nSuperseded by ${pr.html_url}.`})});

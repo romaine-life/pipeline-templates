@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import {armAutoMerge} from '../auto-merge.mjs';
-import {api, capture, post, request, run, requirePublish} from '../lib.mjs';
+import {queuePR} from '../queue.mjs';
+import {api, post, request, run, requirePublish} from '../lib.mjs';
 import {config} from '../config.mjs';
 import {updatePin} from './pin-fields.mjs';
 requirePublish();
@@ -17,12 +17,11 @@ if (updated !== original) {
   fs.writeFileSync(cfg.pinFile, updated);
   run('git', ['add', '--', cfg.pinFile]);
   run('git', ['-c', 'user.name=forgejo-actions', '-c', 'user.email=forgejo-actions@noreply.romaine.life', 'commit', '-m', `Pin ${cfg.image} ${process.env.VERSION}`]);
-  const sha=capture('git',['rev-parse','HEAD']);
   const env = {...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader',
     GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`};
   run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`], {env});
   const pr = await post(`${api()}/pulls`, {base: process.env.DEFAULT_BRANCH, head: branch,
     title: `Pin ${cfg.image} ${process.env.VERSION}`, body: `Published image ${pin}. ${cfg.workPackage}`}, {token});
-  await armAutoMerge(pr.number,sha,{token});
+  await queuePR(pr.number,{token});
   console.log(pr.html_url);
 }
