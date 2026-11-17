@@ -4,7 +4,7 @@ import {capture, readJSON, safePath, templates} from './lib.mjs';
 const fields = {
   suites: null, inputs: null,
   go: ['platforms', 'dependencies', 'race'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
-  release: ['toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  release: ['module', 'toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
   cluster: ['renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
   web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp'], tofu: ['version', 'backend'], docs: ['required', 'release'],
@@ -49,7 +49,7 @@ export function validate(value, where = 'fleet entry') {
   for (const [section, field] of [['go','dependencies'],['go','race'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['docs','required']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
-  for (const [section, field] of [['rust','noDefaultFeatures'],['cluster','build'],['cluster','smoke'],['docs','release'],['powershell','windowsPowerShell']]) {
+  for (const [section, field] of [['release','module'],['rust','noDefaultFeatures'],['cluster','build'],['cluster','smoke'],['docs','release'],['powershell','windowsPowerShell']]) {
     if (value[section]?.[field] !== undefined && typeof value[section][field] !== 'boolean') throw new Error(`${section}.${field} must be boolean`);
   }
   if (value.inputs && (Array.isArray(value.inputs) || typeof value.inputs !== 'object')) throw new Error('inputs must map check names to path arrays');
@@ -61,6 +61,7 @@ export function validate(value, where = 'fleet entry') {
       throw new Error(`${tool}.platforms must be a nonempty unique Linux/Windows runner list`);
     }
   }
+  if (value.release?.module && ['toolchains', 'external', 'goTargets', 'image', 'assets'].some(f => value.release[f] !== undefined)) throw new Error('release.module tags a Go library and publishes its source; it builds nothing');
   const toolchains = value.release?.toolchains || [];
   if (!Array.isArray(toolchains) || new Set(toolchains).size !== toolchains.length || toolchains.some(t=>!['go','rust','npm','python','dotnet','cmake','powershell'].includes(t))) throw new Error('invalid release.toolchains');
   for (const target of value.release?.goTargets || []) {

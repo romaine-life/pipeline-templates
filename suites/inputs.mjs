@@ -68,6 +68,7 @@ export async function scope(suite) {
   output('windows-powershell', cfg.powershell?.windowsPowerShell === true);
   output('source-release', cfg.docs?.release === true);
   output('joined-image', cfg.release?.image || '');
+  output('module', cfg.release?.module === true);
   output('prefix', cfg.release?.prefix || (cfg.release?.prefixFrom ? '' : 'v0.1'));
   output('prefix-from', cfg.release?.prefixFrom || '');
   output('suffix', cfg.release?.suffix || '');

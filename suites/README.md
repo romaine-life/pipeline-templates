@@ -29,6 +29,7 @@ an unknown field fails.
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures`, `lints` |
 | `service` | `postgres`, `manticore`, `greenmail`: digest-pinned images the tests need |
 | `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets`, `dependencies`, `assets`, `image` |
+| `release` (a Go library) | `module: true`: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
 | `cluster` | `renders`, `build`, `image`, `baoRole`, `baoSecret`, `pinFile`, `pinFields` |
 | `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `containerApp`, `resourceGroup`, `staticApp` |
 | `tofu` | `version`, `backend` |

@@ -92,9 +92,43 @@ jobs:
       greenmail: ${{ steps.scope.outputs.greenmail }}
       has-services: ${{ steps.scope.outputs.has-services }}
       has-local: ${{ steps.plan.outputs.has-local }}
+      module: ${{ steps.scope.outputs.module }}
+  # A Go library (release.module): the next tag, released with its source, when its code
+  # changed since the last one. Its consumers take the tag up (go.dependencies).
+  module:
+    needs: scope
+    if: github.event_name != 'pull_request' && !inputs.release-tag && needs.scope.outputs.module == 'true' && needs.scope.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/release-version
+      with:
+        prefix: ${{ needs.scope.outputs.prefix }}
+        prefix-from: ${{ needs.scope.outputs.prefix-from }}
+        suffix: ${{ needs.scope.outputs.suffix }}
+        publish: 'true'
+      id: version
+    - run: node _ci/suites/release.mjs source
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+    - run: node _ci/suites/release.mjs publish
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+        DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
   reserve:
     needs: scope
-    if: github.event_name != 'pull_request' && !inputs.release-tag && needs.scope.outputs.build == 'true'
+    if: github.event_name != 'pull_request' && !inputs.release-tag && needs.scope.outputs.build == 'true' && needs.scope.outputs.module != 'true'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

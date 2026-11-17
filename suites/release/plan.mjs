@@ -2,6 +2,8 @@ import {config} from '../config.mjs';
 import {output} from '../lib.mjs';
 export function releasePlan(cfg=config()) {
   const release=cfg.release || {};
+  // A Go library's release is its tag and source (release.module): nothing is built.
+  if(release.module)return {matrix:{include:[]},local:false,external:[],metadata:{checksumFiles:[],checksumManifest:'',manifest:''},homeSync:false,image:''};
   const kinds=release.toolchains || [];
   if(kinds.includes('rust') && release.rustTargets?.length===0)throw new Error('release.rustTargets must be nonempty when Rust is declared');
   if ((!kinds.length && !release.external?.length) || kinds.includes('assets')) throw new Error('release.toolchains must declare the builders, not a cross-workflow assets placeholder');
