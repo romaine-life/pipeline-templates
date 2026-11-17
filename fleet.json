@@ -138,6 +138,14 @@
         "smoke": false
       }
     },
+    "nelsong6/sf6-nelson-lab": {
+      "suites": [
+        "python"
+      ],
+      "python": {
+        "version": "3.13"
+      }
+    },
     "nelsong6/ux-journal": {
       "suites": [
         "docs"
@@ -565,6 +573,23 @@
     "romaine-life/spire-pad": {
       "suites": [
         "docs"
+      ]
+    },
+    "romaine-life/spirelens-mcp": {
+      "suites": [
+        "docs",
+        "python"
+      ],
+      "python": {
+        "projects": [
+          "mcp"
+        ]
+      }
+    },
+    "romaine-life/string-box": {
+      "suites": [
+        "docs",
+        "python"
       ]
     },
     "romaine-life/string-lab": {
