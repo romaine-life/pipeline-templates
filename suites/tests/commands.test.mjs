@@ -8,9 +8,10 @@ import {pathToFileURL} from 'node:url';
 import {suites} from '../lib.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
-function probe(script, args = [], env = {}, cfg = {}) {
+function probe(script, args = [], env = {}, cfg = {}, files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(),'suite-command-'));
   try {
+    for (const [file, text] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(root,file)),{recursive:true}); fs.writeFileSync(path.join(root,file),text); }
     fleetEntry(({version:1,...cfg}),'test/probe');
     fs.writeFileSync(path.join(root,'README.md'),'# A document\n');
     fs.writeFileSync(path.join(root,'config.json'),'{}');
@@ -84,6 +85,11 @@ test('Go cross targets, per-target packages and Windows GUI link mode are data',
   assert.equal(builds.length,2);assert.equal(builds[0].goos,'windows');assert.equal(builds[1].goarch,'arm64');
   assert.ok(builds[0].args.some(a=>a.includes('-H windowsgui')));assert.equal(builds[1].args.some(a=>a.includes('windowsgui')),false);
   assert.ok(builds[1].args.includes('dist/probe-linux-arm64'));
+});
+test('a release copies the files under release/assets/<toolchain> beside the built ones',()=>{
+  const cfg={release:{toolchains:['go'],goTargets:[{goos:'linux',goarch:'amd64'}]}};
+  const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
+  assert.equal(result.status,0,result.stderr);
 });
 test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',()=>{
   const cfg={release:{toolchains:['go'],goTargets:[{goos:'js',goarch:'wasm',packages:['.']}]}};
