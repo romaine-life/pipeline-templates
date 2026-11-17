@@ -42,6 +42,18 @@ test('comment lines are neither commands nor references to scripts', () => {
   assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'scripts/serve.sh'), p => sources[p] ?? null), []);
   assert.match(violations(valid.replace('go build ./cmd/...', 'bash deploy.sh'), p => sources[p] ?? null).join('\n'), /loop waits/);
 });
+test('a sleep counts as a poll only inside a loop', async () => {
+  const {loopWaits} = await import('../default/rules.mjs');
+  for (const [commands, polls] of [
+    ['for key in a b; do curl -X PATCH x; done\ntouch /tmp/cut\nsleep 2', false],
+    ['until curl -sf x; do sleep 1; done', true],
+    ['for _ in $(seq 30); do check && break; sleep 2; done', true],
+    ['while true\ndo\n  if ready; then break; fi\n  sleep 5\ndone', true],
+    ['import time\nfor x in xs:\n    if x:\n        time.sleep(1)', true],
+    ['import time\nprepare()\ntime.sleep(1)\nfor x in xs:\n    print(x)', false],
+    ['while ($true) { Start-Sleep 5 }', true],
+  ]) assert.equal(loopWaits(commands), polls, commands);
+});
 test('relative imported helper scripts remain covered by the rules', () => {
   const sources={'ci/deploy.mjs':"import './nested/wait.mjs'",'ci/nested/wait.mjs':'while (true) { setTimeout(fn, 3000); }'};
   assert.match(violations(valid.replace('go build ./cmd/...','node ci/deploy.mjs'),p=>sources[p] ?? null).join('\n'),/loop waits/);

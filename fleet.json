@@ -1,5 +1,21 @@
 {
   "repos": {
+    "nelsong6/artifact-keeper": {
+      "suites": [
+        "cluster-service"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "artifact-keeper"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/avatars": {
       "suites": [
         "cluster-service",

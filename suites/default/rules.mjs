@@ -32,6 +32,37 @@ export function dependencies() {
   for (const file of tracked().filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f))) scriptText(fs.readFileSync(file, 'utf8'), read);
   return [...files];
 }
+// A wait inside a loop is a poll. A single wait for time itself to pass (a cache's freshness
+// running out, which nothing announces) isn't, so a sleep counts only inside a loop: a shell
+// sleep between a loop's do and done, a Python sleep under a for or while. PowerShell's and
+// JavaScript's waits still count beside any loop word.
+function shellLoopSleep(text) {
+  let depth = 0;
+  for (const [, word] of text.matchAll(/(?<![\w.$-])(do|done|sleep)(?![\w-])/g)) {
+    if (word === 'do') depth++;
+    else if (word === 'done') depth = Math.max(0, depth - 1);
+    else if (depth > 0) return true;
+  }
+  return false;
+}
+function pythonLoopSleep(text) {
+  const lines = text.split('\n');
+  return lines.some((line, index) => {
+    if (!/\b(?:time|asyncio)\.sleep\(/.test(line)) return false;
+    let indent = line.search(/\S/);
+    for (let j = index - 1; j >= 0 && indent > 0; j--) {
+      const above = lines[j].search(/\S/);
+      if (above < 0 || above >= indent) continue;
+      if (/^\s*(?:async\s+)?(?:for|while)\b/.test(lines[j])) return true;
+      indent = above;
+    }
+    return false;
+  });
+}
+export function loopWaits(commands) {
+  return shellLoopSleep(commands) || pythonLoopSleep(commands) ||
+    (/\b(?:Start-Sleep|setTimeout|setInterval)\b/i.test(commands) && /\b(?:while|until|for|retry|retries)\b/i.test(commands));
+}
 export function violations(text, read) {
   const document = YAML.parseDocument(text, {uniqueKeys: true});
   if (document.errors.length) return document.errors.map(e => e.message);
@@ -52,7 +83,7 @@ export function violations(text, read) {
   for (const [name, job] of Object.entries(workflow.jobs || {})) {
     for (const step of job.steps || []) {
       const commands = scriptText(step.run || '', read);
-      if (/\b(?:sleep|Start-Sleep|setTimeout|setInterval)\b/i.test(commands) && /\b(?:while|until|for|retry|retries)\b/i.test(commands)) bad.push(`${name}: loop waits on a runner`);
+      if (loopWaits(commands)) bad.push(`${name}: loop waits on a runner`);
       if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|(?<![?&])\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
       if (/\b(?:while|until)\b/.test(commands) && /\b(?:curl|wget|fetch)\s*[(\s]/.test(commands)) bad.push(`${name}: request loop holds a runner`);
       const isCheck = check.test(commands) || /\/(?:check-|lint|test)/.test(step.uses || '') || /^(?:check|test|lint|validate|plan|parse)(?:-|$)/i.test(name);
