@@ -23,6 +23,7 @@ jobs:
       check-image-digests: ${{ steps.diff.outputs.check-image-digests }}
       cached-images: ${{ steps.diff.outputs.cached-images }}
       azure-cli: ${{ steps.diff.outputs.azure-cli }}
+      container-health: ${{ steps.diff.outputs.container-health }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -242,6 +243,78 @@ jobs:
           set -euo pipefail
           test "$ALPINE" = artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
           docker pull "$ALPINE"
+
+  # The health wait (actions/container-health): healthy passes, unhealthy and an exit fail at
+  # once, and a result reported before the step began still counts.
+  container-health:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.container-health == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ALPINE: artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+      PREFIX: container-health-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start containers that end healthy, unhealthy, exited and already healthy
+        run: |
+          set -euo pipefail
+          health=(--health-interval 1s --health-timeout 5s --health-retries 1)
+          docker run -d --name "$PREFIX-late" --health-cmd 'test -e /tmp/up' "${health[@]}" --health-start-period 30s "$ALPINE" sh -c 'sleep 3; touch /tmp/up; exec sleep 600' >/dev/null
+          docker run -d --name "$PREFIX-sick" --health-cmd false "${health[@]}" "$ALPINE" sleep 600 >/dev/null
+          docker run -d --name "$PREFIX-exits" --health-cmd true --health-interval 30s "$ALPINE" sh -c 'exit 3' >/dev/null
+          docker run -d --name "$PREFIX-none" "$ALPINE" sleep 600 >/dev/null
+          docker run -d --name "$PREFIX-early" --health-cmd true "${health[@]}" "$ALPINE" sleep 600 >/dev/null
+          docker wait "$PREFIX-exits" >/dev/null
+          # Healthy until stopped, unhealthy after: once restarted, its old result must not count.
+          docker run -d --name "$PREFIX-restarted" --health-cmd 'test ! -e /tmp/down' "${health[@]}" "$ALPINE" sh -c 'trap "touch /tmp/down; exit" TERM; tail -f /dev/null & wait' >/dev/null
+      - uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-late
+          timeout: 60
+      - uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-early
+          timeout: 60
+      - id: sick
+        continue-on-error: true
+        uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-sick
+          timeout: 60
+      - id: exits
+        continue-on-error: true
+        uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-exits
+          timeout: 60
+      - id: none
+        continue-on-error: true
+        uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-none
+          timeout: 60
+      - uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-restarted
+          timeout: 60
+      - name: Restart the healthy container
+        run: docker restart "$PREFIX-restarted" >/dev/null
+      - id: restarted
+        continue-on-error: true
+        uses: ./actions/container-health
+        with:
+          container: ${{ env.PREFIX }}-restarted
+          timeout: 60
+      - name: Unhealthy, exited, unchecked and restarted-unhealthy containers failed the wait
+        env:
+          SICK: ${{ steps.sick.outcome }}
+          EXITS: ${{ steps.exits.outcome }}
+          NONE: ${{ steps.none.outcome }}
+          RESTARTED: ${{ steps.restarted.outcome }}
+        run: test "$SICK $EXITS $NONE $RESTARTED" = 'failure failure failure failure'
+      - name: Remove the containers
+        if: always()
+        run: docker rm -f "$PREFIX-late" "$PREFIX-sick" "$PREFIX-exits" "$PREFIX-none" "$PREFIX-early" "$PREFIX-restarted" >/dev/null 2>&1 || true
 
   # The Azure CLI step (actions/azure-cli): installed through Artifact Keeper, and it runs.
   azure-cli:

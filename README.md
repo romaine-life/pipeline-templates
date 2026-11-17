@@ -37,6 +37,11 @@ serving what it holds when a source is down (FORGEJO-25). Composite actions:
   manifest names, after the step that puts the names in environment variables (`vars:`, their
   names). It rewrites each to the same image through Artifact Keeper, from Artifact Keeper's own
   list of its Docker caches.
+- `romaine-life/pipeline-templates/actions/container-health@main`: for a job that starts a
+  container with a health check and then tests it (`container:`, its name; `timeout:`, seconds,
+  120 by default). It reads the container's state, then waits on Docker's health events, never
+  a retry loop, and fails at once on an unhealthy result or an exit, with the container's last
+  health output and log lines.
 - `romaine-life/pipeline-templates/actions/azure-cli@main`: puts the Azure CLI on PATH,
   installed from PyPI through Artifact Keeper into the runner's tool cache, for a job that
   calls `az`. Its version is set in the action and moves when there's a reason to.

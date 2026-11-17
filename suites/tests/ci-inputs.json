@@ -50,5 +50,8 @@
   ],
   "azure-cli": [
     "actions/azure-cli/**"
+  ],
+  "container-health": [
+    "actions/container-health/**"
   ]
 }

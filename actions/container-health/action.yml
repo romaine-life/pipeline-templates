@@ -1,0 +1,48 @@
+name: container-health
+description: >-
+  Waits for a running container's health check to pass, by its state and Docker's health
+  events, for a job that starts a service and then tests it. It fails at once when the check
+  reports unhealthy or the container exits, and when neither comes within the timeout.
+inputs:
+  container:
+    description: The container's name or ID. It must have been started with a health check.
+    required: true
+  timeout:
+    description: Seconds to wait for the first health result.
+    default: '120'
+runs:
+  using: composite
+  steps:
+    - name: Wait for ${{ inputs.container }} to report healthy
+      shell: bash
+      env:
+        CONTAINER: ${{ inputs.container }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        set -euo pipefail
+        [[ "$TIMEOUT" =~ ^[1-9][0-9]*$ ]] || { echo "::error::timeout must be a whole number of seconds"; exit 1; }
+        test -n "$(docker inspect -f '{{if .Config.Healthcheck}}{{.Config.Healthcheck.Test}}{{end}}' "$CONTAINER")" \
+          || { echo "::error::$CONTAINER has no health check"; exit 1; }
+        # Subscribe from the daemon's own clock first, then read the present state: a result
+        # reported before this step is in the state, one reported after it is an event. Docker's
+        # replay of older events is a small shared buffer, so it isn't relied on.
+        now=$(docker info -f '{{.SystemTime}}')
+        exec 3< <(exec timeout "$TIMEOUT" docker events --since "$now" --filter "container=$CONTAINER" --format '{{.Action}}')
+        events=$!
+        state=$(docker inspect -f '{{.State.Running}} {{.State.Health.Status}}' "$CONTAINER")
+        case "$state" in
+          'true healthy') status='health_status: healthy' ;;
+          'true unhealthy') status='health_status: unhealthy' ;;
+          false*) status=die ;;
+          *) status=$(grep -m1 -xE 'health_status: (un)?healthy|die' <&3 || true) ;;
+        esac
+        kill "$events" 2>/dev/null || true
+        exec 3<&-
+        if [ "$status" = 'health_status: healthy' ]; then
+          echo "$CONTAINER is healthy"
+          exit 0
+        fi
+        echo "::error::$CONTAINER did not become healthy: ${status:-no health result in $TIMEOUT s}"
+        docker inspect -f '{{json .State.Health}}' "$CONTAINER" || true
+        docker logs --tail 50 "$CONTAINER" 2>&1 || true
+        exit 1
