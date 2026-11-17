@@ -45,6 +45,22 @@
         "workPackage": "https://openproject.home.romaine.life/wp/HOMEINFRA-1"
       }
     },
+    "nelsong6/jellyfin": {
+      "suites": [
+        "cluster-service"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "jellyfin"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/journal-biking": {
       "suites": [
         "docs"
