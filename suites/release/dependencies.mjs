@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import {selected,validateDependencyOwnership} from './selection.mjs';
 import path from 'node:path';
 import {config} from '../config.mjs';
-import {hash,kept} from '../lib.mjs';
+import os from 'node:os';
+import {hash,kept,run} from '../lib.mjs';
+import {tar} from '../tools.mjs';
 export async function dependencies(kind) {
   const cfg=config();validateDependencyOwnership(cfg);
   for (const dependency of cfg.release?.dependencies || []) {
@@ -28,6 +30,12 @@ export async function dependencies(kind) {
       try {fs.renameSync(temp,file);}catch(error){fs.unlinkSync(temp);if (!fs.existsSync(file))throw error;}
     }
     fs.mkdirSync(path.dirname(dependency.destination),{recursive:true});
-    fs.copyFileSync(file,dependency.destination);
+    if (!dependency.extract) {fs.copyFileSync(file,dependency.destination);continue;}
+    // One file out of an archive (dependency.extract): Windows' tar reads zip and 7z as well as tarballs.
+    const temp=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(),'release-input-'));
+    try {
+      run(tar,['-xf',file,'-C',temp,dependency.extract]);
+      fs.copyFileSync(path.join(temp,dependency.extract),dependency.destination);
+    } finally {fs.rmSync(temp,{recursive:true,force:true});}
   }
 }

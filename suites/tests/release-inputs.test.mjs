@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import {hash} from '../lib.mjs';
+import {hash,run} from '../lib.mjs';
+import {tar} from '../tools.mjs';
 import {dependencies} from '../release/dependencies.mjs';
 import {archives} from '../release/archives.mjs';
 import {unzipSync} from 'fflate';
@@ -22,5 +23,19 @@ test('pinned release dependencies are verified once and archive recipes reuse th
     await dependencies('go');assert.equal(fetches,2);
     globalThis.fetch=async()=>new Response('wrong bytes');fs.unlinkSync(path.join(root,'cache/release-inputs',hash(bytes)));
     await assert.rejects(dependencies('go'),/checksum/);
+  }finally{globalThis.fetch=oldFetch;process.chdir(cwd);if(oldCache===undefined)delete process.env.CI_CACHE_ROOT;else process.env.CI_CACHE_ROOT=oldCache;fs.rmSync(root,{recursive:true,force:true});}
+});
+test('a release dependency can be one file out of an archive',async()=>{
+  const cwd=process.cwd(),oldFetch=globalThis.fetch,oldCache=process.env.CI_CACHE_ROOT,root=fs.mkdtempSync(path.join(os.tmpdir(),'release-extract-'));
+  try{
+    process.chdir(root);process.env.CI_CACHE_ROOT=path.join(root,'cache');
+    fs.mkdirSync('source/lib',{recursive:true});fs.writeFileSync('source/lib/runtime.dll','runtime');fs.writeFileSync('source/other.h','header');
+    run(tar,['-czf','bundle.tar.gz','-C','source','lib/runtime.dll','other.h']);
+    const bytes=fs.readFileSync('bundle.tar.gz');
+    fleetEntry({version:1,release:{dependencies:[{url:'https://artifacts.home.romaine.life/bundle.tar.gz',sha256:hash(bytes),extract:'lib/runtime.dll',destination:'dist/runtime.dll'}]}});
+    globalThis.fetch=async()=>new Response(bytes);
+    await dependencies('go');
+    assert.equal(fs.readFileSync('dist/runtime.dll','utf8'),'runtime');
+    assert.deepEqual(fs.readdirSync('dist'),['runtime.dll']);
   }finally{globalThis.fetch=oldFetch;process.chdir(cwd);if(oldCache===undefined)delete process.env.CI_CACHE_ROOT;else process.env.CI_CACHE_ROOT=oldCache;fs.rmSync(root,{recursive:true,force:true});}
 });

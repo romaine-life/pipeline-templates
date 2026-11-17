@@ -320,6 +320,54 @@
         "version": "3.13"
       }
     },
+    "nelsong6/shows": {
+      "suites": [
+        "powershell",
+        "release",
+        "rust"
+      ],
+      "rust": {
+        "platforms": [
+          "windows-latest"
+        ]
+      },
+      "inputs": {
+        "rust.test": [
+          "frontend/**"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "rust"
+        ],
+        "prefix": "v0.1",
+        "rustTargets": [
+          {
+            "target": "x86_64-pc-windows-msvc"
+          }
+        ],
+        "dependencies": [
+          {
+            "url": "https://artifacts.home.romaine.life/general/sourceforge/project/mpv-player-windows/libmpv/mpv-dev-x86_64-20250420-git-3600c71.7z",
+            "sha256": "c13f26bdca62e5e52990dbc82920e05734d7922889acc48c38b8a1c5da6b8f9c",
+            "extract": "libmpv-2.dll",
+            "destination": "dist/libmpv-2.dll"
+          }
+        ],
+        "archives": [
+          {
+            "name": "shows-desktop-windows-amd64.zip",
+            "sources": [
+              "dist/shows-desktop-x86_64-pc-windows-msvc.exe",
+              "dist/libmpv-2.dll"
+            ],
+            "entries": {
+              "shows-desktop-x86_64-pc-windows-msvc.exe": "shows-desktop.exe"
+            }
+          }
+        ]
+      }
+    },
     "nelsong6/shows-remote": {
       "suites": [
         "release",

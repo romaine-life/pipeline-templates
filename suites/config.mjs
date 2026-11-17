@@ -115,7 +115,8 @@ export function validate(value, where = 'fleet entry') {
     destinations.add(dependency.destination);
   }
   for (const dependency of value.release?.dependencies || []) {
-    if(Object.keys(dependency).some(k=>!['toolchain','targets','url','sha256','lock','destination'].includes(k)))throw new Error('unknown release dependency field');
+    if(Object.keys(dependency).some(k=>!['toolchain','targets','url','sha256','lock','destination','extract'].includes(k)))throw new Error('unknown release dependency field');
+    if(dependency.extract!==undefined)safePath(dependency.extract);
     if(dependency.toolchain && !toolchains.includes(dependency.toolchain))throw new Error('dependency toolchain is not declared');
     safePath(dependency.destination);
     if(dependency.targets && (!Array.isArray(dependency.targets) || !dependency.targets.length || new Set(dependency.targets).size!==dependency.targets.length || dependency.targets.some(t=>!/^[-\w]+$/.test(t))))throw new Error('dependency.targets must be unique target names');
