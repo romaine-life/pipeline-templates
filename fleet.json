@@ -444,6 +444,91 @@
         ]
       }
     },
+    "romaine-life/auth": {
+      "suites": [
+        "go",
+        "release",
+        "tofu",
+        "web-app"
+      ],
+      "go": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ]
+      },
+      "web": {
+        "packages": [
+          "."
+        ],
+        "node": "22",
+        "image": "romainecr.azurecr.io/auth",
+        "pinFile": "k8s/values.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
+      },
+      "release": {
+        "toolchains": [
+          "go"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "image": "web",
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/romaine-auth"
+            ]
+          },
+          {
+            "goos": "linux",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/romaine-auth"
+            ]
+          },
+          {
+            "goos": "linux",
+            "goarch": "arm64",
+            "packages": [
+              "./cmd/romaine-auth"
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/romaine-auth"
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "arm64",
+            "packages": [
+              "./cmd/romaine-auth"
+            ]
+          }
+        ]
+      },
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "auth.tfstate"
+        }
+      },
+      "inputs": {
+        "web-app.test": [
+          "scripts/**",
+          "tsconfig.json",
+          "drizzle.config.ts",
+          "drizzle/**"
+        ]
+      }
+    },
     "romaine-life/fzt": {
       "suites": [
         "go",
