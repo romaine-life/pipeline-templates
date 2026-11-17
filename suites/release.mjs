@@ -6,6 +6,7 @@ import {api, post, request, tracked, requirePublish, capture, output, hash, temp
 import {config} from './config.mjs';
 import {inputs, relevant} from './input-patterns.mjs';
 import {embedded, dockerSources, docLinks} from './dependencies.mjs';
+import {zipDirectory} from './release/zip.mjs';
 const require = createRequire(import.meta.url);
 
 export async function stage({url = api(), tag = process.env.VERSION, sha = process.env.GITHUB_SHA, files, token = process.env.TOKEN}) {
@@ -32,6 +33,16 @@ export async function stage({url = api(), tag = process.env.VERSION, sha = proce
     await request(`${url}/releases/${release.id}/assets?name=${encodeURIComponent(path.basename(file))}`, {method: 'POST', body: form, token});
   }
   return release;
+}
+// A directory staged for release (a static site's build, dist/<package>/) is published as one
+// archive beside it, <name>.zip.
+export function stagedFiles(files) {
+  return files.map(file => {
+    if (!fs.statSync(file).isDirectory()) return file;
+    const archive = `${file.replace(/[\/]+$/, '')}.zip`;
+    fs.writeFileSync(archive, zipDirectory(file));
+    return archive;
+  });
 }
 export async function releaseScope(suite) {
   const cfg = config();
@@ -94,7 +105,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   }
   else if (mode === 'stage') {
     requirePublish();
-    const assets = config().release?.assets || fs.readdirSync('dist').map(f => `dist/${f}`);
-    await stage({files: assets});
+    await stage({files: stagedFiles(config().release?.assets || fs.readdirSync('dist').map(f => `dist/${f}`))});
   } else throw new Error('release.mjs scope <suite>|source|stage|publish');
 }
