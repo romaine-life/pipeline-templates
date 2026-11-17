@@ -1268,6 +1268,120 @@
           }
         ]
       }
+    },
+    "romaine-life/tuimail": {
+      "suites": [
+        "release",
+        "rust"
+      ],
+      "rust": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ],
+        "lints": [
+          "audit"
+        ]
+      },
+      "service": {
+        "greenmail": "artifacts.home.romaine.life/dockerhub/greenmail/standalone:2.1.3@sha256:d6db42a4fc258fec0948b1ae7b579fd06947cc92087c162ec0597972a6c36850"
+      },
+      "greenmail": {
+        "users": [
+          "alice:secret@example.com",
+          "bob:secret@example.com"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "rust"
+        ],
+        "prefixFrom": "Cargo.toml",
+        "homeSync": true,
+        "rustTargets": [
+          {
+            "target": "x86_64-pc-windows-msvc"
+          },
+          {
+            "target": "aarch64-pc-windows-msvc"
+          },
+          {
+            "target": "x86_64-unknown-linux-gnu",
+            "glibc": "2.35"
+          },
+          {
+            "target": "aarch64-unknown-linux-gnu",
+            "glibc": "2.35"
+          }
+        ],
+        "archives": [
+          {
+            "toolchain": "rust",
+            "targets": [
+              "x86_64-pc-windows-msvc"
+            ],
+            "name": "tuimail-x86_64-pc-windows-msvc.zip",
+            "sources": [
+              "dist/tuimail-x86_64-pc-windows-msvc.exe",
+              "README.md",
+              "LICENSE",
+              "SECURITY.md"
+            ],
+            "entries": {
+              "tuimail-x86_64-pc-windows-msvc.exe": "tuimail.exe"
+            }
+          },
+          {
+            "toolchain": "rust",
+            "targets": [
+              "aarch64-pc-windows-msvc"
+            ],
+            "name": "tuimail-aarch64-pc-windows-msvc.zip",
+            "sources": [
+              "dist/tuimail-aarch64-pc-windows-msvc.exe",
+              "README.md",
+              "LICENSE",
+              "SECURITY.md"
+            ],
+            "entries": {
+              "tuimail-aarch64-pc-windows-msvc.exe": "tuimail.exe"
+            }
+          },
+          {
+            "toolchain": "rust",
+            "targets": [
+              "x86_64-unknown-linux-gnu"
+            ],
+            "name": "tuimail-x86_64-unknown-linux-gnu.tar.gz",
+            "sources": [
+              "dist/tuimail-x86_64-unknown-linux-gnu",
+              "README.md",
+              "LICENSE",
+              "SECURITY.md"
+            ],
+            "entries": {
+              "tuimail-x86_64-unknown-linux-gnu": "tuimail"
+            }
+          },
+          {
+            "toolchain": "rust",
+            "targets": [
+              "aarch64-unknown-linux-gnu"
+            ],
+            "name": "tuimail-aarch64-unknown-linux-gnu.tar.gz",
+            "sources": [
+              "dist/tuimail-aarch64-unknown-linux-gnu",
+              "README.md",
+              "LICENSE",
+              "SECURITY.md"
+            ],
+            "entries": {
+              "tuimail-aarch64-unknown-linux-gnu": "tuimail"
+            }
+          }
+        ],
+        "checksumManifest": "SHA256SUMS"
+      }
     }
   }
 }

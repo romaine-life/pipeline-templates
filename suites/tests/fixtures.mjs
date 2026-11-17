@@ -81,6 +81,7 @@ try {
     process.env.GITHUB_EVENT_NAME='push';
     script('rust/lint.mjs',['machete']);
     script('rust/lint.mjs',['typos']);
+    script('rust/lint.mjs',['audit']);
     const pod='apiVersion: v1\nkind: Pod\nmetadata:\n  name: fixture\nspec:\n  containers:\n    - name: fixture\n      image: artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f\n';
     write('k8s/pod.yaml',pod);
     write('k8s/kustomization.yaml','resources:\n- pod.yaml\n');

@@ -6,6 +6,7 @@ export const inputs = {
   'rust.format': ['**/*.rs', '**/Cargo.toml', 'rustfmt.toml', '.rustfmt.toml', 'rust-toolchain*'],
   'rust.typos': ['**/*.rs','**/*.md','**/*.toml','.typos.toml','rust-toolchain*'],
   'rust.machete': ['**/*.rs','**/Cargo.toml','**/Cargo.lock','rust-toolchain*','.cargo/**','**/.cargo/**'],
+  'rust.audit': ['**/Cargo.lock','audit.toml','.cargo/audit.toml'],
   'cmake.test': ['**/CMakeLists.txt', '**/*.cmake', 'CMakePresets.json', '**/*.c', '**/*.cc', '**/*.cpp', '**/*.h', '**/*.hpp', 'vcpkg.json', 'vcpkg-configuration.json', 'tests/**', 'test/**'],
   'dotnet.test': ['**/*.cs', '**/*.fs', '**/*.vb', '**/*.*proj', '**/*.sln', '**/*.slnx', 'global.json', '**/*.props', '**/*.targets', '**/packages.lock.json', 'NuGet.Config', '.editorconfig', 'tests/**', 'Tests/**'],
   'python.test': ['pyproject.toml', 'uv.lock', '.python-version', '**/*.py', '**/*.pyi', 'ruff.toml', '.ruff.toml', 'pytest.ini', 'conftest.py', 'src/**', 'tests/**'],

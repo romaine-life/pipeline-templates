@@ -36,11 +36,19 @@ export const tools = {
     linux:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz`, '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757', 'actionlint'],
     win32:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_windows_amd64.zip`, '7f12f1801bca3d480d67aaf7774f4c2a6359a3ca8eebe382c95c10c9704aa731', 'actionlint.exe']
   },
+  cargoAudit: {
+    linux:['0.22.2',`${mirror}/github/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-musl-v0.22.2.tgz`,'7fb9497f8594b389e5fce5ef9b92db08432996895b2e0c5a0167a69ed445c428','cargo-audit-x86_64-unknown-linux-musl-v0.22.2/cargo-audit'],
+    win32:['0.22.2',`${mirror}/github/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-pc-windows-msvc-v0.22.2.zip`,'0a7316540862c13d954f648917ceacca593747baed6eec180fafa590be2710ab','cargo-audit-x86_64-pc-windows-msvc-v0.22.2/cargo-audit.exe']
+  },
+  // A Rust build for a Linux target at a glibc floor, or for another architecture: zig is the
+  // C toolchain and linker cargo-zigbuild drives. Zig ships on PyPI as a wheel holding it whole.
+  zig: ['0.17.0', 'https://artifacts.home.romaine.life/pypi/pypi/simple/ziglang/ziglang-0.17.0.post0-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl', 'c9528d6a2cdf56a701bb8cafbc9967f59d88ecc8bb42b87ec2f9693418f69ce3', 'package/ziglang/zig', true],
+  cargoZigbuild: ['0.24.0', `${mirror}/github/rust-cross/cargo-zigbuild/releases/download/v0.24.0/cargo-zigbuild-x86_64-unknown-linux-musl.tar.xz`, '52be2cb85ad3875682564a29bac1832b2ab3db68b1c504765c92d5249cc9b96f', 'cargo-zigbuild-x86_64-unknown-linux-musl/cargo-zigbuild'],
   osslsigncode: ['2.8-2', 'https://artifacts.home.romaine.life/debian/ubuntu/pool/universe/o/osslsigncode/osslsigncode_2.8-2_amd64.deb', '1aee7be603102633e80b4c67cd939bba2e16a62813e4a3035696727783f632b0', 'usr/bin/osslsigncode']
 };
 // Windows' own tar (bsdtar) reads zips and tarballs; a GNU tar earlier on PATH, as in Git
 // Bash, takes a C: path for a remote host.
-const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+export const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
 export async function tool(name) {
   if (process.env[`CI_TOOL_${name.toUpperCase()}`]) return process.env[`CI_TOOL_${name.toUpperCase()}`];
   const spec=tools[name];
@@ -60,7 +68,9 @@ export async function tool(name) {
     fs.writeFileSync(archive, bytes);
     if (fullPackage) {
       const packageDir=path.join(temp,'package');fs.mkdirSync(packageDir);
-      run(tar,['-xf',archive,'-C',packageDir]);fs.chmodSync(path.join(temp,binary),0o755);
+      if(url.endsWith('.whl') && process.platform==='linux')run('unzip',['-q',archive,'-d',packageDir]);
+      else run(tar,['-xf',archive,'-C',packageDir]);
+      fs.chmodSync(path.join(temp,binary),0o755);
       try{fs.renameSync(packageDir,path.join(root,'package'));}catch(error){if(!fs.existsSync(executable))throw error;}
       return executable;
     }

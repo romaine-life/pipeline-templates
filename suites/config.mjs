@@ -8,7 +8,7 @@ const fields = {
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
   cluster: ['renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
   web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies', 'history'], tofu: ['version', 'backend'], docs: ['required', 'release'],
-  powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail']
+  powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
@@ -73,7 +73,13 @@ export function validate(value, where = 'fleet entry') {
   }
   for (const name of value.release?.windowsGui || []) if (typeof name !== 'string' || !name) throw new Error('release.windowsGui names Go packages');
   if(value.release?.rustTargets && (!Array.isArray(value.release.rustTargets) || !value.release.rustTargets.length))throw new Error('release.rustTargets must be a nonempty array');
-  for (const part of value.release?.rustTargets || []) if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples; Apple targets belong in release.external');
+  for (const part of value.release?.rustTargets || []) {
+    if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples; Apple targets belong in release.external');
+    if (Object.keys(part).some(key => !['target', 'features', 'noDefaultFeatures', 'glibc'].includes(key))) throw new Error('release.rustTargets take target, features, noDefaultFeatures and glibc');
+    if (part.glibc !== undefined && (!part.target.endsWith('-unknown-linux-gnu') || !/^2\.\d+$/.test(part.glibc))) throw new Error('release.rustTargets glibc is a 2.N floor for a -unknown-linux-gnu target');
+    // The Linux runner is x86_64: another architecture links through zig, which a glibc floor selects.
+    if (part.target.endsWith('-unknown-linux-gnu') && !part.target.startsWith('x86_64-') && part.glibc === undefined) throw new Error(`${part.target} builds through zig: give it a glibc floor`);
+  }
   if (value.release?.image && !['cluster','web'].includes(value.release.image)) throw new Error('release.image must be cluster or web');
   if (value.release?.image && !value[value.release.image]?.image) throw new Error('joined image release needs the corresponding image configuration');
   const externalIds=new Set(),externalAssets=new Set();
@@ -154,6 +160,11 @@ export function validate(value, where = 'fleet entry') {
   }
   for (const [name, image] of Object.entries(value.service || {})) {
     if (typeof image !== 'string' || !/^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/.test(image)) throw new Error(`service.${name} must be a digest-pinned Artifact Keeper image`);
+  }
+  if (value.greenmail && !value.service?.greenmail) throw new Error('greenmail.users needs service.greenmail');
+  const users = value.greenmail?.users;
+  if (users !== undefined && (!Array.isArray(users) || !users.length || users.some(user => typeof user !== 'string' || !/^[\w.+-]+:[^\s,@:]+@[\w.-]+$/.test(user)))) {
+    throw new Error('greenmail.users are login:password@domain, as GreenMail takes them');
   }
   if (value.cluster?.smoke === false && value.cluster?.build !== false) throw new Error('only render-only/upstream services may omit the standard smoke job');
   if (value.cluster?.build === false && value.cluster?.smoke !== false && !/@sha256:[0-9a-f]{64}$/.test(value.cluster.image || '')) throw new Error('upstream cluster.image requires a digest');

@@ -3,10 +3,11 @@ import path from 'node:path';
 import http from 'node:http';
 import https from 'node:https';
 import assert from 'node:assert/strict';
+import {connect as connectTLS} from 'node:tls';
 import {capture,run} from '../lib.mjs';
 import {startServices,probeService,ownerLabel,stateFile} from '../services.mjs';
 const images=JSON.parse(fs.readFileSync(new URL('./service-images.json',import.meta.url),'utf8'));
-const env=await startServices(images);
+const env=await startServices(images,{users:['alice:secret@example.com']});
 const state=JSON.parse(fs.readFileSync(stateFile(),'utf8'));
 const pair=process.env.CI_SERVICE_PAIR,slot=process.env.CI_SERVICE_SLOT;
 assert.match(pair,/^[0-9]+-[0-9]+$/);assert.ok(['one','two'].includes(slot));
@@ -42,5 +43,20 @@ try {
   await overlap;
   await Promise.all(Object.entries(state.addresses).map(([name,address])=>probeService(name,address)));
   assert.equal(new Set(Object.values(state.addresses)).size,3);
+  // A declared user signs in over IMAPS with its whole address, trusting the written certificate
+  // alone; a wrong password is refused.
+  for(const [password,answer] of [['secret',/^a OK/m],['wrong',/^a NO/m]]) {
+    const reply=await new Promise((resolve,reject)=>{
+      const socket=connectTLS({host:env.IMAP_HOST,port:Number(env.IMAPS_PORT),ca:fs.readFileSync(env.GREENMAIL_CERT),checkServerIdentity:()=>undefined});
+      let text='',sent=false;socket.setTimeout(10000,()=>socket.destroy(new Error('IMAPS sign-in timed out')));
+      socket.on('error',reject);
+      socket.on('data',chunk=>{
+        text+=chunk;
+        if(!sent && /^\* OK/m.test(text)){sent=true;socket.write(`a LOGIN alice@example.com ${password}\r\n`);}
+        if(/^a (OK|NO|BAD)/m.test(text)){socket.destroy();resolve(text);}
+      });
+    });
+    assert.match(reply,answer);
+  }
   console.log(`Concurrent TCP proof: ${slot}, network ${env.CI_SERVICE_NETWORK}, ${JSON.stringify(state.addresses)}`);
 } finally {clearTimeout(timer);response?.destroy();request?.destroy();}

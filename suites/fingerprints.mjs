@@ -55,7 +55,7 @@ export function checkVariants(suite,cfg) {
   const result=[];
   for(const check of Object.keys(inputs).filter(check=>check.startsWith(suite+'.') && check!=='release.build')) {
     const name=check.split('.')[1];
-    if(['typos','machete'].includes(name) && !cfg.rust?.lints?.includes(name) || check==='cluster-service.image' && cfg.cluster?.smoke===false || check.endsWith('.image') && cfg.release?.image && !(check==='cluster-service.image' && cfg.release?.module) || check==='web-app.image' && !cfg.web?.image || check==='release.package' && !cfg.release?.toolchains?.length)continue;
+    if(['typos','machete','audit'].includes(name) && !cfg.rust?.lints?.includes(name) || check==='cluster-service.image' && cfg.cluster?.smoke===false || check.endsWith('.image') && cfg.release?.image && !(check==='cluster-service.image' && cfg.release?.module) || check==='web-app.image' && !cfg.web?.image || check==='release.package' && !cfg.release?.toolchains?.length)continue;
     let variants=['ubuntu-latest'];
     if(name==='test' && ['go','rust','cmake','dotnet','python'].includes(suite)) {
       variants=[...(cfg[suite]?.platforms || ['ubuntu-latest'])];

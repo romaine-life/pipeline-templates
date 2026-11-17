@@ -26,9 +26,10 @@ an unknown field fails.
 |---|---|
 | `go`, `rust`, `cmake`, `dotnet`, `python` | `platforms`: the platforms tests run on (default `ubuntu-latest`; list it beside `windows-latest` to keep Linux) |
 | `go` | `dependencies`: modules taken up through `go/dependencies.yml`; `race`: packages whose tests also run under the race detector, in the Linux test job (so `platforms` must include `ubuntu-latest`) |
-| `rust` | `features`, `noDefaultFeatures`, `platformFeatures`, `lints` |
-| `service` | `postgres`, `manticore`, `greenmail`: digest-pinned images the tests need |
-| `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets`, `dependencies`, `assets`, `image` |
+| `rust` | `features`, `noDefaultFeatures`, `platformFeatures`, `lints`: any of `typos`, `machete` and `audit` (RustSec's advisories, read fresh through Artifact Keeper, when `Cargo.lock` changes) |
+| `service` | `postgres`, `manticore`, `greenmail`: digest-pinned images the tests need. The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
+| `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
+| `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets` (each `{target, features, noDefaultFeatures, glibc}`: a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies`, `assets`, `image` |
 | `release` (a Go library) | `module: true`: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
 | `cluster` | `renders`, `build`, `image`, `baoRole`, `baoSecret`, `pinFile`, `pinFields` |
 | `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `containerApp`, `resourceGroup`, `staticApp`, `history`: the tests compare with the base branch, so the test job gets full history (`origin/<base>`), `dependencies`: image inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds; the source's `release.dispatch` to `web-app/dependencies.yml` proposes its newest release as a take-up PR |

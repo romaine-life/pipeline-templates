@@ -52,7 +52,7 @@ export async function scope(suite) {
       output('package',files.length>0 && packagingScope(files,cfg) && needed(job));
       continue;
     }
-    const disabled=job==='cluster-service.image' && cfg.cluster?.smoke===false || ['rust.typos','rust.machete'].includes(job) && !cfg.rust?.lints?.includes(job.split('.')[1]);
+    const disabled=job==='cluster-service.image' && cfg.cluster?.smoke===false || ['rust.typos','rust.machete','rust.audit'].includes(job) && !cfg.rust?.lints?.includes(job.split('.')[1]);
     output(job.split('.')[1], !disabled && relevant(files, job, cfg) && (job==='release.build' || needed(job,job==='powershell.parse'?'ubuntu-latest':undefined)));
   }
   if (suite === 'tofu') {

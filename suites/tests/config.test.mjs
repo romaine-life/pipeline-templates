@@ -32,3 +32,17 @@ test('a repository reads its own entry from the fleet list, and one it leaves ou
 test('the real fleet list is valid', () => {
   assert.ok(Object.keys(fleet()).length > 0);
 });
+
+test('GreenMail users and Rust glibc floors are checked where they are declared', () => {
+  const image = `artifacts.home.romaine.life/dockerhub/greenmail/standalone:2.1.3@sha256:${'a'.repeat(64)}`;
+  const rust = rustTargets => ({suites: ['release'], release: {toolchains: ['rust'], rustTargets}});
+  for (const bad of [{suites: ['rust'], greenmail: {users: ['alice:secret@example.com']}},
+    {suites: ['rust'], service: {greenmail: image}, greenmail: {users: ['alice']}},
+    {suites: ['rust'], service: {greenmail: image}, greenmail: {users: []}},
+    rust([{target: 'aarch64-unknown-linux-gnu'}]), rust([{target: 'x86_64-pc-windows-msvc', glibc: '2.35'}]),
+    rust([{target: 'x86_64-unknown-linux-gnu', glibc: 'latest'}]), rust([{target: 'x86_64-unknown-linux-gnu', strip: true}])]) {
+    assert.throws(() => validate(bad), JSON.stringify(bad));
+  }
+  validate({suites: ['rust'], service: {greenmail: image}, greenmail: {users: ['alice:secret@example.com', 'bob:secret@example.com']}});
+  validate(rust([{target: 'aarch64-unknown-linux-gnu', glibc: '2.35'}, {target: 'x86_64-unknown-linux-gnu'}, {target: 'aarch64-pc-windows-msvc'}]));
+});

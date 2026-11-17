@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
+import tls from 'node:tls';
+import os from 'node:os';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {capture,run} from './lib.mjs';
@@ -18,7 +20,13 @@ export function serviceEnvironment(state) {
   const env={CI_SERVICE_NETWORK:state.id};
   if(state.addresses.postgres) env.DATABASE_URL=`postgres://postgres@${state.addresses.postgres}:5432/postgres`;
   if(state.addresses.manticore) env.MANTICORE_URL=`http://${state.addresses.manticore}:9308`;
-  if(state.addresses.greenmail) Object.assign(env,{SMTP_HOST:state.addresses.greenmail,SMTP_PORT:'3025',IMAP_HOST:state.addresses.greenmail,IMAP_PORT:'3143'});
+  if(state.addresses.greenmail) {
+    const host=state.addresses.greenmail;
+    Object.assign(env,{SMTP_HOST:host,SMTP_PORT:'3025',IMAP_HOST:host,IMAP_PORT:'3143',POP3_HOST:host,POP3_PORT:'3110',
+      SMTPS_PORT:'3465',IMAPS_PORT:'3993',POP3S_PORT:'3995'});
+    // GreenMail's own certificate, for a client that pins it the way an account trusts its server's.
+    if(state.certificate) env.GREENMAIL_CERT=state.certificate;
+  }
   return env;
 }
 export function connection(host,port,onConnect,onData) {
@@ -31,6 +39,25 @@ export function connection(host,port,onConnect,onData) {
     socket.on('data',chunk=>{bytes=Buffer.concat([bytes,chunk]);try {onData(bytes,socket,finish);}catch(error){finish(error);}});
     socket.on('close',()=>{if(!settled)finish(new Error(`${host}:${port} closed before readiness`));});
   });
+}
+// The certificate a TLS port presents, as PEM. Read from the handshake, unverified: it is
+// GreenMail's own, on the job's private network, and is what the tests are then given to trust.
+export function peerCertificate(host,port) {
+  return new Promise((resolve,reject)=>{
+    const socket=tls.connect({host,port,rejectUnauthorized:false},()=>{
+      const raw=socket.getPeerCertificate().raw;socket.destroy();
+      if(!raw?.length)return reject(new Error(`${host}:${port} presented no certificate`));
+      resolve(`-----BEGIN CERTIFICATE-----\n${raw.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----\n`);
+    });
+    socket.setTimeout(3000,()=>socket.destroy(new Error(`${host}:${port} TLS handshake timed out`)));
+    socket.on('error',reject);
+  });
+}
+// GreenMail's SMTPS, IMAPS and POP3S answer with one certificate, which is written for the tests.
+async function greenmailCertificate(host,file,read) {
+  const pems=await Promise.all([3465,3993,3995].map(port=>read(host,port)));
+  if(new Set(pems).size!==1)throw new Error('GreenMail TLS ports presented different certificates');
+  fs.writeFileSync(file,pems[0]);
 }
 export async function probeService(name,host) {
   if(name==='postgres') {
@@ -64,7 +91,7 @@ export async function probeService(name,host) {
 const healthChecks={
   postgres:'pg_isready -q -h 127.0.0.1 -U postgres -d postgres',
   manticore:`response=$(wget -q -O - --timeout=2 --tries=1 --post-data='query=SHOW TABLES' 'http://127.0.0.1:9308/sql?mode=raw') && printf '%s' "$response" | grep -Eq '"error"[[:space:]]*:[[:space:]]*""'`,
-  greenmail:String.raw`bash -ec 'exec 3<>/dev/tcp/127.0.0.1/3025; IFS= read -r smtp <&3; [[ "$smtp" == 220\ * ]]; exec 3<&-; exec 3>&-; exec 4<>/dev/tcp/127.0.0.1/3143; IFS= read -r imap <&4; [[ "$imap" == \*\ OK* ]]; exec 4<&-; exec 4>&-'`
+  greenmail:String.raw`bash -ec 'exec 3<>/dev/tcp/127.0.0.1/3025; IFS= read -r smtp <&3; [[ "$smtp" == 220\ * ]]; exec 3<&-; exec 3>&-; exec 4<>/dev/tcp/127.0.0.1/3143; IFS= read -r imap <&4; [[ "$imap" == \*\ OK* ]]; exec 4<&-; exec 4>&-; for port in 3110 3465 3993 3995; do exec 5<>/dev/tcp/127.0.0.1/$port; exec 5<&-; exec 5>&-; done'`
 };
 export async function watchHealth(id,names,{subscribe=dockerEvents,timeout=180000,schedule=setTimeout,cancel=clearTimeout}={}) {
   const pending=new Set(names.map(name=>`${id}-${name}`)),controller=new AbortController();
@@ -85,7 +112,7 @@ export async function watchHealth(id,names,{subscribe=dockerEvents,timeout=18000
     return {ready,close};
   } catch(error){const failure=controller.signal.aborted ? controller.signal.reason : error;close();throw failure;}
 }
-export async function startServices(services=config().service || {},{read=capture,execute=run,probe=probeService,subscribe=dockerEvents,timeout=180000}={}) {
+export async function startServices(services=config().service || {},{users=[],read=capture,execute=run,probe=probeService,certificate=peerCertificate,subscribe=dockerEvents,timeout=180000}={}) {
   if(fs.existsSync(stateFile()))throw new Error('service state already exists; run services.mjs stop first');
   if(!Object.keys(services).length)return {};
   const state={id:`ci-services-${randomUUID()}`,addresses:{},volumes:[]};
@@ -97,7 +124,9 @@ export async function startServices(services=config().service || {},{read=captur
   execute('docker',['network','create','--label',`${ownerLabel}=${state.id}`,state.id],remaining());
   for(const [name,image]of Object.entries(services)) {
     if(!['postgres','manticore','greenmail'].includes(name) || !/@sha256:[0-9a-f]{64}$/.test(image))throw new Error('services require known names and digest-pinned images');
-    const env=name==='postgres' ? ['-e','POSTGRES_HOST_AUTH_METHOD=trust'] : name==='greenmail' ? ['-e','GREENMAIL_OPTS=-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0'] : [];
+    // GreenMail's users sign in with their whole address (greenmail.users.login=email).
+    const mail=['-Dgreenmail.setup.test.all','-Dgreenmail.hostname=0.0.0.0',...(users.length?[`-Dgreenmail.users=${users.join(',')}`,'-Dgreenmail.users.login=email']:[])];
+    const env=name==='postgres' ? ['-e','POSTGRES_HOST_AUTH_METHOD=trust'] : name==='greenmail' ? ['-e',`GREENMAIL_OPTS=${mail.join(' ')}`] : [];
     execute('docker',['run','-d','--name',`${state.id}-${name}`,'--label',`${ownerLabel}=${state.id}`,'--network',state.id,'--network-alias',name,'--health-cmd',healthChecks[name],'--health-interval','1s','--health-timeout','5s','--health-retries','180',...env,image],remaining());
     const info=JSON.parse(read('docker',['inspect',`${state.id}-${name}`],remaining()))[0];
     const address=info.NetworkSettings.Networks[state.id]?.IPAddress;
@@ -108,6 +137,11 @@ export async function startServices(services=config().service || {},{read=captur
   }
   await monitor.ready;
   await Promise.all(Object.entries(state.addresses).map(async([name,address])=>{await probe(name,address);console.log(`${name} healthy; TCP assertion passed at ${address}`);}));
+  if(state.addresses.greenmail) {
+    state.certificate=path.join(process.env.RUNNER_TEMP || os.tmpdir(),`${state.id}-greenmail.pem`);
+    fs.writeFileSync(stateFile(),JSON.stringify(state));
+    await greenmailCertificate(state.addresses.greenmail,state.certificate,certificate);
+  }
   } finally {monitor.close();}
   const env=serviceEnvironment(state);
   if(process.env.GITHUB_ENV)fs.appendFileSync(process.env.GITHUB_ENV,Object.entries(env).map(([key,value])=>`${key}=${value}\n`).join(''));
@@ -124,10 +158,14 @@ export function stopServices({read=capture,execute=run}={}) {
   for(const id of list(read('docker',['network','ls','-q',...filter])))try{execute('docker',['network','rm',id]);}catch(error){errors.push(error);}
   if(errors.length)throw new AggregateError(errors,'service cleanup failed; state retained for retry');
   if(read('docker',['ps','-aq',...filter]) || read('docker',['network','ls','-q',...filter]))throw new Error('service resources survived cleanup');
+  if(state.certificate) {
+    if(path.basename(state.certificate)!==`${state.id}-greenmail.pem`)throw new Error('unexpected service certificate path');
+    fs.rmSync(state.certificate,{force:true});
+  }
   fs.unlinkSync(stateFile());
 }
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  if(process.argv[2]==='start')await startServices();
+  if(process.argv[2]==='start'){const cfg=config();await startServices(cfg.service || {},{users:cfg.greenmail?.users || []});}
   else if(process.argv[2]==='stop')stopServices();
   else throw new Error('services.mjs start|stop');
 }

@@ -72,3 +72,28 @@ test('health events handle early/out-of-order health, exit, stream failure and o
     monitor.close();assert.equal(closed,1);assert.equal(schedules,1);assert.equal(cancels,1);
   }
 });
+
+test('GreenMail takes the declared users and hands the tests its TLS ports and one certificate file',async()=>{
+  const cwd=process.cwd(),oldEnv={...process.env},dir=fs.mkdtempSync(path.join(os.tmpdir(),'services-'));
+  try {
+    process.chdir(dir);delete process.env.CI_SERVICE_STATE;delete process.env.GITHUB_ENV;process.env.RUNNER_TEMP=dir;
+    let run,onEvent;
+    const deps={
+      users:['alice:secret@example.com','bob:secret@example.com'],
+      subscribe:async(filters,observe)=>{onEvent=observe;return {close(){}};},
+      read:(cmd,args)=>{const state=JSON.parse(fs.readFileSync(stateFile(),'utf8'));return args[0]==='inspect' ? JSON.stringify([{NetworkSettings:{Networks:{[state.id]:{IPAddress:'172.18.0.3'}}}}]) : '';},
+      execute:(cmd,args)=>{if(args[0]==='run'){run=args;onEvent({Action:'health_status: healthy',Actor:{Attributes:{name:args[args.indexOf('--name')+1]}}});}},
+      probe:async()=>{},
+      certificate:async(host,port)=>{assert.equal(host,'172.18.0.3');assert.ok([3465,3993,3995].includes(port));return 'PEM\n';}
+    };
+    const env=await startServices({greenmail:`example/greenmail@sha256:${'b'.repeat(64)}`},deps);
+    assert.equal(run[run.indexOf('-e')+1],'GREENMAIL_OPTS=-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.users=alice:secret@example.com,bob:secret@example.com -Dgreenmail.users.login=email');
+    assert.deepEqual([env.IMAP_HOST,env.SMTPS_PORT,env.IMAPS_PORT,env.POP3S_PORT,env.POP3_PORT],['172.18.0.3','3465','3993','3995','3110']);
+    assert.equal(path.dirname(env.GREENMAIL_CERT),dir);assert.equal(fs.readFileSync(env.GREENMAIL_CERT,'utf8'),'PEM\n');
+    stopServices({read:()=>'',execute:()=>{}});
+    assert.equal(fs.existsSync(env.GREENMAIL_CERT),false);
+    let port=0;
+    await assert.rejects(startServices({greenmail:`example/greenmail@sha256:${'b'.repeat(64)}`},{...deps,certificate:async()=>`PEM ${port++}\n`}),/different certificates/);
+    stopServices({read:()=>'',execute:()=>{}});
+  } finally {process.chdir(cwd);process.env=oldEnv;fs.rmSync(dir,{recursive:true,force:true});}
+});

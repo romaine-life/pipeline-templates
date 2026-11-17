@@ -57,6 +57,7 @@ jobs:
       test-windows: ${{ steps.scope.outputs.test-windows }}
       typos: ${{ steps.scope.outputs.typos }}
       machete: ${{ steps.scope.outputs.machete }}
+      audit: ${{ steps.scope.outputs.audit }}
   check-format:
     runs-on: ubuntu-latest
     steps:
@@ -191,6 +192,26 @@ jobs:
     - run: node _ci/suites/rust/lint.mjs machete
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.machete == 'true'
+  check-audit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - uses: ./_ci/actions/home-cache
+    - uses: ./_ci/actions/rust-toolchain
+      with:
+        components: clippy, rustfmt
+    - run: node _ci/suites/rust/lint.mjs audit
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.audit == 'true'
 
   reused-checks:
     needs:
@@ -201,6 +222,7 @@ jobs:
     - check-services
     - check-typos
     - check-machete
+    - check-audit
     if: always() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.fingerprints != '{}'
     runs-on: ubuntu-latest
     steps:
