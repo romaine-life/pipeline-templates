@@ -24,24 +24,37 @@ test('fixed platform selectors handle none, one and all reused, undeclared platf
   assert.throws(()=>releasePlan({release:{toolchains:['rust'],rustTargets:[]}}),/nonempty/);
 });
 
-test('the real PR scope process plans independent native Windows and Linux-service fingerprints',async()=>{
+// The real scope process on a PR: a fixture repo whose base commit is BASE, then the PR's commit.
+async function prScope(change) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'scope-reuse-'));
   const server=http.createServer((request,response)=>{assert.match(request.url,/^\/_apis\/artifactcache\/cache\?/);response.writeHead(204).end();});
   try {
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     fleetEntry(({version:1,go:{platforms:['ubuntu-latest','windows-latest']},service:{postgres:`artifacts.home.romaine.life/dockerhub/library/postgres:17@sha256:${'a'.repeat(64)}`}}),'test/scope');
+    const git=args=>run('git',args,{cwd:root,stdio:['ignore','pipe','inherit'],encoding:'utf8'});
+    const commit=()=>{git(['add','.']);git(['-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture']);};
     fs.writeFileSync(path.join(root,'main.go'),'package main\n');
-    run('git',['init','-b','main'],{cwd:root});run('git',['add','.'],{cwd:root});run('git',['-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-m','fixture'],{cwd:root});
+    fs.writeFileSync(path.join(root,'notes.txt'),'base\n');
+    git(['init','-q','-b','main']);commit();
+    const base=git(['rev-parse','HEAD']).trim();
+    change(root);commit();
     let text='';
     const exit=await new Promise((resolve,reject)=>{
-      const child=spawn(process.execPath,[path.join(suites,'inputs.mjs'),'go'],{cwd:root,env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_EVENT_NAME:'pull_request',GITHUB_OUTPUT:'',BASE:run('git',['rev-parse','HEAD'],{cwd:root,stdio:['ignore','pipe','inherit'],encoding:'utf8'}),GITHUB_REPOSITORY:'test/scope',TOKEN:'fixture',ACTIONS_CACHE_URL:`http://127.0.0.1:${server.address().port}/`,ACTIONS_RUNTIME_TOKEN:'fixture'}});
+      const child=spawn(process.execPath,[path.join(suites,'inputs.mjs'),'go'],{cwd:root,env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_EVENT_NAME:'pull_request',GITHUB_OUTPUT:'',BASE:base,GITHUB_REPOSITORY:'test/scope',TOKEN:'fixture',ACTIONS_CACHE_URL:`http://127.0.0.1:${server.address().port}/`,ACTIONS_RUNTIME_TOKEN:'fixture'}});
       child.stdout.on('data',chunk=>text+=chunk);child.stderr.on('data',chunk=>text+=chunk);child.on('error',reject);child.on('close',resolve);
     });
     assert.equal(exit,0,text);
-    const outputs=Object.fromEntries(text.split('\n').filter(line=>line.includes('=')).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
-    const checks=JSON.parse(outputs.fingerprints);
-    assert.deepEqual(Object.keys(checks).sort(),['go.format/ubuntu-latest','go.test/services','go.test/windows-latest']);
-    assert.equal(outputs['service-test'],'true');assert.equal(outputs.test,'true');assert.deepEqual(JSON.parse(outputs.platforms),['ubuntu-latest','windows-latest']);assert.equal(outputs['test-linux'],'false');assert.equal(outputs['test-windows'],'true');
-    for(const entry of Object.values(checks)){assert.match(entry.fingerprint,/^[a-f0-9]{64}$/);assert.equal(entry.suite,outputs['suite-sha']);assert.equal(entry.pass,null);}
+    return Object.fromEntries(text.split('\n').filter(line=>line.includes('=')).map(line=>[line.slice(0,line.indexOf('=')),line.slice(line.indexOf('=')+1)]));
   } finally {await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
+}
+test('the real PR scope process plans independent native Windows and Linux-service fingerprints',async()=>{
+  const outputs=await prScope(root=>fs.writeFileSync(path.join(root,'main.go'),'package main\n\nfunc main() {}\n'));
+  const checks=JSON.parse(outputs.fingerprints);
+  assert.deepEqual(Object.keys(checks).sort(),['go.format/ubuntu-latest','go.test/services','go.test/windows-latest']);
+  assert.equal(outputs['service-test'],'true');assert.equal(outputs.test,'true');assert.deepEqual(JSON.parse(outputs.platforms),['ubuntu-latest','windows-latest']);assert.equal(outputs['test-linux'],'false');assert.equal(outputs['test-windows'],'true');
+  for(const entry of Object.values(checks)){assert.match(entry.fingerprint,/^[a-f0-9]{64}$/);assert.equal(entry.suite,outputs['suite-sha']);assert.equal(entry.pass,null);}
+});
+test("a PR that doesn't touch a check's inputs doesn't run it, with no recorded pass to reuse",async()=>{
+  const outputs=await prScope(root=>fs.writeFileSync(path.join(root,'notes.txt'),'changed\n'));
+  for(const name of ['format','test','service-test','test-linux','test-windows'])assert.equal(outputs[name],'false',name);
 });

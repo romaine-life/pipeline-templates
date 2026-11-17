@@ -41,27 +41,31 @@ export async function scope(suite) {
     if(!process.env.TOKEN)throw new Error('check reuse scope requires the Actions token');
     const {plan,attest}=await import('./reuse.mjs');reuse=await plan(suite,config());attest(reuse.checks);
   }
-  const needed=(check,variant)=>Object.values(reuse?.checks || {}).some(entry=>entry.check===check && (!variant || entry.variant===variant) && !entry.pass);
+  // A check runs when its inputs changed against the base (rule 2), and on a PR only when no
+  // run of the same inputs has passed yet. A recorded pass lets a PR skip what it already ran;
+  // it never makes a check run whose inputs the PR didn't touch.
+  const needed=(check,variant)=>!reuse || Object.values(reuse.checks).some(entry=>entry.check===check && (!variant || entry.variant===variant) && !entry.pass);
+  const testInputs=`${suite}.test` in inputs?`${suite}.test`:'go.test';
   for (const job of Object.keys(inputs).filter(k => k.startsWith(`${suite}.`))) {
     if(job==='release.package') {
       const {packagingScope}=await import('./release/inputs.mjs');
-      output('package',reuse ? needed(job) : files.length ? packagingScope(files,cfg) : false);
+      output('package',files.length>0 && packagingScope(files,cfg) && needed(job));
       continue;
     }
     const disabled=job==='cluster-service.image' && cfg.cluster?.smoke===false || ['rust.typos','rust.machete'].includes(job) && !cfg.rust?.lints?.includes(job.split('.')[1]);
-    output(job.split('.')[1], disabled ? false : reuse && job!=='release.build' ? needed(job,job==='powershell.parse'?'ubuntu-latest':undefined) : relevant(files, job, cfg));
+    output(job.split('.')[1], !disabled && relevant(files, job, cfg) && (job==='release.build' || needed(job,job==='powershell.parse'?'ubuntu-latest':undefined)));
   }
   if (suite === 'tofu') {
     const pushed = process.env.GITHUB_EVENT_NAME === 'push' ? pushFiles() : null;
     output('apply', process.env.GITHUB_EVENT_NAME !== 'pull_request' && (pushed === null || relevant(pushed, 'tofu.plan', cfg)));
   }
   output('has-services', Object.keys(cfg.service || {}).length > 0);
-  const platforms=testPlatforms(suite,cfg,platform=>reuse ? needed(`${suite}.test`,platform) : relevant(files,`${suite}.test` in inputs?`${suite}.test`:'go.test',cfg));
+  const platforms=testPlatforms(suite,cfg,platform=>relevant(files,testInputs,cfg) && needed(`${suite}.test`,platform));
   output('platforms',JSON.stringify(platforms.platforms));
   output('test-linux',platforms.run['ubuntu-latest']===true);
   output('test-windows',platforms.run['windows-latest']===true);
-  output('service-test',reuse ? needed(`${suite}.test`,'services') : relevant(files,`${suite}.test` in inputs?`${suite}.test`:'go.test',cfg) && Object.keys(cfg.service || {}).length>0);
-  output('parse-legacy',reuse ? needed('powershell.parse','windows-legacy') : suite==='powershell' && cfg.powershell?.windowsPowerShell && relevant(files,'powershell.parse',cfg));
+  output('service-test',Object.keys(cfg.service || {}).length>0 && relevant(files,testInputs,cfg) && needed(`${suite}.test`,'services'));
+  output('parse-legacy',suite==='powershell' && cfg.powershell?.windowsPowerShell===true && relevant(files,'powershell.parse',cfg) && needed('powershell.parse','windows-legacy'));
   output('fingerprints',JSON.stringify(reuse?.checks || {}));
   output('suite-sha',reuse?.suiteSHA || capture('git',['-C',path.dirname(fileURLToPath(import.meta.url)),'rev-parse','HEAD']));
   output('reuse',Object.values(reuse?.checks || {}).some(entry=>entry.pass));
