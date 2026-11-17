@@ -37,6 +37,11 @@ test('a URL query parameter named poll is a single read, not polling', () => {
   assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'curl -sf "http://$address/alerts/json?poll=1"')), []);
   assert.match(violations(valid.replace('go build ./cmd/...', 'node poll.mjs')).join('\n'), /polling/);
 });
+test('comment lines are neither commands nor references to scripts', () => {
+  const sources = {'scripts/serve.sh': '# deploy.sh waits until Argo CD has synced\ncurl -sf http://x/health', 'deploy.sh': 'for _ in 1 2; do sleep 5; done'};
+  assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'scripts/serve.sh'), p => sources[p] ?? null), []);
+  assert.match(violations(valid.replace('go build ./cmd/...', 'bash deploy.sh'), p => sources[p] ?? null).join('\n'), /loop waits/);
+});
 test('relative imported helper scripts remain covered by the rules', () => {
   const sources={'ci/deploy.mjs':"import './nested/wait.mjs'",'ci/nested/wait.mjs':'while (true) { setTimeout(fn, 3000); }'};
   assert.match(violations(valid.replace('go build ./cmd/...','node ci/deploy.mjs'),p=>sources[p] ?? null).join('\n'),/loop waits/);

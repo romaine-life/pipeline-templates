@@ -7,7 +7,11 @@ import {tool} from '../tools.mjs';
 
 const check = /(?:\b(?:gofmt|actionlint|kubeconform|markdownlint|pytest|ctest|PSScriptAnalyzer)\b|\bgo\s+(?:vet|test)\b|\bcargo\s+(?:fmt|clippy|test|nextest)\b|\bnode\s+[^\n]*--test\b|\bpython[\d.]*\s+[^\n]*-m\s+unittest\b|\b(?:npm|pnpm)\s+(?:test|run\s+(?:lint|check|test))\b|\btofu\s+(?:fmt|validate|plan)\b|\bdotnet\s+(?:test|format)\b|\b(?:check|test|lint|validate|parse)[-/.\w]*\.(?:m?js|py|ps1|sh)\b)/i;
 const prOnly = expression => /github\.event_name\s*==\s*['"]pull_request['"]/.test(expression || '') && !/\|\|/.test(expression || '');
-export function scriptText(text, read = () => null, seen = new Set(), from = '') {
+// A whole-line comment (#, or // in JavaScript) runs nothing: neither the words in it nor
+// the scripts it names are a step's commands.
+const code = text => text.split('\n').filter(line => !/^\s*(?:#|\/\/)/.test(line)).join('\n');
+export function scriptText(source, read = () => null, seen = new Set(), from = '') {
+  const text = code(source);
   let result = text;
   for (const match of text.matchAll(/(?:^|[\s'"(])([\w./-]+\.(?:m?js|cjs|py|ps1|sh))\b/gm)) {
     const relative = match[1];

@@ -166,6 +166,28 @@
         "smoke": false
       }
     },
+    "nelsong6/openbao": {
+      "suites": [
+        "cluster-service"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "openbao"
+          },
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "openbao",
+            "values": "tests/unserved.yaml"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/openproject": {
       "suites": [
         "cluster-service"
