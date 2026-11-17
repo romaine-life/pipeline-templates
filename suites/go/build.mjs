@@ -9,6 +9,16 @@ export function goBuilds(cfg) {
   const selected=process.env.RELEASE_TARGET;
   return selected ? targets.filter(t=>`${t.goos}-${t.goarch}-${t.buildmode || 'exe'}`===selected) : process.env.RELEASE_TOOLCHAIN==='go' ? targets.filter(t=>t.buildmode!=='c-shared') : targets;
 }
+// A DLL cgo builds links through MinGW's gcc, which can leave it importing a MinGW runtime
+// DLL (libwinpthread-1.dll, libgcc_s_seh-1.dll). Nothing ships that DLL beside it, so the
+// process loading it fails; fzt-picker's frontend DLL loads into every app that opens a
+// file dialog. The imports are objdump -p's "DLL Name:" lines (its whole dump of a Go DLL runs
+// to megabytes).
+export function mingwRuntimeImports(objdump) {
+  const names=[...objdump.matchAll(/DLL Name: (\S+)/g)].map(m=>m[1]);
+  if (!names.length) throw new Error('objdump listed no imports');
+  return names.filter(name=>/^lib.*\.dll$/i.test(name));
+}
 export function buildGo(cfg=config()) {
   goEnvironment();
   fs.mkdirSync('dist',{recursive:true});
@@ -39,6 +49,10 @@ export function buildGo(cfg=config()) {
         }
         run('go',['build','-p','4',...(target.buildmode?['-buildmode',target.buildmode]:[]),'-trimpath','-ldflags',flags.join(' '),'-o',`dist/${asset}`,pkg],{env});
       if(target.buildmode==='c-shared'){const header=`dist/${asset.replace(/\.dll$/,'.h')}`;if(fs.existsSync(header))fs.unlinkSync(header);}
+      if(target.buildmode==='c-shared' && target.goos==='windows') {
+        const runtime=mingwRuntimeImports(capture('objdump',['-p',`dist/${asset}`],{maxBuffer:1<<28}));
+        if (runtime.length) throw new Error(`${asset} needs ${runtime.join(', ')}, which nothing ships beside it`);
+      }
       } finally {if (embed && fs.existsSync(resource)) fs.unlinkSync(resource);}
     }
     // A js/wasm binary runs only beside the wasm_exec.js of the Go that built it.

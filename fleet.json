@@ -1063,6 +1063,79 @@
         ]
       }
     },
+    "romaine-life/fzt-picker": {
+      "suites": [
+        "go",
+        "release",
+        "rust"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ],
+        "dependencies": [
+          "github.com/romaine-life/fzt",
+          "github.com/romaine-life/fzt-terminal"
+        ]
+      },
+      "rust": {
+        "platforms": [
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "go",
+          "rust"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "mirror": true,
+        "rustTargets": [
+          {
+            "target": "x86_64-pc-windows-msvc"
+          }
+        ],
+        "goTargets": [
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "packages": [
+              "./cmd/fzt-picker-frontend",
+              "./cmd/fzt-files"
+            ]
+          },
+          {
+            "goos": "darwin",
+            "goarch": "arm64",
+            "packages": [
+              "./cmd/fzt-picker-frontend"
+            ]
+          },
+          {
+            "goos": "windows",
+            "goarch": "amd64",
+            "buildmode": "c-shared",
+            "packages": [
+              "./cmd/frontend-dll"
+            ]
+          }
+        ],
+        "assetNames": {
+          "go-windows-amd64": {
+            "fzt-picker-frontend-windows-amd64.exe": "fzt-picker-frontend.exe",
+            "fzt-files-windows-amd64.exe": "fzt-files.exe",
+            "frontend-dll-windows-amd64.dll": "fzt_picker_frontend.dll"
+          },
+          "rust-x86_64-pc-windows-msvc": {
+            "fzt-picker-windows-amd64.exe": "fzt-picker.exe",
+            "test-trigger-windows-amd64.exe": "test-trigger.exe",
+            "fzt_picker_hook-windows-amd64.dll": "fzt_picker_hook.dll",
+            "fzt_picker_shim-windows-amd64.dll": "fzt_picker_shim.dll"
+          }
+        }
+      }
+    },
     "romaine-life/fzt-terminal": {
       "suites": [
         "go",

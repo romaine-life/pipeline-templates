@@ -74,6 +74,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - run: node _ci/suites/rust/format.mjs
     needs: scope
@@ -94,6 +95,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - uses: ./_ci/actions/setup-uv
     - run: node _ci/suites/rust/test.mjs
@@ -117,6 +119,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - uses: ./_ci/actions/setup-uv
     - run: node _ci/suites/rust/test.mjs
@@ -145,6 +148,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - uses: ./_ci/actions/setup-uv
     - run: node _ci/suites/rust/test.mjs
@@ -171,6 +175,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - run: node _ci/suites/rust/lint.mjs typos
     needs: scope
@@ -191,6 +196,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - run: node _ci/suites/rust/lint.mjs machete
     needs: scope
@@ -211,6 +217,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/rust-toolchain
       with:
+        toolchain: project
         components: clippy, rustfmt
     - run: node _ci/suites/rust/lint.mjs audit
     needs: scope

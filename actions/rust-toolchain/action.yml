@@ -6,12 +6,17 @@ description: >-
   actions/pins.txt; anything else must already be exact. A runner with no rustup gets the
   pinned rustup-init from Artifact Keeper, checked against its published SHA-256; on Linux
   its toolchains then live in the runner's tool cache, kept between jobs. x64 only.
+  `project` takes the repository's own pin as rustup would (rust-toolchain.toml's channel
+  and components, or a plain rust-toolchain file), else `stable`: what the suites ask for.
 inputs:
   toolchain:
     description: >-
       `stable` (the pinned release), an exact release (`1.100.0`) or a dated channel
-      (`nightly-2026-08-01`).
+      (`nightly-2026-08-01`), or `project`: the pin in `directory`, else `stable`.
     default: stable
+  directory:
+    description: The folder whose rust-toolchain.toml `project` reads.
+    default: ${{ github.workspace }}
   components:
     description: Comma-separated components to add (`clippy, rustfmt`).
     default: ""
@@ -33,9 +38,25 @@ runs:
         ASKED: ${{ inputs.toolchain }}
         COMPONENTS: ${{ inputs.components }}
         TARGETS: ${{ inputs.targets }}
+        PROJECT: ${{ inputs.directory }}
         PINS: ${{ github.action_path }}/../pins.txt
       run: |
         set -euo pipefail
+        if [ "$ASKED" = project ]; then
+          ASKED=
+          # The project's own pin, as rustup reads it: rust-toolchain.toml, else a
+          # rust-toolchain file (TOML, or one line naming the channel).
+          file="$PROJECT/rust-toolchain.toml"; [ -f "$file" ] || file="$PROJECT/rust-toolchain"; [ -f "$file" ] || file=""
+          if [ -n "$file" ] && grep -q '^[[:space:]]*\[toolchain\]' "$file"; then
+            ASKED=$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$file" | head -n1)
+            pinned_components=$(sed -n 's/^[[:space:]]*components[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' "$file" | head -n1 | tr -d '" ')
+            [ -z "$pinned_components" ] || COMPONENTS="${COMPONENTS:+$COMPONENTS,}$pinned_components"
+          elif [ -n "$file" ]; then
+            ASKED=$(head -n1 "$file" | tr -d '[:space:]')
+          fi
+          ASKED=${ASKED:-stable}
+          echo "Rust toolchain: $ASKED${file:+ (from $file)}"
+        fi
         pinned=$(awk -v k="$ASKED" '$1 == "rust" && $2 == k { print $3 }' "$PINS")
         toolchain=${pinned:-$ASKED}
         [[ "$toolchain" =~ ^([0-9]+\.[0-9]+\.[0-9]+|(nightly|beta)-[0-9]{4}-[0-9]{2}-[0-9]{2})$ ]] || {
@@ -76,9 +97,31 @@ runs:
         ASKED: ${{ inputs.toolchain }}
         COMPONENTS: ${{ inputs.components }}
         TARGETS: ${{ inputs.targets }}
+        PROJECT: ${{ inputs.directory }}
         PINS: ${{ github.action_path }}/../pins.txt
       run: |
         $ErrorActionPreference = 'Stop'
+        if ($env:ASKED -eq 'project') {
+          $env:ASKED = ''
+          # The project's own pin, as rustup reads it: rust-toolchain.toml, else a
+          # rust-toolchain file (TOML, or one line naming the channel).
+          $file = Join-Path $env:PROJECT 'rust-toolchain.toml'
+          if (-not (Test-Path -LiteralPath $file)) { $file = Join-Path $env:PROJECT 'rust-toolchain' }
+          if (Test-Path -LiteralPath $file) {
+            $text = Get-Content -LiteralPath $file
+            if ($text -match '^\s*\[toolchain\]') {
+              $channel = $text | Select-String '^\s*channel\s*=\s*"([^"]*)"' | Select-Object -First 1
+              if ($channel) { $env:ASKED = $channel.Matches[0].Groups[1].Value }
+              $listed = $text | Select-String '^\s*components\s*=\s*\[(.*)\]' | Select-Object -First 1
+              if ($listed) {
+                $pinned = $listed.Matches[0].Groups[1].Value -replace '["\s]', ''
+                if ($pinned) { $env:COMPONENTS = (@($env:COMPONENTS, $pinned) | Where-Object { $_ }) -join ',' }
+              }
+            } else { $env:ASKED = ($text | Select-Object -First 1).Trim() }
+          }
+          if (-not $env:ASKED) { $env:ASKED = 'stable' }
+          "Rust toolchain: $env:ASKED"
+        }
         $pins = Get-Content -LiteralPath $env:PINS | ForEach-Object { , (-split $_) }
         $pinned = $pins | Where-Object { $_[0] -eq 'rust' -and $_[1] -eq $env:ASKED } | ForEach-Object { $_[2] } | Select-Object -First 1
         $toolchain = if ($pinned) { $pinned } else { $env:ASKED }

@@ -38,6 +38,11 @@ an unknown field fails.
 | `powershell` | `windowsPowerShell` |
 | `inputs` | extra file patterns per check (`"go.test": ["assets/**"]`) |
 
+A few things come from the repository rather than the list: its Rust toolchain is its
+`rust-toolchain.toml` (channel and components), as rustup reads it, else the pinned stable;
+and a Windows `c-shared` Go build fails if it imports a MinGW runtime DLL (`lib*.dll`), which
+nothing ships beside it.
+
 ## An image joined to a release
 
 A release with `release.image: cluster` publishes the cluster image and proposes its pin.

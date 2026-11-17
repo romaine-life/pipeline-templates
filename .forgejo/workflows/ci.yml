@@ -395,6 +395,24 @@ jobs:
         uses: ./actions/setup-dotnet
         with:
           dotnet-version: "9.0"
+      # toolchain: project takes a project's rust-toolchain.toml: its
+      # channel (the pinned stable here, so nothing new downloads) and its components.
+      - name: A project that pins its Rust
+        run: |
+          mkdir -p "$RUNNER_TEMP/rust-probe"
+          printf '%s\n' '[toolchain]' 'channel = "1.100.0"' 'components = ["rust-src"]' > "$RUNNER_TEMP/rust-probe/rust-toolchain.toml"
+      - id: rust-pinned
+        uses: ./actions/rust-toolchain
+        with:
+          toolchain: project
+          directory: ${{ runner.temp }}/rust-probe
+      - name: The project's pin is what was installed
+        env:
+          GOT: ${{ steps.rust-pinned.outputs.toolchain }}
+        run: |
+          set -euo pipefail
+          [ "$GOT" = 1.100.0 ] || { echo "installed $GOT"; exit 1; }
+          rustup component list --installed --toolchain 1.100.0 | grep -q '^rust-src' || { echo "rust-src is not installed"; exit 1; }
       - id: rust
         uses: ./actions/rust-toolchain
         with:
