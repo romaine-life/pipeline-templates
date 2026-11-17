@@ -1258,6 +1258,11 @@
         ]
       }
     },
+    "romaine-life/shell-config": {
+      "suites": [
+        "powershell"
+      ]
+    },
     "romaine-life/shell-config-profile-1": {
       "suites": [
         "powershell"
