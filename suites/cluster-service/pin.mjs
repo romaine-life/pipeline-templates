@@ -2,13 +2,17 @@ import fs from 'node:fs';
 import {queuePR} from '../queue.mjs';
 import {api, post, request, run, requirePublish} from '../lib.mjs';
 import {config} from '../config.mjs';
-import {updatePin} from './pin-fields.mjs';
+import {updatePin, prSources} from './pin-fields.mjs';
 requirePublish();
 const cfg = (process.argv[2] === 'web' ? config().web : config().cluster) || {};
 if (!cfg.pinFile || !/^https:\/\/openproject\.home\.romaine\.life\/wp\/[A-Z][A-Z0-9]*-\d+$/.test(cfg.workPackage || '')) throw new Error('cluster pinFile and workPackage are required');
 const pin = fs.readFileSync('.ci-image-pin', 'utf8').trim();
 const original = fs.readFileSync(cfg.pinFile, 'utf8');
-const updated=updatePin(original,cfg,pin);
+// The PR this release's commit merged, for a pin field that names it (none for a direct push).
+const commit = process.env.SOURCE_SHA || process.env.GITHUB_SHA;
+const pr = Object.values(cfg.pinFields || {}).some(source => prSources.includes(source))
+  ? await request(`${api()}/commits/${commit}/pull`, {token: process.env.TOKEN, allow404: true}) : null;
+const updated=updatePin(original,cfg,pin,{pr});
 if (updated !== original) {
   const branch = `ci-pin/${process.env.VERSION}`;
   const token = process.env.PIN_TOKEN;

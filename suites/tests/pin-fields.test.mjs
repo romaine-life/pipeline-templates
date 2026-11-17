@@ -26,3 +26,14 @@ test('a date pin field records when the release was pinned, to the second', () =
   assert.deepEqual(updated.release, {version: '1.5.3', deployedAt: '2026-11-17T03:30:12Z'});
   assert.equal(updated.image, pin);
 });
+
+test("PR pin fields name the release commit's merged PR, and stay empty for a direct push", () => {
+  const pin = `romainecr.azurecr.io/app:v1.0.9@sha256:${'d'.repeat(64)}`;
+  const original = `image: romainecr.azurecr.io/app:v1.0.8@sha256:${'c'.repeat(64)}\nbuild:\n  prTitle: "old"\n  prNumber: "1"\n  prUrl: "u"\n  commit: "abc"\n`;
+  const cfg = {image: 'romainecr.azurecr.io/app', pinFields: {'build.prTitle': 'prTitle', 'build.prNumber': 'prNumber', 'build.prUrl': 'prUrl', 'build.commit': 'commit'}};
+  const values = {tag: 'v1.0.9', commit: 'a'.repeat(40)};
+  const merged = YAML.parse(updatePin(original, cfg, pin, {...values, pr: {number: 42, title: 'A "quoted": title', html_url: 'https://forgejo.example/o/r/pulls/42'}}));
+  assert.deepEqual(merged.build, {prTitle: 'A "quoted": title', prNumber: '42', prUrl: 'https://forgejo.example/o/r/pulls/42', commit: 'a'.repeat(40)});
+  const direct = YAML.parse(updatePin(original, cfg, pin, {...values, pr: null}));
+  assert.deepEqual(direct.build, {prTitle: '', prNumber: '', prUrl: '', commit: 'a'.repeat(40)});
+});

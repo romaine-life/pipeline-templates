@@ -150,7 +150,7 @@ export function validate(value, where = 'fleet entry') {
   for(const section of ['cluster','web'])if(value[section]?.pinFields!==undefined) {
     const fields=value[section].pinFields;
     if(!value[section].pinFile || !fields || Array.isArray(fields) || typeof fields!=='object' || !Object.keys(fields).length)throw new Error(`${section}.pinFields needs pinFile and a nonempty field map`);
-    for(const [field,source] of Object.entries(fields))if(!/^[A-Za-z_][\w-]*(?:\.[A-Za-z_][\w-]*)*$/.test(field) || field.split('.').some(key=>['__proto__','constructor','prototype'].includes(key)) || !['tag','commit','version','date'].includes(source))throw new Error(`${section}.pinFields maps dotted YAML fields to tag, commit, version or date`);
+    for(const [field,source] of Object.entries(fields))if(!/^[A-Za-z_][\w-]*(?:\.[A-Za-z_][\w-]*)*$/.test(field) || field.split('.').some(key=>['__proto__','constructor','prototype'].includes(key)) || !['tag','commit','version','date','prNumber','prTitle','prUrl'].includes(source))throw new Error(`${section}.pinFields maps dotted YAML fields to tag, commit, version, date or the merged PR's prNumber, prTitle or prUrl`);
   }
   for (const [name, image] of Object.entries(value.service || {})) {
     if (typeof image !== 'string' || !/^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/.test(image)) throw new Error(`service.${name} must be a digest-pinned Artifact Keeper image`);
