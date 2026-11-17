@@ -372,7 +372,7 @@
     },
     {
       "path": "actions/setup-go/action.yml",
-      "inputs": {"go-version-file":{"required":false,"default":"go.mod"},"cache":{"required":false,"default":"true"},"cache-dependency-path":{"required":false,"default":""}},
+      "inputs": {"go-version-file":{"required":false,"default":"go.mod"},"cache":{"required":false,"default":"false"},"cache-dependency-path":{"required":false,"default":""}},
       "outputs": {"go-version":{"value":"${{ steps.setup.outputs.go-version }}"}},
       "callers": [
         {"repository":"nelsong6/forgejo","file":".forgejo/workflows/ci.yml","ref":"main","inputs":["go-version-file","cache"],"outputs":[]},

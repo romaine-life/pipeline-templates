@@ -71,8 +71,8 @@ there's a reason to.
   job, which overrides a `rust-toolchain.toml`, and leaves the runner's default alone.
 - `actions/setup-go`: the exact Go in `go.mod` (`go-version-file`), from its `toolchain` line,
   else its `go` line, which must name a patch release (`go 1.26.1`), checked against its
-  published `.sha256`; then `actions/setup-go@v6` on it, so `cache` and
-  `cache-dependency-path` (also inputs) work as before. It installs into the tool-cache folder
+  published `.sha256`; then `actions/setup-go@v6` on it, with its `cache` off unless a job turns
+  it on (PIPT-15). It installs into the tool-cache folder
   setup-go@v6 names for the runners' `GO_DOWNLOAD_BASE_URL`, under a lock: setup-go@v6 on its
   own installs with none, and jobs taking a new version at once can delete it under each
   other (PIPT-5).

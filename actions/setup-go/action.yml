@@ -2,7 +2,7 @@ name: setup-go
 description: >-
   Puts the exact Go a go.mod names on PATH, downloaded from the runner's GO_DOWNLOAD_BASE_URL
   (Artifact Keeper's go.dev/dl) and checked against its published .sha256, then hands it to
-  actions/setup-go@v6 so its module cache still works. Each version is installed once, under
+  actions/setup-go@v6. Each version is installed once, under
   a lock, into the tool-cache folder setup-go@v6 looks in for that base URL: setup-go's own
   install has no lock, so jobs installing one version at once can delete it under each other
   (PIPT-5). x64 only.
@@ -13,8 +13,10 @@ inputs:
       must name a patch release.
     default: go.mod
   cache:
-    description: Passed to actions/setup-go.
-    default: "true"
+    description: >-
+      Passed to actions/setup-go. Off by default: on, each job uploads about 1 GB to the
+      runner's cache store, which nothing prunes (PIPT-15).
+    default: "false"
   cache-dependency-path:
     description: Passed to actions/setup-go.
     default: ""

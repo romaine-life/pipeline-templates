@@ -198,8 +198,6 @@ jobs:
     - uses: ./_ci/actions/suite
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
-      with:
-        cache: 'false'
       if: matrix.toolchain == 'go'
     - uses: ./_ci/actions/rust-toolchain
       with:
@@ -376,8 +374,6 @@ jobs:
     - uses: ./_ci/actions/suite
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
-      with:
-        cache: 'false'
       if: matrix.toolchain == 'go'
     - uses: ./_ci/actions/rust-toolchain
       with:
