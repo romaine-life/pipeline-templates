@@ -156,6 +156,16 @@
         "python"
       ]
     },
+    "nelsong6/ntfy": {
+      "suites": [
+        "cluster-service",
+        "powershell"
+      ],
+      "cluster": {
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/openproject": {
       "suites": [
         "cluster-service"

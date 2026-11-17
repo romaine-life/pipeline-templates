@@ -33,6 +33,10 @@ test('push checks, trigger filters, unsafe concurrency and polls are rejected', 
   ];
   for (const [text, expected, read] of cases) assert.match(violations(text, read).join('\n'), expected);
 });
+test('a URL query parameter named poll is a single read, not polling', () => {
+  assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'curl -sf "http://$address/alerts/json?poll=1"')), []);
+  assert.match(violations(valid.replace('go build ./cmd/...', 'node poll.mjs')).join('\n'), /polling/);
+});
 test('relative imported helper scripts remain covered by the rules', () => {
   const sources={'ci/deploy.mjs':"import './nested/wait.mjs'",'ci/nested/wait.mjs':'while (true) { setTimeout(fn, 3000); }'};
   assert.match(violations(valid.replace('go build ./cmd/...','node ci/deploy.mjs'),p=>sources[p] ?? null).join('\n'),/loop waits/);

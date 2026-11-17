@@ -49,7 +49,7 @@ export function violations(text, read) {
     for (const step of job.steps || []) {
       const commands = scriptText(step.run || '', read);
       if (/\b(?:sleep|Start-Sleep|setTimeout|setInterval)\b/i.test(commands) && /\b(?:while|until|for|retry|retries)\b/i.test(commands)) bad.push(`${name}: loop waits on a runner`);
-      if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
+      if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|(?<![?&])\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
       if (/\b(?:while|until)\b/.test(commands) && /\b(?:curl|wget|fetch)\s*[(\s]/.test(commands)) bad.push(`${name}: request loop holds a runner`);
       const isCheck = check.test(commands) || /\/(?:check-|lint|test)/.test(step.uses || '') || /^(?:check|test|lint|validate|plan|parse)(?:-|$)/i.test(name);
       if (isCheck && !prOnly(job.if) && !prOnly(step.if)) bad.push(`${name}: check must be guarded by github.event_name == 'pull_request'`);
