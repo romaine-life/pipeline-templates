@@ -11,4 +11,8 @@ if (native) {
   run('go', ['vet', '-p', '4', './...']);
   run('go', ['test', '-p', '4', './...']);
 }
+// go.race names the packages whose tests run again under the race detector. It needs cgo,
+// which the Linux runner has, so it runs there.
+const race = config().go?.race || [];
+if (race.length && process.platform === 'linux') run('go', ['test', '-race', '-p', '4', ...race], {env: {CGO_ENABLED: '1'}});
 if (wasm) run('go', ['vet', '-p', '4', './...'], {env: {GOOS: 'js', GOARCH: 'wasm'}});

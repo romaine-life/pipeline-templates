@@ -3,7 +3,7 @@ import {capture, readJSON, safePath, templates} from './lib.mjs';
 
 const fields = {
   suites: null, inputs: null,
-  go: ['platforms', 'dependencies'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
+  go: ['platforms', 'dependencies', 'race'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
   release: ['toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
   cluster: ['renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
@@ -46,7 +46,7 @@ export function validate(value, where = 'fleet entry') {
       for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`${where}: unknown field ${key}.${field}`);
     }
   }
-  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['docs','required']]) {
+  for (const [section, field] of [['go','dependencies'],['go','race'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['docs','required']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   for (const [section, field] of [['rust','noDefaultFeatures'],['cluster','build'],['cluster','smoke'],['docs','release'],['powershell','windowsPowerShell']]) {

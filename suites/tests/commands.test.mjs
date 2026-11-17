@@ -91,6 +91,13 @@ test('a release copies the files under release/assets/<toolchain> beside the bui
   const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
   assert.equal(result.status,0,result.stderr);
 });
+test('go.race runs the named packages under the race detector, with cgo, on Linux',()=>{
+  const {result,trace}=probe('go/test.mjs',[],{},{go:{race:['./internal/move','./internal/alerts']}});
+  assert.equal(result.status,0,result.stderr);
+  const raced=trace.filter(t=>t.command==='go' && t.args.includes('-race'));
+  if (process.platform==='linux') assert.deepEqual(raced.map(t=>t.args.slice(-2)),[['./internal/move','./internal/alerts']]);
+  else assert.equal(raced.length,0,'the race detector runs only on Linux');
+});
 test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',()=>{
   const cfg={release:{toolchains:['go'],goTargets:[{goos:'js',goarch:'wasm',packages:['.']}]}};
   const only=probe('go/test.mjs',[],{PROBE_GO_LIST:''},cfg);assert.equal(only.result.status,0,only.result.stderr);

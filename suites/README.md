@@ -24,7 +24,8 @@ an unknown field fails.
 
 | Section | Fields |
 |---|---|
-| `go`, `rust`, `cmake`, `dotnet`, `python` | `platforms`: test platforms beyond Linux (`windows-latest`) |
+| `go`, `rust`, `cmake`, `dotnet`, `python` | `platforms`: the platforms tests run on (default `ubuntu-latest`; list it beside `windows-latest` to keep Linux) |
+| `go` | `dependencies`: modules taken up through `go/dependencies.yml`; `race`: packages whose tests also run under the race detector, in the Linux test job (so `platforms` must include `ubuntu-latest`) |
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures`, `lints` |
 | `service` | `postgres`, `manticore`, `greenmail`: digest-pinned images the tests need |
 | `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets`, `dependencies`, `assets`, `image` |
