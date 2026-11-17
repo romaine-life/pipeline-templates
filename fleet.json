@@ -48,6 +48,22 @@
         "docs"
       ]
     },
+    "nelsong6/forgejo": {
+      "suites": [
+        "cluster-service"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "forgejo"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/home-cluster": {
       "suites": [
         "cluster-service",
