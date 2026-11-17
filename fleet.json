@@ -32,6 +32,19 @@
         "docs"
       ]
     },
+    "nelsong6/home-hub": {
+      "suites": [
+        "cluster-service",
+        "go"
+      ],
+      "cluster": {
+        "image": "forgejo.romaine.life/nelsong6/home-hub",
+        "baoRole": "home-hub-publish",
+        "baoSecret": "services/home-hub-build",
+        "pinFile": "k8s/deployment.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/HOMEINFRA-1"
+      }
+    },
     "nelsong6/journal-biking": {
       "suites": [
         "docs"
