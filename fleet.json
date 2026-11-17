@@ -16,6 +16,43 @@
         "smoke": false
       }
     },
+    "nelsong6/at-terminal": {
+      "suites": [
+        "release"
+      ],
+      "release": {
+        "prefix": "v1.25",
+        "suffix": ".0",
+        "homeSync": true,
+        "external": [
+          {
+            "id": "msix",
+            "provider": "forgejo",
+            "repository": "nelsong6/at-terminal",
+            "workflow": "build.yml",
+            "assets": [
+              "at-terminal_{version}_x64.msix",
+              "at-terminal.cer",
+              "at-protocol.txt"
+            ]
+          }
+        ]
+      },
+      "inputs": {
+        "release.build": [
+          "build/**",
+          "dep/**",
+          "oss/**",
+          "res/**",
+          "tools/**",
+          ".nuget/**",
+          "NuGet.Config",
+          "vcpkg.json",
+          ".forgejo/container/**",
+          ".forgejo/workflows/build.yml"
+        ]
+      }
+    },
     "nelsong6/avatars": {
       "suites": [
         "cluster-service",

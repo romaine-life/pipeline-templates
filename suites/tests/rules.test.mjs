@@ -33,6 +33,11 @@ test('push checks, trigger filters, unsafe concurrency and polls are rejected', 
   ];
   for (const [text, expected, read] of cases) assert.match(violations(text, read).join('\n'), expected);
 });
+test("a suite script a repository's workflow runs from _ci is not the repository's", () => {
+  const read = p => p.startsWith('_ci/') ? 'while true; do sleep 30; done; node poll.mjs' : null;
+  assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'node _ci/suites/inputs.mjs release'), read), []);
+  assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'node ./_ci/suites/release/complete-external.mjs'), read), []);
+});
 test('a URL query parameter named poll is a single read, not polling', () => {
   assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'curl -sf "http://$address/alerts/json?poll=1"')), []);
   assert.match(violations(valid.replace('go build ./cmd/...', 'node poll.mjs')).join('\n'), /polling/);

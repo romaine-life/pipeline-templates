@@ -16,7 +16,10 @@ export function scriptText(source, read = () => null, seen = new Set(), from = '
   for (const match of text.matchAll(/(?:^|[\s'"(])([\w./-]+\.(?:m?js|cjs|py|ps1|sh))\b/gm)) {
     const relative = match[1];
     const file = path.posix.normalize(relative.startsWith('.') ? path.posix.join(path.posix.dirname(from), relative) : relative);
-    if (seen.has(file) || file.split('/').includes('..') || file.startsWith('/')) continue;
+    // _ci is the suites' checkout, whose scripts pipeline-templates holds to these rules: a
+    // repository's workflow that runs one isn't judged by the suite's code (this file's own
+    // words for a poll and a loop among it).
+    if (seen.has(file) || file.split('/').includes('..') || file.startsWith('/') || file === '_ci' || file.startsWith('_ci/')) continue;
     seen.add(file);
     const child = read(file);
     if (child !== null) result += `\n${scriptText(child, read, seen, file)}`;
