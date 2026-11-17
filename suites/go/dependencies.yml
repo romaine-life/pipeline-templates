@@ -26,7 +26,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       with:
-        cache: 'true'
+        cache: 'false'
     - run: node _ci/suites/go/dependencies.mjs
       env:
         TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}

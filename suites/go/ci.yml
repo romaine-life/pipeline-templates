@@ -71,7 +71,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       with:
-        cache: 'true'
+        cache: 'false'
     - run: node _ci/suites/go/format.mjs
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.format == 'true'
@@ -91,7 +91,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       with:
-        cache: 'true'
+        cache: 'false'
     - run: node _ci/suites/go/test.mjs
       env:
         PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
@@ -113,7 +113,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       with:
-        cache: 'true'
+        cache: 'false'
     - run: node _ci/suites/go/test.mjs
       env:
         PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
@@ -140,7 +140,7 @@ jobs:
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       with:
-        cache: 'true'
+        cache: 'false'
     - run: node _ci/suites/go/test.mjs
       env:
         PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
