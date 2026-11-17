@@ -948,6 +948,20 @@
         ]
       }
     },
+    "romaine-life/infra-bootstrap": {
+      "suites": [
+        "tofu"
+      ],
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "infra-bootstrap.tfstate"
+        }
+      }
+    },
     "romaine-life/kill-me": {
       "suites": [
         "cluster-service",
