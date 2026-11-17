@@ -12,7 +12,10 @@ if (!['check', 'publish'].includes(mode)) throw new Error('image.mjs check|publi
 if (mode === 'publish') requirePublish();
 const build = cfg.build !== false;
 if (build) {
-  run('docker', ['build', '--network', 'host', '-t', image, '.'], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
+  // The release version (a PR build has none) and commit, for an image that shows them.
+  const args = ['--build-arg', `SOURCE_SHA=${process.env.GITHUB_SHA || capture('git', ['rev-parse', 'HEAD']).trim()}`,
+    ...(process.env.VERSION ? ['--build-arg', `APP_VERSION=${process.env.VERSION}`] : [])];
+  run('docker', ['build', '--network', 'host', ...args, '-t', image, '.'], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
 } else if (!cfg.image) throw new Error('upstream service requires cluster.image pinned by digest');
 if (mode === 'check') {
   // The application self-test must exit, including database migrations and sign-in assertions.

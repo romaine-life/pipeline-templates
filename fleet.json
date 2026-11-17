@@ -519,7 +519,13 @@
           "go-js-wasm": {
             "fzt-browser-js-wasm": "fzt.wasm"
           }
-        }
+        },
+        "dispatch": [
+          {
+            "repository": "romaine-life/landing-page",
+            "workflow": "web-app/dependencies.yml"
+          }
+        ]
       }
     },
     "romaine-life/fzt-frontend": {
@@ -676,6 +682,62 @@
         ]
       }
     },
+    "romaine-life/landing-page": {
+      "suites": [
+        "cluster-service",
+        "web-app"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "landing-page"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      },
+      "web": {
+        "packages": [
+          "backend"
+        ],
+        "node": "22",
+        "image": "romainecr.azurecr.io/landing-page",
+        "pinFile": "k8s/values.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
+        "dependencies": [
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt.wasm",
+            "destination": "frontend/fzh/fzt.wasm"
+          },
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt-terminal.js",
+            "destination": "frontend/fzh/fzt-terminal.js"
+          },
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt-terminal.css",
+            "destination": "frontend/fzh/fzt-terminal.css"
+          },
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt-web.js",
+            "destination": "frontend/fzh/fzt-web.js"
+          },
+          {
+            "repository": "romaine-life/string-box",
+            "path": "renders/string-box.glb",
+            "destination": "string-box/public/string-box.glb"
+          }
+        ]
+      },
+      "release": {
+        "prefix": "v1.0"
+      }
+    },
     "romaine-life/macrocraft": {
       "suites": [
         "docs"
@@ -786,7 +848,23 @@
       "suites": [
         "docs",
         "python"
-      ]
+      ],
+      "docs": {
+        "release": true
+      },
+      "release": {
+        "dispatch": [
+          {
+            "repository": "romaine-life/landing-page",
+            "workflow": "web-app/dependencies.yml"
+          }
+        ]
+      },
+      "inputs": {
+        "docs.validate": [
+          "renders/**"
+        ]
+      }
     },
     "romaine-life/string-lab": {
       "suites": [

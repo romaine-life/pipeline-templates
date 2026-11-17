@@ -7,7 +7,7 @@ const fields = {
   release: ['module', 'toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
   cluster: ['renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
-  web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp'], tofu: ['version', 'backend'], docs: ['required', 'release'],
+  web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies'], tofu: ['version', 'backend'], docs: ['required', 'release'],
   powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
@@ -46,7 +46,7 @@ export function validate(value, where = 'fleet entry') {
       for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`${where}: unknown field ${key}.${field}`);
     }
   }
-  for (const [section, field] of [['go','dependencies'],['go','race'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['docs','required']]) {
+  for (const [section, field] of [['go','dependencies'],['go','race'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies'],['docs','required']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   for (const [section, field] of [['release','module'],['rust','noDefaultFeatures'],['cluster','build'],['cluster','smoke'],['docs','release'],['powershell','windowsPowerShell']]) {
@@ -95,6 +95,18 @@ export function validate(value, where = 'fleet entry') {
       safePath(source);
       if(source.split('*').length>2 || typeof target!=='string' || !/^[\w.*+{}-]+$/.test(target) || target.startsWith('ci-release-') || target.split('*').length>2 || target.replaceAll('{tag}','').replaceAll('{version}','').includes('{'))throw new Error('asset rename needs one optional wildcard and a plain published name with {tag}/{version}');
     }
+  }
+  const destinations = new Set();
+  for (const dependency of value.web?.dependencies || []) {
+    if (!value.web.image) throw new Error('web.dependencies are inputs to the web image');
+    if (!dependency || Object.keys(dependency).some(k => !['repository', 'asset', 'path', 'destination'].includes(k))) throw new Error('unknown web dependency field');
+    if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(dependency.repository || '')) throw new Error('a web dependency names an owned repository');
+    if (Boolean(dependency.asset) === Boolean(dependency.path)) throw new Error('a web dependency is a release asset or a path at the release tag, not both');
+    if (dependency.asset && !/^[\w.+-]+$/.test(dependency.asset)) throw new Error('web dependency asset must be a plain file name');
+    if (dependency.path) safePath(dependency.path);
+    safePath(dependency.destination);
+    if (destinations.has(dependency.destination)) throw new Error(`two web dependencies stage ${dependency.destination}`);
+    destinations.add(dependency.destination);
   }
   for (const dependency of value.release?.dependencies || []) {
     if(Object.keys(dependency).some(k=>!['toolchain','targets','url','sha256','lock','destination'].includes(k)))throw new Error('unknown release dependency field');

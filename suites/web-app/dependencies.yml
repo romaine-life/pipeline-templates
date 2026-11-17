@@ -1,0 +1,28 @@
+name: Suite web-app dependencies
+'on':
+  workflow_dispatch: null
+concurrency:
+  group: suite-web-app-dependencies-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+  GOMAXPROCS: '4'
+  CARGO_BUILD_JOBS: '4'
+jobs:
+  update:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ vars.CI_SUITES_REF || 'main' }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+    - run: node _ci/suites/web-app/dependencies.mjs bump
+      env:
+        TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}

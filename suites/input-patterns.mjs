@@ -13,7 +13,7 @@ export const inputs = {
   'cluster-service.manifests': ['k8s/**'],
   'cluster-service.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**'],
   'web-app.test': ['package*.json', '.npmrc', 'src/**', 'public/**', '*config.*', 'test/**', 'tests/**'],
-  'web-app.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**'],
+  'web-app.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**', 'dependencies.lock'],
   'tofu.plan': ['tofu/**'],
   'docs.validate': ['**/*.md'],
   'powershell.parse': ['**/*.ps1', '**/*.psm1', '**/*.psd1'],

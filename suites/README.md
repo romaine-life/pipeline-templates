@@ -31,7 +31,7 @@ an unknown field fails.
 | `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets`, `dependencies`, `assets`, `image` |
 | `release` (a Go library) | `module: true`: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
 | `cluster` | `renders`, `build`, `image`, `baoRole`, `baoSecret`, `pinFile`, `pinFields` |
-| `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `containerApp`, `resourceGroup`, `staticApp` |
+| `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `containerApp`, `resourceGroup`, `staticApp`, `dependencies`: image inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds; the source's `release.dispatch` to `web-app/dependencies.yml` proposes its newest release as a take-up PR |
 | `tofu` | `version`, `backend` |
 | `docs` | `required`, `release` |
 | `powershell` | `windowsPowerShell` |
