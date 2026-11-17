@@ -265,6 +265,30 @@
         "version": "3.13"
       }
     },
+    "nelsong6/shows-remote": {
+      "suites": [
+        "release",
+        "rust"
+      ],
+      "rust": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "rust"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true,
+        "rustTargets": [
+          {
+            "target": "x86_64-pc-windows-msvc"
+          }
+        ]
+      }
+    },
     "nelsong6/torrent": {
       "suites": [
         "cluster-service"

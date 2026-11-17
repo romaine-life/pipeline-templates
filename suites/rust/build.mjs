@@ -3,6 +3,8 @@ import path from 'node:path';
 import {capture, run, tracked} from '../lib.mjs';
 import {config} from '../config.mjs';
 import {cargoCache} from './cache.mjs';
+import {rustEnvironment} from './environment.mjs';
+rustEnvironment();
 cargoCache(`release-${process.platform}`);
 const cfg = config().rust || {};
 const target=process.env.RELEASE_TARGET;

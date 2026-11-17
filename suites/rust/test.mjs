@@ -1,6 +1,8 @@
 import {run} from '../lib.mjs';
 import {config} from '../config.mjs';
 import {cargoCache} from './cache.mjs';
+import {rustEnvironment} from './environment.mjs';
+rustEnvironment();
 cargoCache(`test-${process.platform}`);
 const cfg = config().rust || {};
 const features=cfg.platformFeatures?.[process.platform] || cfg.features;

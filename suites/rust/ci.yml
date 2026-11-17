@@ -95,6 +95,8 @@ jobs:
       with:
         components: clippy, rustfmt
     - run: node _ci/suites/rust/test.mjs
+      env:
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-linux == 'true'
   check-test-windows:
@@ -115,6 +117,8 @@ jobs:
       with:
         components: clippy, rustfmt
     - run: node _ci/suites/rust/test.mjs
+      env:
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-windows == 'true'
     defaults:
@@ -140,6 +144,8 @@ jobs:
       with:
         components: clippy, rustfmt
     - run: node _ci/suites/rust/test.mjs
+      env:
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop

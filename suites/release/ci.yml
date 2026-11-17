@@ -227,6 +227,7 @@ jobs:
         RELEASE_TARGET: ${{ matrix.target }}
         DEPENDENCY_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         RELEASE_FEATURES: ${{ matrix.features }}
         RELEASE_NO_DEFAULT: ${{ matrix.noDefault }}
     - uses: forgejo/upload-artifact@v4
@@ -404,6 +405,7 @@ jobs:
         RELEASE_TARGET: ${{ matrix.target }}
         DEPENDENCY_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         RELEASE_FEATURES: ${{ matrix.features }}
         RELEASE_NO_DEFAULT: ${{ matrix.noDefault }}
     - uses: forgejo/upload-artifact@v4
