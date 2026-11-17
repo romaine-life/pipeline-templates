@@ -85,6 +85,7 @@ export async function scope(suite) {
   output('python', cfg.python?.version || '3.12');
   output('static-app', Boolean(cfg.web?.staticApp));
   output('has-image', Boolean(cfg.web?.image));
+  output('test-history', cfg.web?.history === true);
   output('has-dispatch', Boolean(cfg.release?.dispatch?.length || cfg.release?.mirror));
   for (const name of ['postgres', 'manticore', 'greenmail']) output(name, cfg.service?.[name] || '');
 }

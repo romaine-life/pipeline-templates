@@ -584,7 +584,8 @@
           "build.prUrl": "prUrl",
           "build.commit": "commit"
         },
-        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
+        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
+        "history": true
       },
       "service": {
         "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9"

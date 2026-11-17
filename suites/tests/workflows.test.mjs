@@ -14,6 +14,8 @@ test('host jobs never request services, and history is limited to diff consumers
         if(job.steps?.some(step=>step.run==='node _ci/suites/services.mjs start'))assert.ok(job.steps.some(step=>step.run==='node _ci/suites/services.mjs stop' && step.if==='always()'),`${suite.name}/${name}: cleanup after cancellation`);
         for(const step of job.steps || []){
           if(step.with?.['fetch-depth']===0)assert.ok(name==='scope',`${suite.name}/${name}: unnecessary history`);
+          // A web app's tests get history only when its entry says they compare with the base.
+          if(typeof step.with?.['fetch-depth']==='string')assert.equal(`${suite.name}/${name}:${step.with['fetch-depth']}`,"web-app/check-test:${{ needs.scope.outputs.test-history == 'true' && '0' || '1' }}");
         }
       }
     }

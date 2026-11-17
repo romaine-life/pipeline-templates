@@ -64,6 +64,7 @@ jobs:
       greenmail: ${{ steps.scope.outputs.greenmail }}
       image: ${{ steps.scope.outputs.image }}
       has-image: ${{ steps.scope.outputs.has-image }}
+      test-history: ${{ steps.scope.outputs.test-history }}
       static-app: ${{ steps.scope.outputs.static-app }}
       build: ${{ steps.release.outputs.build }}
       joined-image: ${{ steps.scope.outputs.joined-image }}
@@ -71,8 +72,11 @@ jobs:
   check-test:
     runs-on: ubuntu-latest
     steps:
+    # A repo whose tests compare with the base branch (web.history) gets full history, which
+    # brings origin/<base>: the checkout drops its credentials, so nothing can fetch it later.
     - uses: actions/checkout@v4
       with:
+        fetch-depth: ${{ needs.scope.outputs.test-history == 'true' && '0' || '1' }}
         persist-credentials: false
     - uses: actions/checkout@v4
       with:
