@@ -1356,6 +1356,57 @@
         "docs"
       ]
     },
+    "romaine-life/spirelens": {
+      "suites": [
+        "dotnet",
+        "go",
+        "release"
+      ],
+      "dotnet": {
+        "platforms": [
+          "windows-latest"
+        ],
+        "buildPlatform": "windows-latest"
+      },
+      "go": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "dotnet"
+        ],
+        "prefix": "v0.5",
+        "dotnetProjects": [
+          "SpireLens.csproj"
+        ],
+        "assetNames": {
+          "dotnet": {
+            "SpireLens": "SpireLens.zip"
+          }
+        },
+        "dispatch": [
+          {
+            "repository": "romaine-life/spirelens",
+            "workflow": "workshop.yml"
+          }
+        ]
+      },
+      "inputs": {
+        "dotnet.test": [
+          "Core/**",
+          "Fixtures/**",
+          "lib/**"
+        ],
+        "release.package": [
+          "SpireLens.json",
+          "Core/**",
+          "lib/**"
+        ]
+      }
+    },
     "romaine-life/spirelens-mcp": {
       "suites": [
         "docs",

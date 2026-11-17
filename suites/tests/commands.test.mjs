@@ -53,6 +53,8 @@ test('toolchain scripts execute standard commands and propagate failures', () =>
   assert.match(gofmt.args.at(-1).replaceAll('\\','/'),/gofmt-[^/]+\/main\.go$/,'a CRLF checkout of an LF commit is formatted from an LF copy');
   const committed = probe('go/format.mjs',[],{PROBE_GO_EOL:'lf'}).trace.find(t => t.command === 'gofmt');
   assert.equal(committed.args.at(-1),'main.go','a file is formatted as it is when the checkout matches the commit');
+  const solution = probe('dotnet/test.mjs',[],{},{},{'Mod.sln':'','Mod.csproj':'<Project/>'}).trace.filter(t => t.command === 'dotnet' && t.args[0] !== '--version');
+  assert.deepEqual(solution.map(t => t.args.slice(0,2)), [['restore','Mod.sln'],['format','Mod.sln'],['test','Mod.sln']], 'the root solution is built even beside a root project');
   const {result} = probe('go/test.mjs',[],{PROBE_FAIL:'go'});
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/go exited 9/);
