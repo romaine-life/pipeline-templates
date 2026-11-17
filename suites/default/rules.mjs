@@ -18,8 +18,9 @@ export function scriptText(source, read = () => null, seen = new Set(), from = '
     const file = path.posix.normalize(relative.startsWith('.') ? path.posix.join(path.posix.dirname(from), relative) : relative);
     // _ci is the suites' checkout, whose scripts pipeline-templates holds to these rules: a
     // repository's workflow that runs one isn't judged by the suite's code (this file's own
-    // words for a poll and a loop among it).
-    if (seen.has(file) || file.split('/').includes('..') || file.startsWith('/') || file === '_ci' || file.startsWith('_ci/')) continue;
+    // words for a poll and a loop among it). In pipeline-templates itself, where the suite is
+    // at suites/, this file is still skipped: its words for a poll are patterns, not commands.
+    if (seen.has(file) || file.split('/').includes('..') || file.startsWith('/') || file === '_ci' || file.startsWith('_ci/') || file === 'suites/default/rules.mjs') continue;
     seen.add(file);
     const child = read(file);
     if (child !== null) result += `\n${scriptText(child, read, seen, file)}`;
@@ -37,8 +38,8 @@ export function dependencies() {
 }
 // A wait inside a loop is a poll. A single wait for time itself to pass (a cache's freshness
 // running out, which nothing announces) isn't, so a sleep counts only inside a loop: a shell
-// sleep between a loop's do and done, a Python sleep under a for or while. PowerShell's and
-// JavaScript's waits still count beside any loop word.
+// sleep between a loop's do and done, a Python sleep under a for or while, and a JavaScript
+// or PowerShell wait inside a loop's braces.
 function shellLoopSleep(text) {
   let depth = 0;
   for (const [, word] of text.matchAll(/(?<![\w.$-])(do|done|sleep)(?![\w-])/g)) {
@@ -77,9 +78,34 @@ export function shellLoopRequest(text) {
   }
   return false;
 }
+// A JavaScript or PowerShell wait counts inside a loop's braces: a Start-Sleep, a setTimeout
+// or setInterval, or a helper named for one (a sleep or delay built on setTimeout). A method's
+// setTimeout is a socket's or a request's I/O deadline, and a timer outside a loop a deadline.
+// String literals are dropped first: their words and braces (a shell command a script holds,
+// an error message) aren't the script's loops.
+function bracedLoopWait(source) {
+  const text = source.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''");
+  const helpers = [...text.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>[^\n;]*(?<![\w.$])setTimeout\b|\bfunction\s+([\w$]+)\s*\([^)]*\)\s*\{[^\n]*(?<![\w.$])setTimeout\b|\bsetTimeout\s+as\s+([\w$]+)/g)]
+    .map(m => m[1] ?? m[2] ?? m[3]);
+  const waits = ['setTimeout', 'setInterval', ...helpers].map(w => w.replace(/\$/g, '\\$')).join('|');
+  // A loop's header waits for its body's brace; a braceless body ends at the statement's
+  // semicolon, outside the header's parentheses.
+  const blocks = [];
+  let header = false, parens = 0;
+  for (const [token] of text.matchAll(new RegExp(`[{}();]|(?<![\\w.$-])(?:foreach|for|while|until|do|[Ff]or[Ee]ach-[Oo]bject|[Ss]tart-[Ss]leep|${waits})(?![\\w$-])`, 'g'))) {
+    if (token === '{' && header && parens) blocks.push(false);
+    else if (token === '{') { blocks.push(header); header = false; }
+    else if (token === '}') blocks.pop();
+    else if (token === '(') parens++;
+    else if (token === ')') parens = Math.max(0, parens - 1);
+    else if (token === ';') { if (!parens) header = false; }
+    else if (/^(?:foreach|for|while|until|do|foreach-object)$/i.test(token)) { header = true; parens = 0; }
+    else if (header || blocks.includes(true)) return true;
+  }
+  return false;
+}
 export function loopWaits(commands) {
-  return shellLoopSleep(commands) || pythonLoopSleep(commands) ||
-    (/\b(?:Start-Sleep|setTimeout|setInterval)\b/i.test(commands) && /\b(?:while|until|for|retry|retries)\b/i.test(commands));
+  return shellLoopSleep(commands) || pythonLoopSleep(commands) || bracedLoopWait(commands);
 }
 export function violations(text, read) {
   const document = YAML.parseDocument(text, {uniqueKeys: true});

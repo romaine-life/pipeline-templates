@@ -57,6 +57,18 @@ test('a sleep counts as a poll only inside a loop', async () => {
     ['import time\nfor x in xs:\n    if x:\n        time.sleep(1)', true],
     ['import time\nprepare()\ntime.sleep(1)\nfor x in xs:\n    print(x)', false],
     ['while ($true) { Start-Sleep 5 }', true],
+    ['foreach ($i in 1..30) {\n  if (Test-Ready) { break }\n  Start-Sleep 2\n}', true],
+    ['Start-Sleep 5\nforeach ($f in $files) { Write-Output $f }', false],
+    ['for (let i = 0; i < 30; i++) {\n  if (await ready()) break;\n  await new Promise(r => setTimeout(r, 1000));\n}', true],
+    ['const sleep = ms => new Promise(r => setTimeout(r, ms));\nwhile (!(await ready())) { await sleep(1000); }', true],
+    ["import {setTimeout as delay} from 'node:timers/promises';\nfor (;;) { await delay(500); }", true],
+    ['socket.setTimeout(3000, () => socket.destroy());\nfor (const port of ports) { await probe(port); }', false],
+    ['const deadline = setTimeout(() => reject(new Error("late")), 240000);\nfor (const line of lines) { if (line) resolve(); }', false],
+    ['while (queue.length) { await handle(queue.shift()); }\nrequest.setTimeout(300000, () => request.destroy());', false],
+    ['for (const f of files) load(f);\ntry { timer = setTimeout(() => reject(new Error("late")), 1000); } finally {}', false],
+    ['while (!(await ready())) await new Promise(r => setTimeout(r, 1000));', true],
+    ['for (const {name} of jobs) { await new Promise(r => setTimeout(r, 1000)); }', true],
+    ['const shell = "for port in 1 2; do nc -z $port; done { x }";\nconst t = setTimeout(() => fail(), 1000);', false],
   ]) assert.equal(loopWaits(commands), polls, commands);
 });
 test('a request counts as a poll only in a shell loop', async () => {
