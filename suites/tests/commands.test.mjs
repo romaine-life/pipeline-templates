@@ -68,9 +68,13 @@ test('image checks smoke once, publication skips smoke and queues the pin withou
   const cfg = {cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
   let check = probe('cluster-service/image.mjs',['check'],{},cfg);
   assert.equal(check.result.status,0,check.result.stderr);
-  assert.deepEqual(check.trace.filter(t=>t.command).map(t=>t.args[0]),['build','run']);
+  assert.deepEqual(check.trace.filter(t=>t.command).map(t=>t.args[0]),['build','run','image']);
+  const built=check.trace.find(t=>t.args?.[0]==='build').args.at(-2);
+  assert.deepEqual(check.trace.at(-1).args,['image','rm',built],'the job removes the image it built');
   const publish = probe('cluster-service/image.mjs',['publish'],{},cfg);
   assert.equal(publish.result.status,0,publish.result.stderr);
+  assert.deepEqual(publish.trace.filter(t=>t.command==='docker').at(-1).args.slice(0,2),['image','rm']);
+  assert.equal(publish.trace.filter(t=>t.command==='docker').at(-1).args.length,4,'the job removes its image and the registry tag');
   assert.equal(publish.trace.some(t=>t.command==='docker' && t.args[0]==='run'),false);
   assert.equal(publish.trace.some(t=>t.command==='docker' && t.args[0]==='login' && t.input==='<stdin>'),true);
   const pin = probe('cluster-service/pin.mjs',[],{},cfg);

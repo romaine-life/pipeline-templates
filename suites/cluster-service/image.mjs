@@ -4,18 +4,24 @@ import {config} from '../config.mjs';
 import path from 'node:path';
 import os from 'node:os';
 import {pathToFileURL} from 'node:url';
+import crypto from 'node:crypto';
 
 export async function imageOperation(cfg, mode, login) {
 const repo = (process.env.GITHUB_REPOSITORY || path.basename(process.cwd())).replace(/[^\w.-]/g, '-');
-const image = `ci-${repo}:${process.env.GITHUB_SHA || capture('git', ['rev-parse', 'HEAD'])}`;
+// Its own name, since two jobs of one run can build the same commit on one runner; the job
+// removes what it tagged when it ends, so images don't pile up in the runner's Docker.
+const image = `ci-${repo}:${process.env.GITHUB_SHA || capture('git', ['rev-parse', 'HEAD'])}-${crypto.randomBytes(4).toString('hex')}`;
 if (!['check', 'publish'].includes(mode)) throw new Error('image.mjs check|publish');
 if (mode === 'publish') requirePublish();
 const build = cfg.build !== false;
+const tagged = [];
+try {
 if (build) {
   // The release version (a PR build has none) and commit, for an image that shows them.
   const args = ['--build-arg', `SOURCE_SHA=${process.env.GITHUB_SHA || capture('git', ['rev-parse', 'HEAD']).trim()}`,
     ...(process.env.VERSION ? ['--build-arg', `APP_VERSION=${process.env.VERSION}`] : [])];
   run('docker', ['build', '--network', 'host', ...args, '-t', image, '.'], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
+  tagged.push(image);
 } else if (!cfg.image) throw new Error('upstream service requires cluster.image pinned by digest');
 if (mode === 'check') {
   // The application self-test must exit, including database migrations and sign-in assertions.
@@ -31,6 +37,7 @@ if (mode === 'check') {
     const remote = `${cfg.image}:${process.env.VERSION}`;
     if (!cfg.image || !/^(?:forgejo\.romaine\.life|[a-z0-9]+\.azurecr\.io)\/[\w./-]+$/.test(cfg.image)) throw new Error('image must name the Forgejo registry or ACR repository');
     run('docker', ['tag', image, remote]);
+    tagged.push(remote);
     run('docker', ['push', remote]);
     const digest = JSON.parse(capture('docker', ['image', 'inspect', remote, '--format', '{{json .RepoDigests}}']));
     const pin = digest.find(d => d.startsWith(`${cfg.image}@`));
@@ -40,6 +47,9 @@ if (mode === 'check') {
     if (old === undefined) delete process.env.DOCKER_CONFIG; else process.env.DOCKER_CONFIG = old;
     fs.rmSync(temp, {recursive: true, force: true});
   }
+}
+} finally {
+  if (tagged.length) run('docker', ['image', 'rm', ...tagged]);
 }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await imageOperation(config().cluster || {}, process.argv[2]);
