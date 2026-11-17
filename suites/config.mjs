@@ -104,7 +104,8 @@ export function validate(value, where = 'fleet entry') {
   }
   const destinations = new Set();
   for (const dependency of value.web?.dependencies || []) {
-    if (!value.web.image) throw new Error('web.dependencies are inputs to the web image');
+    // Inputs to the web image, or to a release build that embeds them (fzt-desktop's frontend).
+    if (!value.web.image && !value.release?.toolchains?.length) throw new Error('web.dependencies are inputs to the web image or a release build');
     if (!dependency || Object.keys(dependency).some(k => !['repository', 'asset', 'path', 'destination'].includes(k))) throw new Error('unknown web dependency field');
     if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(dependency.repository || '')) throw new Error('a web dependency names an owned repository');
     if (Boolean(dependency.asset) === Boolean(dependency.path)) throw new Error('a web dependency is a release asset or a path at the release tag, not both');

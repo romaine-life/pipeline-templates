@@ -69,5 +69,7 @@ test('web dependencies are validated', () => {
     [{...wasm, extra: 1}, /unknown web dependency field/],
   ]) assert.throws(() => validate({suites: ['web-app'], web: {...web, dependencies: [bad]}}, 'test/site'), message);
   assert.throws(() => validate({suites: ['web-app'], web: {...web, dependencies: [wasm, {...model, destination: wasm.destination}]}}, 'test/site'), /two web dependencies/);
-  assert.throws(() => validate({suites: ['web-app'], web: {dependencies: [wasm]}}, 'test/site'), /inputs to the web image/);
+  assert.throws(() => validate({suites: ['web-app'], web: {dependencies: [wasm]}}, 'test/site'), /inputs to the web image or a release build/);
+  // A release build can embed them too (fzt-desktop's frontend), with no image.
+  validate({suites: ['release', 'rust'], release: {toolchains: ['rust']}, web: {dependencies: [wasm]}}, 'test/desktop');
 });

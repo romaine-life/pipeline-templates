@@ -56,7 +56,7 @@ export async function releaseScope(suite) {
   const kinds=cfg.release?.toolchains || [];
   const extra = suite === 'docs' ? docLinks() : ['web-app','cluster-service'].includes(suite) ? imageInputs(suite === 'web-app' ? cfg.web : cfg.cluster)
     : [...kinds.flatMap(kind=>embedded()[kind] || []), ...(cfg.release?.image ? imageInputs(cfg[cfg.release.image]) : [])];
-  cfg.inputs = {...cfg.inputs, [job]: [...(cfg.inputs?.[job] || []), ...extra, ...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources),...(cfg.inputs?.['release.package'] || [])]};
+  cfg.inputs = {...cfg.inputs, [job]: [...(cfg.inputs?.[job] || []), ...extra, ...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.toolchains?.length && cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources),...(cfg.inputs?.['release.package'] || [])]};
   output('build', relevant(files, job, cfg));
   if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', joinedImageChanged(cfg.cluster));
 }

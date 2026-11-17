@@ -107,4 +107,8 @@ test('every pin publisher and dependency PR uses PIPELINE_DISPATCH_TOKEN to open
   }
   const dependencies=YAML.parse(fs.readFileSync(path.join(suites,'go/dependencies.yml'),'utf8'));
   assert.equal(dependencies.jobs.update.steps.find(step=>step.run==='node _ci/suites/go/dependencies.mjs').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}');
+  for(const suite of ['web-app','release']) {
+    const takeUp=YAML.parse(fs.readFileSync(path.join(suites,suite,'dependencies.yml'),'utf8'));
+    assert.equal(takeUp.jobs.update.steps.find(step=>step.run==='node _ci/suites/web-app/dependencies.mjs bump').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',suite);
+  }
 });

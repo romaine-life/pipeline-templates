@@ -27,7 +27,7 @@ export async function scope(suite) {
   cfg.inputs = {...cfg.inputs};
   const add = (job, paths) => cfg.inputs[job] = [...(cfg.inputs[job] || []), ...paths];
   if (suite === 'python') for (const dir of cfg.python?.projects || ['.']) add('python.test', inputs['python.test'].map(p=>dir==='.' ? p : `${dir}/${p}`));
-  if (suite === 'release') add('release.build',[...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources)]);
+  if (suite === 'release') add('release.build',[...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources)]);
   if (['go', 'rust'].includes(suite)) add(`${suite}.test`, embedded()[suite]);
   if (suite === 'docs') add('docs.validate', docLinks());
   if (['cluster-service', 'web-app'].includes(suite)) add(`${suite}.image`, imageInputs(suite === 'web-app' ? cfg.web : cfg.cluster));

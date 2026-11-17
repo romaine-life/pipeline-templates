@@ -5,10 +5,11 @@ import {hash, kept, request, requirePublish, safePath} from '../lib.mjs';
 import {config} from '../config.mjs';
 import {proposeDependencies, pushEnv} from '../deps-pr.mjs';
 
-// An image's inputs from other repositories (web.dependencies): a release asset or a file at
-// a release's tag, each pinned in dependencies.lock as `<destination> <tag> <sha256>`. The
-// image build stages exactly the pinned bytes; a dispatch from the source's release rewrites
-// the lock to its newest release and proposes that as a take-up PR.
+// Inputs from other repositories (web.dependencies) to a web image or a release build: a
+// release asset or a file at a release's tag, each pinned in dependencies.lock as
+// `<destination> <tag> <sha256>`. The build stages exactly the pinned bytes; a dispatch from
+// the source's release rewrites the lock to its newest release and proposes that as a
+// take-up PR (web-app/dependencies.yml, or release/dependencies.yml for a release build).
 export const lockFile = 'dependencies.lock';
 const server = () => process.env.GITHUB_SERVER_URL || 'https://forgejo.romaine.life';
 
@@ -40,7 +41,7 @@ async function download(url, token) {
 // Every declared input is pinned, every pin is declared, and the staged bytes match their pins.
 export async function stage(dependencies = config().web?.dependencies || [], {get = download, token = process.env.DEPENDENCY_TOKEN, cache = () => kept('release-inputs')} = {}) {
   if (!dependencies.length) return;
-  if (!token) throw new Error('pinned image inputs need DEPENDENCY_TOKEN');
+  if (!token) throw new Error('pinned inputs need DEPENDENCY_TOKEN');
   const lock = readLock(fs.readFileSync(lockFile, 'utf8'));
   for (const destination of lock.keys()) if (!dependencies.some(d => d.destination === destination)) throw new Error(`${lockFile} pins ${destination}, which web.dependencies doesn't declare`);
   for (const dependency of dependencies) {
@@ -81,7 +82,7 @@ export async function bump() {
   if (fs.existsSync(lockFile) && fs.readFileSync(lockFile, 'utf8') === text) { console.log(`${lockFile} is current`); return; }
   fs.writeFileSync(lockFile, text);
   const sources = [...new Set(dependencies.map(d => d.repository))].join(', ');
-  await proposeDependencies({files: [lockFile], title: 'Take pinned image inputs', message: `Take the newest ${sources}`,
+  await proposeDependencies({files: [lockFile], title: 'Take pinned inputs', message: `Take the newest ${sources}`,
     summary: `Pinned ${sources} at their newest releases.`, token, env: pushEnv(token)});
 }
 

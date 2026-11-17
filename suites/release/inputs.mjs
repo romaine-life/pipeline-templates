@@ -15,7 +15,7 @@ export function settings(cfg) {
 }
 const locks={go:['**/go.mod','**/go.sum','go.work','go.work.sum'],rust:['**/Cargo.lock','rust-toolchain*','.cargo/**','**/.cargo/**'],dotnet:['**/packages.lock.json','global.json','NuGet.Config','**/*.*proj','**/*.props','**/*.targets'],cmake:['vcpkg.json','vcpkg-configuration.json','CMakePresets.json','**/CMakeLists.txt','**/*.cmake']};
 export function packagingInputs(cfg) {
-  const patterns=[...(cfg.inputs?.['release.package'] || []),...(cfg.release?.toolchains || []).flatMap(kind=>locks[kind] || []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)],metadata=[];
+  const patterns=[...(cfg.inputs?.['release.package'] || []),...(cfg.release?.toolchains || []).flatMap(kind=>locks[kind] || []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)],metadata=[];
   if(cfg.release?.toolchains?.includes('python'))for(const dir of cfg.python?.projects || ['.'])for(const file of ['uv.lock','pyproject.toml','setup.py','setup.cfg','.python-version'])patterns.push(dir==='.' ? file : `${dir}/${file}`);
   if(cfg.release?.toolchains?.includes('npm'))for(const dir of cfg.web?.packages || ['.']) {
     const prefix=dir==='.' ? '' : `${dir}/`;
