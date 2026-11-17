@@ -407,6 +407,22 @@
         ]
       }
     },
+    "romaine-life/at": {
+      "suites": [
+        "powershell",
+        "release"
+      ],
+      "powershell": {
+        "windowsPowerShell": true
+      },
+      "release": {
+        "toolchains": [
+          "powershell"
+        ],
+        "prefix": "v0.1",
+        "homeSync": true
+      }
+    },
     "romaine-life/at-claude": {
       "suites": [
         "go",
