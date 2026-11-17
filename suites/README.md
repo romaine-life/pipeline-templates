@@ -85,10 +85,3 @@ and their commands, so a suite change reaches it with no edit there. A test job 
 its own platform, and a few jobs run on the pull request only, each with the reason
 `check.mjs` gives (`ciOnly`): image builds, release builds and packaging, OpenTofu plans,
 and tests that need services on the runner's Docker network.
-
-## Kept for repositories not yet migrated
-
-`.forgejo/workflows/go-dependency-update-template.yml` and
-`release-and-dispatch-template.yml` stay byte-identical while unmigrated repositories call
-them (`suites/tests/compatibility.test.mjs` guards them); a final PR deletes them once none
-does.

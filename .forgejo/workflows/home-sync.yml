@@ -4,10 +4,6 @@ name: Home sync
 on:
   workflow_call:
     inputs:
-      release-on-push:
-        description: Legacy compatibility input; release-tag selects real release calls.
-        type: boolean
-        default: false
       release-tag:
         description: Complete draft release to publish immediately before starting the PCs.
         type: string

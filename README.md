@@ -105,7 +105,7 @@ take and its PR and run (`v0.1.13-pr152.871`), or its run alone (`v0.1.13-run871
 On a push to the default branch it reserves the tag on the commit (a commit already numbered
 keeps its number) and outputs it as `version` and `tag`; on any other run it reserves
 nothing and `tag` is empty. `publish:` overrides that. The build stamps `version`; the
-release is created on `tag`. `release-and-dispatch-template.yml` numbers through it.
+release is created on `tag`.
 
 `romaine-life/pipeline-templates/actions/check-versions@main`, a step in a repo's required
 CI job after its checkout (Linux), fails on a workflow or action that creates a tag or
@@ -131,9 +131,7 @@ catches up on whatever it left.
 
 ## Forgejo suites (PIPT-12)
 
-[Suites and migrations](suites/README.md) replace the copied `reference/` shapes.
-The Forgejo release/dependency templates stay unchanged at `@main` for unmigrated
-callers; a final pipeline-templates PR removes them after those callers migrate.
+[Suites](suites/README.md) run every home repository's CI.
 Forgejo injects top-level workflows by repo topic, and `CI_SUITES_REF` selects a
 branch for pilots. GitHub workflows are unchanged.
 
