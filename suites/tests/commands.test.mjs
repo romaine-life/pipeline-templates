@@ -78,6 +78,20 @@ test('image checks smoke once, publication skips smoke and queues the pin withou
   assert.equal(pin.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
   assert.equal(pin.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
 });
+test('a pin is made on the default branch as it is now, and supersedes an older open pin, never a newer one',()=>{
+  const cfg = {cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-14'}};
+  const older = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.9'},cfg);
+  assert.equal(older.result.status,0,older.result.stderr);
+  const git = older.trace.filter(t=>t.command==='git').map(t=>t.args.slice(0,2).join(' '));
+  assert.ok(git.indexOf('fetch --no-tags') >= 0 && git.indexOf('fetch --no-tags') < git.indexOf('checkout -B'), git.join(', '));
+  assert.ok(older.trace.some(t=>t.command==='git' && t.args[0]==='checkout' && t.args.at(-1)==='FETCH_HEAD'));
+  assert.equal(older.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
+  assert.equal(older.trace.some(t=>t.url?.endsWith('/pulls/5') && t.method==='PATCH' && t.body?.state==='closed'),true);
+  assert.equal(older.trace.some(t=>t.url?.endsWith('/branches/ci-pin%2Fv0.1.9') && t.method==='DELETE'),true);
+  const newer = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.11'},cfg);
+  assert.equal(newer.result.status,0,newer.result.stderr);
+  assert.equal(newer.trace.some(t=>t.url?.endsWith('/pulls') || t.method==='PATCH'),false);
+});
 test('Go cross targets, per-target packages and Windows GUI link mode are data',()=>{
   const cfg={release:{toolchains:['go'],goTargets:[{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64',packages:['./cmd/probe']}],windowsGui:['./cmd/probe']}};
   const {result,trace}=probe('go/build.mjs',[],{},cfg);assert.equal(result.status,0,result.stderr);

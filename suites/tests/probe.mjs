@@ -36,7 +36,8 @@ globalThis.fetch = async (url, options = {}) => {
   if (u.includes('/secret/data/')) body = {data:{data:{'registry-token':'registry'}}};
   if (u.endsWith('/pulls')) body = {number:7,html_url:'https://forgejo.romaine.life/test/probe/pulls/7'};
   if (u.includes('/labels?')) body = [{id:1,name:'queue'}];
-  if (u.includes('/pulls?')) body = process.env.PROBE_OPEN ? [{number:6,body:'Previous take-up',html_url:'https://forgejo.romaine.life/test/probe/pulls/6',head:{ref:'deps/0',sha:'a'.repeat(40)}}] : [];
+  if (u.includes('/pulls?')) body = process.env.PROBE_OPEN_PIN ? [{number:5,body:'Previous pin',html_url:'https://forgejo.romaine.life/test/probe/pulls/5',head:{ref:`ci-pin/${process.env.PROBE_OPEN_PIN}`,sha:'a'.repeat(40)}}]
+    : process.env.PROBE_OPEN ? [{number:6,body:'Previous take-up',html_url:'https://forgejo.romaine.life/test/probe/pulls/6',head:{ref:'deps/0',sha:'a'.repeat(40)}}] : [];
   if (u.includes('/contents/')) {
     const file=new URL(u).pathname.split('/').at(-1);
     body={content:Buffer.from(process.env.PROBE_OPEN==='identical' ? fs.readFileSync(file) : 'old dependency').toString('base64')};
