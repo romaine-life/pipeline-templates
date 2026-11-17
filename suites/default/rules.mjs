@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import YAML from 'yaml';
-import {tracked} from '../lib.mjs';
+import {run, templates, tracked} from '../lib.mjs';
+import {tool} from '../tools.mjs';
 
 const check = /(?:\b(?:gofmt|actionlint|kubeconform|markdownlint|pytest|ctest|PSScriptAnalyzer)\b|\bgo\s+(?:vet|test)\b|\bcargo\s+(?:fmt|clippy|test|nextest)\b|\bnode\s+[^\n]*--test\b|\bpython[\d.]*\s+[^\n]*-m\s+unittest\b|\b(?:npm|pnpm)\s+(?:test|run\s+(?:lint|check|test))\b|\btofu\s+(?:fmt|validate|plan)\b|\bdotnet\s+(?:test|format)\b|\b(?:check|test|lint|validate|parse)[-/.\w]*\.(?:m?js|py|ps1|sh)\b)/i;
 const prOnly = expression => /github\.event_name\s*==\s*['"]pull_request['"]/.test(expression || '') && !/\|\|/.test(expression || '');
@@ -57,13 +58,25 @@ export function violations(text, read) {
   }
   return [...new Set(bad)];
 }
-export function main() {
+// What actionlint reports that Forgejo runs as written: its own job key, the services
+// command it adds, and YAML anchors, which actionlint doesn't follow.
+export const actionlintIgnores = ['unexpected key "enable-openid-connect"', 'unexpected key "cmd" for "services" section', 'found alias node'];
+export async function main() {
   let bad = 0;
-  for (const file of tracked().filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f))) {
+  const files = tracked().filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f));
+  for (const file of files) {
     const errors = violations(fs.readFileSync(file, 'utf8'), p => fs.existsSync(p) && fs.statSync(p).isFile() ? fs.readFileSync(p, 'utf8') : null);
     for (const error of errors) console.error(`${file}: ${error}`);
     bad += errors.length;
   }
+  // Forgejo checks a workflow only when it runs it; actionlint finds a context used where
+  // none exists, an unknown key or a bad expression on the pull request. Shell and Python
+  // inside steps aren't linted here.
+  if (files.length) {
+    try {
+      run(await tool('actionlint'), ['-config-file', path.join(templates, '.github', 'actionlint.yaml'), '-shellcheck=', '-pyflakes=', ...actionlintIgnores.flatMap(i => ['-ignore', i]), ...files]);
+    } catch { bad++; }
+  }
   if (bad) throw new Error(`${bad} CI rule violations`);
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await main();

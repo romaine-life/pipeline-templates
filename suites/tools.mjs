@@ -30,7 +30,10 @@ export const tools = {
     linux:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz`, '9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883', 'kubeconform'],
     win32:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-windows-amd64.zip`, 'e3f56102bcf4f50b034a567e2482a1c5330799983ddd655952310211aef73d93', 'kubeconform.exe']
   },
-  actionlint: ['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz`, '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757', 'actionlint'],
+  actionlint: {
+    linux:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz`, '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757', 'actionlint'],
+    win32:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_windows_amd64.zip`, '7f12f1801bca3d480d67aaf7774f4c2a6359a3ca8eebe382c95c10c9704aa731', 'actionlint.exe']
+  },
   osslsigncode: ['2.8-2', 'https://artifacts.home.romaine.life/debian/ubuntu/pool/universe/o/osslsigncode/osslsigncode_2.8-2_amd64.deb', '1aee7be603102633e80b4c67cd939bba2e16a62813e4a3035696727783f632b0', 'usr/bin/osslsigncode']
 };
 // Windows' own tar (bsdtar) reads zips and tarballs; a GNU tar earlier on PATH, as in Git

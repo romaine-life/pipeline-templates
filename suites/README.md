@@ -48,7 +48,9 @@ an unknown field fails.
 5. A new push cancels the out-of-date PR run; a run on the default branch is never
    cancelled.
 6. `default` runs `check-fetches` and the rules check over a repository's own remaining
-   workflows.
+   workflows: these rules, and actionlint, so a workflow Forgejo would refuse (a context
+   used where it isn't available, an unknown key) fails on the pull request rather than
+   when Forgejo first runs it.
 
 ## Suites
 
