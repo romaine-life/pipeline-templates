@@ -211,6 +211,15 @@
         "version": "3.13"
       }
     },
+    "nelsong6/torrent": {
+      "suites": [
+        "cluster-service"
+      ],
+      "cluster": {
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/ux-journal": {
       "suites": [
         "docs"
