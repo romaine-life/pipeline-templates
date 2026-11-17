@@ -112,3 +112,9 @@ test('every pin publisher and dependency PR uses PIPELINE_DISPATCH_TOKEN to open
     assert.equal(takeUp.jobs.update.steps.find(step=>step.run==='node _ci/suites/web-app/dependencies.mjs bump').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',suite);
   }
 });
+test('a release dispatches its downstream workflows once: publish does it, or the dispatch job after home-sync publishes',()=>{
+  const jobs=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8')).jobs;
+  assert.match(jobs.publish.if,/home-sync != 'true'/);
+  assert.ok(jobs.publish.steps.some(step=>step.run==='node _ci/suites/release.mjs publish'));
+  assert.match(jobs.dispatch.if,/home-sync == 'true'/);
+});

@@ -336,7 +336,7 @@ jobs:
     - scope
     - finalize
     - home-sync
-    if: needs.scope.outputs.has-dispatch == 'true' && needs.finalize.outputs.ready == 'true'
+    if: needs.scope.outputs.has-dispatch == 'true' && needs.finalize.outputs.ready == 'true' && needs.finalize.outputs.home-sync == 'true'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
