@@ -529,6 +529,34 @@
         ]
       }
     },
+    "romaine-life/eight-queens": {
+      "suites": [
+        "tofu",
+        "web-app"
+      ],
+      "web": {
+        "packages": [
+          "frontend"
+        ],
+        "node": "22",
+        "staticApp": "eight-queens-app",
+        "resourceGroup": "eight-queens-rg"
+      },
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "eight-queens.tfstate"
+        }
+      },
+      "inputs": {
+        "web-app.test": [
+          "frontend/**"
+        ]
+      }
+    },
     "romaine-life/fzt": {
       "suites": [
         "go",
@@ -892,6 +920,34 @@
       },
       "release": {
         "prefix": "v1.0"
+      }
+    },
+    "romaine-life/lights": {
+      "suites": [
+        "tofu",
+        "web-app"
+      ],
+      "web": {
+        "packages": [
+          "frontend"
+        ],
+        "node": "22",
+        "staticApp": "lights-app",
+        "resourceGroup": "lights-rg"
+      },
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "lights.tfstate"
+        }
+      },
+      "inputs": {
+        "web-app.test": [
+          "frontend/**"
+        ]
       }
     },
     "romaine-life/macrocraft": {
