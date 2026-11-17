@@ -783,6 +783,57 @@
         ]
       }
     },
+    "romaine-life/kill-me": {
+      "suites": [
+        "cluster-service",
+        "tofu",
+        "web-app"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "kill-me"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      },
+      "web": {
+        "packages": [
+          "backend",
+          "frontend"
+        ],
+        "node": "20",
+        "image": "romainecr.azurecr.io/kill-me",
+        "pinFile": "k8s/values.yaml",
+        "pinFields": {
+          "release.version": "version",
+          "release.deployedAt": "date"
+        },
+        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
+      },
+      "release": {
+        "prefix": "v1.5"
+      },
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "kill-me.tfstate"
+        }
+      },
+      "inputs": {
+        "web-app.test": [
+          "backend/**",
+          "frontend/**",
+          "scripts/**"
+        ]
+      }
+    },
     "romaine-life/landing-page": {
       "suites": [
         "cluster-service",

@@ -17,3 +17,12 @@ test('Spotify origin values update the image and the stager release atomically, 
   assert.throws(()=>updatePin(original,{...cfg,pinFields:{'release.missing':'tag'}},pin,values),/existing scalar/);
   assert.throws(()=>updatePin(original,cfg,pin,{tag:'v1',commit:''}),/source commit/);
 });
+
+test('a date pin field records when the release was pinned, to the second', () => {
+  const pin = `romainecr.azurecr.io/app:v1.5.3@sha256:${'d'.repeat(64)}`;
+  const original = `image: romainecr.azurecr.io/app:v1.5.2@sha256:${'c'.repeat(64)}\nrelease:\n  version: "1.5.2"\n  deployedAt: "2026-11-14T18:22:55Z"\n`;
+  const updated = YAML.parse(updatePin(original, {image: 'romainecr.azurecr.io/app', pinFields: {'release.version': 'version', 'release.deployedAt': 'date'}}, pin,
+    {tag: 'v1.5.3', commit: 'a'.repeat(40), date: new Date('2026-11-17T03:30:12.345Z')}));
+  assert.deepEqual(updated.release, {version: '1.5.3', deployedAt: '2026-11-17T03:30:12Z'});
+  assert.equal(updated.image, pin);
+});
