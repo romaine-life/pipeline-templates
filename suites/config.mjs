@@ -139,7 +139,8 @@ export function validate(value, where = 'fleet entry') {
     if (target.workflow) safePath(target.workflow);
   }
   for (const item of value.cluster?.renders || []) {
-    if (!['helm', 'kustomize'].includes(item.kind)) throw new Error('cluster.renders.kind must be helm or kustomize');
+    if (!['helm', 'kustomize', 'argocd'].includes(item.kind)) throw new Error('cluster.renders.kind must be helm, kustomize or argocd');
+    if (item.kind === 'argocd' && (item.values || item.name)) throw new Error('an argocd render takes its apps from the root Application at path');
     safePath(item.path);
     if (item.values) safePath(item.values);
     for (const key of Object.keys(item)) if (!['kind', 'path', 'values', 'name'].includes(key)) throw new Error(`unknown render field: ${key}`);

@@ -48,6 +48,22 @@
         "docs"
       ]
     },
+    "nelsong6/home-cluster": {
+      "suites": [
+        "cluster-service",
+        "powershell"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "argocd",
+            "path": "k8s/root-app.yaml"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      }
+    },
     "nelsong6/home-hub": {
       "suites": [
         "cluster-service",

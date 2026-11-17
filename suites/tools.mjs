@@ -17,10 +17,12 @@ export const tools = {
     linux:['0.10.0',`${mirror}/github/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-unknown-linux-musl.tar.gz`,'1fbb35e135660d04a2d5e42b59c7874d39b3deb17de56330b25b713ec59f849b','sccache-v0.10.0-x86_64-unknown-linux-musl/sccache'],
     win32:['0.10.0',`${mirror}/github/mozilla/sccache/releases/download/v0.10.0/sccache-v0.10.0-x86_64-pc-windows-msvc.zip`,'6d8823b5c13e0dba776d88c537229256ecb2f01a1d775b507fd141cb55d30578','sccache-v0.10.0-x86_64-pc-windows-msvc/sccache.exe']
   },
-  // Windows builds too, so ci-check renders a repository's manifests on a home PC.
+  // Windows builds too, so ci-check renders a repository's manifests on a home PC. Helm and
+  // kustomize are the versions the home cluster's Argo CD (v3.6.1) bundles, so a check renders
+  // a chart as Argo CD does (argo-cd hack/tool-versions.sh); they move with an Argo CD upgrade.
   helm: {
-    linux:['3.22.1', `${mirror}/helm-downloads/helm-v3.22.1-linux-amd64.tar.gz`, '896cf63684a42a723d61c980369d6e588330927deb13676ca0d85006dd6da0ea', 'linux-amd64/helm'],
-    win32:['3.22.1', `${mirror}/helm-downloads/helm-v3.22.1-windows-amd64.zip`, '32ce9f4509b81782c9740898c43946e1f97c4d93ec5d10222c9b6eeec21ea043', 'windows-amd64/helm.exe']
+    linux:['4.3.1', `${mirror}/helm-downloads/helm-v4.3.1-linux-amd64.tar.gz`, '0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b', 'linux-amd64/helm'],
+    win32:['4.3.1', `${mirror}/helm-downloads/helm-v4.3.1-windows-amd64.zip`, 'fcfd7b796dcf0f225abc40b5636a3b01f55f3de2fb1dfb18475df94e62c14112', 'windows-amd64/helm.exe']
   },
   kustomize: {
     linux:['5.8.3', `${mirror}/github/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz`, 'cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61', 'kustomize'],
