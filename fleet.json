@@ -360,6 +360,17 @@
         }
       }
     },
+    "romaine-life/at-protocol": {
+      "suites": [
+        "cmake"
+      ],
+      "cmake": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ]
+      }
+    },
     "romaine-life/fzt-automate": {
       "suites": [
         "go",
