@@ -1167,6 +1167,11 @@
         }
       }
     },
+    "romaine-life/power-lines-gba": {
+      "suites": [
+        "rust"
+      ]
+    },
     "romaine-life/recorder": {
       "suites": [
         "go",
