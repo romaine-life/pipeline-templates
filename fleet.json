@@ -625,6 +625,10 @@
           {
             "repository": "romaine-life/landing-page",
             "workflow": "web-app/dependencies.yml"
+          },
+          {
+            "repository": "romaine-life/my-homepage",
+            "workflow": "web-app/dependencies.yml"
           }
         ]
       }
@@ -911,6 +915,67 @@
         "baoSecret": "services/merge-queue-build",
         "pinFile": "k8s/deployment.yaml",
         "workPackage": "https://openproject.home.romaine.life/wp/RLMQ-1"
+      }
+    },
+    "romaine-life/my-homepage": {
+      "suites": [
+        "cluster-service",
+        "tofu",
+        "web-app"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "my-homepage"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      },
+      "web": {
+        "packages": [
+          "backend"
+        ],
+        "node": "20",
+        "image": "romainecr.azurecr.io/my-homepage",
+        "pinFile": "k8s/values.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
+        "dependencies": [
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt.wasm",
+            "destination": "frontend/fzt.wasm"
+          },
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt-terminal.js",
+            "destination": "frontend/fzt-terminal.js"
+          },
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt-terminal.css",
+            "destination": "frontend/fzt-terminal.css"
+          },
+          {
+            "repository": "romaine-life/fzt-browser",
+            "asset": "fzt-web.js",
+            "destination": "frontend/fzt-web.js"
+          }
+        ]
+      },
+      "release": {
+        "prefix": "v1.0"
+      },
+      "tofu": {
+        "version": "1.11.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "my-homepage.tfstate"
+        }
       }
     },
     "romaine-life/recorder": {
