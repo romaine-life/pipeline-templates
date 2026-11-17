@@ -20,6 +20,21 @@ runs:
             -e "s#https?://(archive|[a-z]{2}\.archive|azure\.archive)\.ubuntu\.com/ubuntu/?#$cache/debian/ubuntu/#g" \
             -e "s#https?://security\.ubuntu\.com/ubuntu/?#$cache/debian/ubuntu-security/#g" "$f"
         done
+        # A source Artifact Keeper doesn't mirror (the runner image's git-core PPA, git-lfs and
+        # Microsoft repositories) is turned off, so apt-get update never reaches the internet
+        # and an outage there can't fail a job (PIPT-23). A one-line source is commented out; a
+        # deb822 .sources file with such a URI is renamed, which apt skips.
+        for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
+          [ -f "$f" ] || continue
+          as_root sed -i -E '/^[[:space:]]*deb(-src)?[[:space:]].*https?:\/\//{/https:\/\/artifacts\.home\.romaine\.life\//!s/^/# not through Artifact Keeper: /}' "$f"
+        done
+        for f in /etc/apt/sources.list.d/*.sources; do
+          [ -f "$f" ] || continue
+          foreign=$(grep -E '^[[:space:]]*URIs:' "$f" | grep -oE 'https?://[^[:space:]]+' | grep -v "^$cache/" || true)
+          if [ -n "$foreign" ]; then
+            as_root mv "$f" "$f.not-through-artifact-keeper"
+          fi
+        done
         cargo_home=${CARGO_HOME:-$HOME/.cargo}
         mkdir -p "$cargo_home"
         printf '%s\n' '[source.crates-io]' 'replace-with = "home"' '' '[source.home]' \

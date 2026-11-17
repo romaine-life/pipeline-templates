@@ -342,7 +342,10 @@ jobs:
         run: |
           set -euo pipefail
           grep -rq 'artifacts.home.romaine.life/debian/ubuntu/' /etc/apt/sources.list /etc/apt/sources.list.d/
-          if grep -rqE 'https?://(archive|security)\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/; then exit 1; fi
+          cache=https://artifacts.home.romaine.life
+          foreign=$(find /etc/apt/sources.list /etc/apt/sources.list.d -maxdepth 1 -type f \( -name '*.list' -o -name '*.sources' \) \
+            -exec grep -hE '^[[:space:]]*(deb(-src)?[[:space:]]|URIs:)' {} + | grep -oE 'https?://[^[:space:]]+' | grep -v "^$cache/" || true)
+          if [ -n "$foreign" ]; then echo "apt sources not through Artifact Keeper: $foreign"; exit 1; fi
           sudo apt-get update
           apt-get download hello
       - name: cargo reads crates through Artifact Keeper
