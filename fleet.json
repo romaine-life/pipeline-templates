@@ -275,6 +275,18 @@
         "release": true
       }
     },
+    "nelsong6/journal-technology-philosophy": {
+      "suites": [
+        "docs"
+      ],
+      "docs": {
+        "required": [
+          "README.md",
+          "INDEX.md",
+          "CLAUDE.md"
+        ]
+      }
+    },
     "nelsong6/nas-backup": {
       "suites": [
         "python"
