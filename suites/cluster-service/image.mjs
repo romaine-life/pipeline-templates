@@ -20,13 +20,24 @@ if (build) {
   // The release version (a PR build has none) and commit, for an image that shows them.
   const args = ['--build-arg', `SOURCE_SHA=${process.env.GITHUB_SHA || capture('git', ['rev-parse', 'HEAD']).trim()}`,
     ...(process.env.VERSION ? ['--build-arg', `APP_VERSION=${process.env.VERSION}`] : [])];
-  run('docker', ['build', '--network', 'host', ...args, '-t', image, '.'], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
+  const context = cfg.context || '.';
+  run('docker', ['build', '--network', 'host', ...args, '-f', path.posix.join(context, 'Dockerfile'), '-t', image, context], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
   tagged.push(image);
 } else if (!cfg.image) throw new Error('upstream service requires cluster.image pinned by digest');
 if (mode === 'check') {
   // The application self-test must exit, including database migrations and sign-in assertions.
+  // A joined release's assembled files are at /ci/dist in a layer only the check runs, so an
+  // image that runs a release binary it doesn't hold (spt's session) runs that binary there.
+  // A layer, not a bind mount: the job's own folder isn't a path on the Docker host.
+  let tested = build ? image : cfg.image;
+  if (fs.existsSync('dist')) {
+    run('docker', ['build', '-t', `${image}-dist`, '-f', '-', 'dist'], {input: `FROM ${tested}\nCOPY . /ci/dist/\n`,
+      stdio: ['pipe', 'inherit', 'inherit'], env: {...process.env, DOCKER_BUILDKIT: '1'}});
+    tested = `${image}-dist`;
+    tagged.push(tested);
+  }
   run('docker', ['run', '--rm', '--network', process.env.CI_SERVICE_NETWORK || 'host', '--read-only',
-    ...['DATABASE_URL','MANTICORE_URL','SMTP_HOST','SMTP_PORT','IMAP_HOST','IMAP_PORT'].filter(k=>process.env[k]).flatMap(k=>['-e',k]), build ? image : cfg.image, '--self-test']);
+    ...['DATABASE_URL','MANTICORE_URL','SMTP_HOST','SMTP_PORT','IMAP_HOST','IMAP_PORT'].filter(k=>process.env[k]).flatMap(k=>['-e',k]), tested, '--self-test']);
 } else if (build) {
   const {registryLogin} = await import('./registry.mjs');
   const temp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'registry-'));

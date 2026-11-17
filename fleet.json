@@ -429,6 +429,108 @@
         ]
       }
     },
+    "nelsong6/spotify-player": {
+      "suites": [
+        "cluster-service",
+        "release",
+        "rust"
+      ],
+      "rust": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ],
+        "noDefaultFeatures": true,
+        "platformFeatures": {
+          "linux": [
+            "rustls-tls",
+            "streaming"
+          ],
+          "win32": [
+            "streaming",
+            "cast",
+            "media-control",
+            "image",
+            "notify",
+            "fzf"
+          ]
+        },
+        "lints": [
+          "typos",
+          "machete"
+        ]
+      },
+      "release": {
+        "toolchains": [
+          "rust"
+        ],
+        "prefixFrom": "spotify_player/Cargo.toml",
+        "homeSync": true,
+        "image": "cluster",
+        "rustTargets": [
+          {
+            "target": "x86_64-unknown-linux-gnu",
+            "noDefaultFeatures": true,
+            "features": [
+              "rustls-tls",
+              "streaming"
+            ]
+          },
+          {
+            "target": "x86_64-pc-windows-msvc"
+          }
+        ],
+        "dependencies": [
+          {
+            "url": "https://forgejo.romaine.life/romaine-life/fzt-terminal/releases/download/{tag}/fzt-windows-amd64.dll",
+            "destination": "dist/fzt.dll",
+            "lock": "fzt.lock",
+            "toolchain": "rust",
+            "targets": [
+              "x86_64-pc-windows-msvc"
+            ]
+          }
+        ],
+        "assets": [
+          "dist/spotify_player",
+          "dist/spotify_player.exe",
+          "dist/fzt.dll",
+          "dist/session-sources.txt"
+        ],
+        "assetNames": {
+          "rust-x86_64-unknown-linux-gnu": {
+            "spotify_player-x86_64-unknown-linux-gnu": "spotify_player"
+          },
+          "rust-x86_64-pc-windows-msvc": {
+            "spotify_player-x86_64-pc-windows-msvc.exe": "spotify_player.exe"
+          }
+        },
+        "sourceLists": {
+          "rust-x86_64-unknown-linux-gnu": "session-sources.txt"
+        },
+        "manifest": "session-release.json"
+      },
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "spt-session",
+            "values": "k8s/values.yaml"
+          }
+        ],
+        "image": "forgejo.romaine.life/nelsong6/spt-session",
+        "context": "k8s/image",
+        "baoRole": "spotify-player-publish",
+        "baoSecret": "services/spt-session-build",
+        "pinFile": "k8s/values.yaml",
+        "pinFields": {
+          "release.tag": "tag",
+          "release.commit": "commit"
+        },
+        "workPackage": "https://openproject.home.romaine.life/wp/SPT-35"
+      }
+    },
     "nelsong6/torrent": {
       "suites": [
         "cluster-service"

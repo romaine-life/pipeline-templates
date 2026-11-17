@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import TOML from '@iarna/toml';
 import {capture} from '../lib.mjs';
 import {matches,relevant} from '../input-patterns.mjs';
+import {imageInputs} from '../dependencies.mjs';
 
 const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 export function settings(cfg) {
@@ -21,7 +22,7 @@ export function packagingInputs(cfg) {
     patterns.push(...['package-lock.json','npm-shrinkwrap.json','.npmrc','vite.config.*','webpack.config.*','tsconfig*.json'].map(file=>prefix+file));
     metadata.push({path:prefix+'package.json',kind:'npm'});
   }
-  if(cfg.release?.image)patterns.push('Dockerfile','.dockerignore','ci/smoke/**');
+  if(cfg.release?.image)patterns.push(...imageInputs(cfg[cfg.release.image]));
   if(cfg.release?.toolchains?.includes('rust'))metadata.push({path:'**/Cargo.toml',kind:'cargo'});
   return {patterns,metadata};
 }

@@ -31,12 +31,21 @@ an unknown field fails.
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
 | `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets` (each `{target, features, noDefaultFeatures, glibc}`: a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image` |
 | `release` (a Go library) | `module: true`: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
-| `cluster` | `renders`, `build`, `image`, `baoRole`, `baoSecret`, `pinFile`, `pinFields` |
+| `cluster` | `renders`, `build`, `image`, `context`: the image's build context, where its `Dockerfile` is (the repository root by default), `baoRole`, `baoSecret`, `pinFile`, `pinFields` |
 | `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `containerApp`, `resourceGroup`, `staticApp`, `history`: the tests compare with the base branch, so the test job gets full history (`origin/<base>`), `dependencies`: image inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds; the source's `release.dispatch` to `web-app/dependencies.yml` proposes its newest release as a take-up PR |
 | `tofu` | `version`, `backend` |
 | `docs` | `required`, `release` |
 | `powershell` | `windowsPowerShell` |
 | `inputs` | extra file patterns per check (`"go.test": ["assets/**"]`) |
+
+## An image joined to a release
+
+A release with `release.image: cluster` publishes the cluster image and proposes its pin.
+The image is built again only when its inputs (its `Dockerfile`, `.dockerignore` and what it
+copies in) changed since the release that built the image the pin file runs; otherwise the
+release keeps that image, and its pin PR moves only the `pinFields`, so the pod isn't
+restarted. On a PR the image's `--self-test` runs with the assembled release at `/ci/dist`,
+in a layer only the check runs, for an image that runs a release binary it doesn't hold.
 
 ## The rules every suite keeps
 

@@ -4,8 +4,8 @@ import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {api, post, request, tracked, requirePublish, capture, output, hash, templates} from './lib.mjs';
 import {config} from './config.mjs';
-import {inputs, relevant} from './input-patterns.mjs';
-import {embedded, dockerSources, docLinks} from './dependencies.mjs';
+import {inputs, relevant, matches} from './input-patterns.mjs';
+import {embedded, imageInputs, docLinks} from './dependencies.mjs';
 import {zipDirectory} from './release/zip.mjs';
 const require = createRequire(import.meta.url);
 
@@ -54,9 +54,30 @@ export async function releaseScope(suite) {
   const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
   const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'web-app.test' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
   const kinds=cfg.release?.toolchains || [];
-  const extra = suite === 'docs' ? docLinks() : ['web-app','cluster-service'].includes(suite) && fs.existsSync('Dockerfile') ? dockerSources(fs.readFileSync('Dockerfile','utf8')) : kinds.flatMap(kind=>embedded()[kind] || []);
+  const extra = suite === 'docs' ? docLinks() : ['web-app','cluster-service'].includes(suite) ? imageInputs(suite === 'web-app' ? cfg.web : cfg.cluster)
+    : [...kinds.flatMap(kind=>embedded()[kind] || []), ...(cfg.release?.image ? imageInputs(cfg[cfg.release.image]) : [])];
   cfg.inputs = {...cfg.inputs, [job]: [...(cfg.inputs?.[job] || []), ...extra, ...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources),...(cfg.inputs?.['release.package'] || [])]};
   output('build', relevant(files, job, cfg));
+  if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', joinedImageChanged(cfg.cluster));
+}
+// The image the pin file runs (`<image>:<tag>@sha256:<digest>`), when it names exactly one.
+export function pinnedImage(section) {
+  const escaped = section.image.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pins = [...new Set(fs.readFileSync(section.pinFile, 'utf8').match(new RegExp(`${escaped}:[\\w.+-]+@sha256:[0-9a-f]{64}`, 'g')) || [])];
+  return pins.length === 1 ? pins[0] : null;
+}
+// A joined cluster image is built again only when its inputs changed since the release that
+// built the pinned one; otherwise the release carries that image on, and its pin PR moves only
+// the release's fields, so a release doesn't restart the pod (PIPT-12, SPT-4).
+export function joinedImageChanged(section) {
+  const pin = pinnedImage(section);
+  if (!pin) return true;
+  const tag = pin.slice(section.image.length + 1).split('@')[0];
+  let base;
+  try { base = capture('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`]); } catch { return true; }
+  const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
+  const patterns = imageInputs(section);
+  return files.some(file => patterns.some(pattern => matches(file, pattern)));
 }
 export async function sourceRelease() {
   requirePublish();

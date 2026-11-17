@@ -87,6 +87,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       build: ${{ steps.release.outputs.build || steps.scope.outputs.package }}
       joined-image: ${{ steps.scope.outputs.joined-image }}
+      image-build: ${{ steps.release.outputs.image-build }}
       postgres: ${{ steps.scope.outputs.postgres }}
       manticore: ${{ steps.scope.outputs.manticore }}
       greenmail: ${{ steps.scope.outputs.greenmail }}
@@ -121,6 +122,7 @@ jobs:
       if: needs.scope.outputs.joined-image == 'cluster'
       env:
         VERSION: ${{ steps.version.outputs.version }}
+        IMAGE_BUILD: ${{ needs.scope.outputs.image-build }}
     - run: node _ci/suites/release.mjs source
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -277,6 +279,7 @@ jobs:
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
       env:
         VERSION: ${{ needs.reserve.outputs.tag }}
+        IMAGE_BUILD: ${{ needs.scope.outputs.image-build }}
     - run: node _ci/suites/release/protocol.mjs stage
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

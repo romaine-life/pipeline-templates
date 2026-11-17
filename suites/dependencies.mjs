@@ -39,6 +39,14 @@ export function dockerSources(text) {
   }
   return result;
 }
+// An image's inputs: its Dockerfile and .dockerignore in its build context (`context`, the
+// repository root by default), what that Dockerfile copies in, and ci/smoke/.
+export function imageInputs(section = {}, read = file => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null) {
+  const context = section.context || '.';
+  const at = name => context === '.' ? name : path.posix.join(context, name);
+  const text = read(at('Dockerfile'));
+  return [at('Dockerfile'), at('.dockerignore'), 'ci/smoke/**', ...(text ? dockerSources(text).map(at) : [])];
+}
 export function localLinks(file, text) {
   const result = [];
   marked.walkTokens(marked.lexer(text), token => {

@@ -3,7 +3,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import {capture,hash,suites} from './lib.mjs';
 import {inputs,matches} from './input-patterns.mjs';
-import {embedded,dockerSources,docLinks} from './dependencies.mjs';
+import {embedded,imageInputs,docLinks} from './dependencies.mjs';
 import {packagingInputs,packagingMetadata,settings} from './release/inputs.mjs';
 
 export const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
@@ -37,10 +37,9 @@ export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
     for(const render of configuration.renders){patterns.push(render.path,`${render.path}/**`);if(render.values)patterns.push(render.values);}
   }
   if(check.endsWith('.image')) {
-    const dockerfile=entries.find(entry=>entry.path==='Dockerfile');
-    if(dockerfile)patterns.push(...dockerSources(capture('git',['show',dockerfile.oid])));
-    const section=check==='cluster-service.image'?cfg.cluster:{};
-    configuration={build:section?.build!==false,...(section?.build===false?{image:section.image}:{})};
+    const section=(check==='cluster-service.image'?cfg.cluster:cfg.web) || {};
+    patterns.push(...imageInputs(section,file=>{const entry=entries.find(entry=>entry.path===file);return entry?capture('git',['show',entry.oid]):null;}));
+    configuration={build:section.build!==false,...(section.context?{context:section.context}:{}),...(section.build===false?{image:section.image}:{})};
   }
   if(check==='release.package') {
     const release=packagingInputs(cfg);patterns.push(...release.patterns);configuration=settings(cfg);

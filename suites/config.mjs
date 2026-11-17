@@ -6,7 +6,7 @@ const fields = {
   go: ['platforms', 'dependencies', 'race'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
   release: ['module', 'toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
-  cluster: ['renders', 'build', 'smoke', 'image', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
+  cluster: ['renders', 'build', 'smoke', 'image', 'context', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
   web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies', 'history'], tofu: ['version', 'backend'], docs: ['required', 'release'],
   powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
@@ -153,6 +153,7 @@ export function validate(value, where = 'fleet entry') {
     for (const key of Object.keys(item)) if (!['kind', 'path', 'values', 'name'].includes(key)) throw new Error(`unknown render field: ${key}`);
   }
   if (value.cluster?.pinFile) safePath(value.cluster.pinFile);
+  if (value.cluster?.context !== undefined) safePath(value.cluster.context);
   if (value.web?.pinFile) safePath(value.web.pinFile);
   for(const section of ['cluster','web'])if(value[section]?.pinFields!==undefined) {
     const fields=value[section].pinFields;
