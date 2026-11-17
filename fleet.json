@@ -161,6 +161,22 @@
         "python"
       ]
     },
+    "nelsong6/session-index": {
+      "suites": [
+        "cluster-service",
+        "go"
+      ],
+      "service": {
+        "manticore": "artifacts.home.romaine.life/dockerhub/manticoresearch/manticore:29.9.0@sha256:6e32ad69a4a1bf5e596b8b2abd00b7625fc2a146c3877b365a4d4840f5cffd12"
+      },
+      "cluster": {
+        "image": "forgejo.romaine.life/nelsong6/session-index",
+        "baoRole": "session-index-publish",
+        "baoSecret": "services/session-index-build",
+        "pinFile": "k8s/deployment.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/SESSIDX-6"
+      }
+    },
     "nelsong6/sf6-nelson-lab": {
       "suites": [
         "python"
