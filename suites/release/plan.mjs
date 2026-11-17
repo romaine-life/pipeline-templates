@@ -21,8 +21,15 @@ export function releasePlan(cfg=config()) {
   if(!local)for(const part of release.external)include.push({id:part.id,toolchain:'external',target:part.id,features:'',noDefault:false,runner:'ubuntu-latest'});
   return {matrix:{include},local,external:(release.external || []).map(part=>({...part,assets:[...new Set(part.assets.flatMap(name=>{const value=process.env.VERSION?name.replaceAll('{tag}',process.env.VERSION).replaceAll('{version}',process.env.VERSION.replace(/^v/,'')):name;return value.endsWith('.zip')?[value,`${value}.signature.json`]:[value];}))]})),metadata:{checksumFiles:release.checksumFiles || [],checksumManifest:release.checksumManifest || '',manifest:release.manifest || ''},homeSync:release.homeSync === true,image:release.image || ''};
 }
+// Forgejo never creates a job whose matrix has no entries, and the jobs that need it then
+// wait forever (fzt's first module PR). An empty plan is sent as one placeholder entry, so
+// build and check-build exist (on a runner, which runs-on reads from the entry) and their
+// has-local condition skips them.
+export function matrixOutput(matrix) {
+  return JSON.stringify(matrix.include.length ? matrix : {include: [{toolchain: 'none', runner: 'ubuntu-latest'}]});
+}
 if (process.argv[1]?.endsWith('/release/plan.mjs') || process.argv[1]?.endsWith('\\release\\plan.mjs')) {
   if (process.env.CALLBACK_TAG && (!/^[0-9a-f]{40,64}$/.test(process.env.CALLBACK_SOURCE || '') || !process.env.COMPLETED_PART)) throw new Error('callback needs the reserved source SHA and completed part');
-  output('matrix',JSON.stringify(releasePlan().matrix));
+  output('matrix',matrixOutput(releasePlan().matrix));
   output('has-local',releasePlan().local);
 }
