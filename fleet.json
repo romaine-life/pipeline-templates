@@ -122,6 +122,11 @@
         "release": true
       }
     },
+    "nelsong6/nas-backup": {
+      "suites": [
+        "python"
+      ]
+    },
     "nelsong6/openproject": {
       "suites": [
         "cluster-service"
@@ -137,6 +142,11 @@
         "build": false,
         "smoke": false
       }
+    },
+    "nelsong6/pcloud-sync": {
+      "suites": [
+        "python"
+      ]
     },
     "nelsong6/sf6-nelson-lab": {
       "suites": [
