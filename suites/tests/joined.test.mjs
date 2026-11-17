@@ -29,13 +29,13 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
         if(method==='POST'){dispatches++;return new Response(null,{status:204});}
         return Response.json({default_branch:'main'});
       }
+      if(u.includes('/attachments/')){assert.equal(options.headers.Authorization,'token download-token');assert.equal(rel.draft,false,'draft bytes must never use the web route');return new Response(data.get(Number(u.split('/').at(-1))));}
       assert.equal(options.headers.Authorization,'token test-token');
       if(u.endsWith('/api/v1/repos/romaine-life/app'))return Response.json({default_branch:'main'});
       if(u.endsWith('/repos/romaine-life/app/actions/workflows/native.yml/dispatches')){dispatches++;return new Response(null,{status:204});}
       if(u.endsWith('/actions/workflows/release%2Fci.yml/dispatches')){callbacks++;const body=JSON.parse(options.body);completionReceipt=JSON.parse(body.inputs.receipt);assert.equal(body.inputs['source-sha'],'a'.repeat(40));return new Response(null,{status:204});}
       if(u.endsWith('/api/v1/repos/test/app'))return Response.json({default_branch:'main'});
       if(u.endsWith('/releases/1') && method==='PATCH'){Object.assign(rel,JSON.parse(options.body));return Response.json(rel);}
-      if(u.includes('/attachments/')){assert.equal(rel.draft,false,'draft bytes must never use the web route');return new Response(data.get(Number(u.split('/').at(-1))));}
       if(u.includes('/statuses/')){states.push(JSON.parse(options.body).state);return Response.json({});}
       if(u.endsWith('/releases/tags/v0.1.1'))return rel ? Response.json(rel) : new Response('{}',{status:404});
       if(u.endsWith('/releases') && method==='POST')rel={...JSON.parse(options.body),id:1,assets:[]};
@@ -65,6 +65,7 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
     await assert.rejects(finalize('unknown'),/undeclared/);
     await assert.rejects(finalize('macos','failure'),/build failed/);assert.equal(states.at(-1),'failure');
     rel.draft=false;await assert.rejects(stagePart('macos',['macos.tar.gz']),/published/);
+    await assert.rejects(materializeAsset('app.exe','downloaded.exe'),/DOWNLOAD_TOKEN/);process.env.DOWNLOAD_TOKEN='download-token';
     await materializeAsset('app.exe','downloaded.exe');assert.equal(fs.readFileSync('downloaded.exe','utf8'),'signed Windows binary');
     for(const provider of ['github','forgejo']) {
       rel=null;data.clear();id=0;

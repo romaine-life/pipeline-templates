@@ -156,7 +156,9 @@ export async function materializeAsset(name,destination) {
   const asset=rel.assets.find(a=>a.name===name),receipt=Object.values(value.receipts).flatMap(p=>p.files).find(f=>f.name===name);
   if(!asset || !receipt)throw new Error('release has no declared asset');
   if(new URL(asset.browser_download_url).origin!==new URL(process.env.GITHUB_SERVER_URL).origin)throw new Error('release download must stay on its Forgejo origin');
-  const response=await fetch(asset.browser_download_url,{headers:{Authorization:`token ${process.env.TOKEN}`},signal:AbortSignal.timeout(30000)});
+  // Forgejo answers its web download route with 404 for a job's own token, so the bytes come with the pipeline token.
+  if(!process.env.DOWNLOAD_TOKEN)throw new Error('release download needs DOWNLOAD_TOKEN (PIPELINE_DISPATCH_TOKEN)');
+  const response=await fetch(asset.browser_download_url,{headers:{Authorization:`token ${process.env.DOWNLOAD_TOKEN}`},signal:AbortSignal.timeout(30000)});
   if(!response.ok)throw new Error(`release asset download: HTTP ${response.status}`);
   const bytes=Buffer.from(await response.arrayBuffer());if(bytes.length!==receipt.size || hash(bytes)!==receipt.sha256)throw new Error('downloaded release asset differs from its receipt');
   fs.writeFileSync(destination,bytes);

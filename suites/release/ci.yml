@@ -486,6 +486,7 @@ jobs:
       env:
         VERSION: ${{ needs.finalize.outputs.tag }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DOWNLOAD_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         PIN_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
 
   reused-checks:
