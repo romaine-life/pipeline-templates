@@ -586,6 +586,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The fixture runs our runner image, which is private on Forgejo's registry, and the
+      # runner's Docker keeps no image across restarts (nelsong6/forgejo PR 83).
+      - name: Sign in to Forgejo's registry
+        env:
+          TOKEN: ${{ secrets.REGISTRY_READ_TOKEN }}
+        run: printf '%s' "$TOKEN" | docker login forgejo.romaine.life --username nelson --password-stdin
       - run: node suites/tests/cancel-services.mjs
       - if: always()
         run: node suites/tests/cancel-services.mjs cleanup
