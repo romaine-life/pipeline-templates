@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validate} from '../config.mjs';
+import {checkVariants} from '../fingerprints.mjs';
 import {matrixOutput, releasePlan} from '../release/plan.mjs';
 
 // A Go library releases its tag and source (release.module): nothing is built, so the
@@ -28,4 +29,11 @@ test('a module may join its cluster image, and nothing else', () => {
   const entry = {suites: ['cluster-service', 'go', 'release'], cluster: {image: 'forgejo.romaine.life/romaine-life/lib', pinFile: 'k8s/deployment.yaml', workPackage: 'https://openproject.home.romaine.life/wp/X-1'}, release: {module: true, image: 'cluster'}};
   validate(entry, 'test/lib');
   assert.throws(() => validate({...entry, web: {image: 'x.azurecr.io/lib'}, release: {module: true, image: 'web'}}, 'test/lib'), /at most its cluster image/);
+});
+
+test("a module's joined cluster image is a PR check, reuse included", () => {
+  const module = {suites: ['cluster-service', 'release'], cluster: {image: 'forgejo.romaine.life/romaine-life/lib'}, release: {module: true, image: 'cluster'}};
+  assert.ok(checkVariants('cluster-service', module).some(c => c.check === 'cluster-service.image'));
+  const joined = {suites: ['cluster-service', 'release'], cluster: {image: 'forgejo.romaine.life/romaine-life/app'}, release: {toolchains: ['go'], image: 'cluster'}};
+  assert.ok(!checkVariants('cluster-service', joined).some(c => c.check === 'cluster-service.image'));
 });
