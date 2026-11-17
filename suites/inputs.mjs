@@ -69,6 +69,9 @@ export async function scope(suite) {
   output('source-release', cfg.docs?.release === true);
   output('joined-image', cfg.release?.image || '');
   output('module', cfg.release?.module === true);
+  // The cluster suite checks the image on a PR unless a joined release's package check does;
+  // a module's release has no package to check, so its joined image is checked here.
+  output('cluster-image-check', !cfg.release?.image || cfg.release?.module === true);
   output('prefix', cfg.release?.prefix || (cfg.release?.prefixFrom ? '' : 'v0.1'));
   output('prefix-from', cfg.release?.prefixFrom || '');
   output('suffix', cfg.release?.suffix || '');

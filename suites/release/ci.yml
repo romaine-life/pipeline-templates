@@ -117,6 +117,10 @@ jobs:
         suffix: ${{ needs.scope.outputs.suffix }}
         publish: 'true'
       id: version
+    - run: node _ci/suites/release/image.mjs publish
+      if: needs.scope.outputs.joined-image == 'cluster'
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
     - run: node _ci/suites/release.mjs source
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -126,6 +130,13 @@ jobs:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+    - run: node _ci/suites/cluster-service/pin.mjs
+      if: needs.scope.outputs.joined-image == 'cluster'
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+        PIN_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+    enable-openid-connect: true
   reserve:
     needs: scope
     if: github.event_name != 'pull_request' && !inputs.release-tag && needs.scope.outputs.build == 'true' && needs.scope.outputs.module != 'true'

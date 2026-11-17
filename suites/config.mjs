@@ -61,7 +61,8 @@ export function validate(value, where = 'fleet entry') {
       throw new Error(`${tool}.platforms must be a nonempty unique Linux/Windows runner list`);
     }
   }
-  if (value.release?.module && ['toolchains', 'external', 'goTargets', 'image', 'assets'].some(f => value.release[f] !== undefined)) throw new Error('release.module tags a Go library and publishes its source; it builds nothing');
+  // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
+  if (value.release?.module && (['toolchains', 'external', 'goTargets', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
   const toolchains = value.release?.toolchains || [];
   if (!Array.isArray(toolchains) || new Set(toolchains).size !== toolchains.length || toolchains.some(t=>!['go','rust','npm','python','dotnet','cmake','powershell'].includes(t))) throw new Error('invalid release.toolchains');
   for (const target of value.release?.goTargets || []) {

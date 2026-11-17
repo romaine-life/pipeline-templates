@@ -52,7 +52,7 @@ export async function sourceRelease() {
   const file = path.resolve('dist/source.zip');
   fs.mkdirSync(path.dirname(file), {recursive: true});
   capture('git', ['archive', '--format=zip', '-o', file, 'HEAD']);
-  await stage({files: [file]});
+  await stage({files: [file, ...(fs.existsSync('dist/image.txt') ? ['dist/image.txt'] : [])]});
 }
 export async function publish() {
   requirePublish();

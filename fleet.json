@@ -522,6 +522,46 @@
         }
       }
     },
+    "romaine-life/fzt-frontend": {
+      "suites": [
+        "cluster-service",
+        "go",
+        "release",
+        "web-app"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ],
+        "dependencies": [
+          "github.com/romaine-life/fzt"
+        ]
+      },
+      "web": {
+        "packages": [
+          "backend"
+        ],
+        "node": "20"
+      },
+      "cluster": {
+        "image": "forgejo.romaine.life/romaine-life/fzt-frontend",
+        "baoRole": "fzt-frontend-publish",
+        "baoSecret": "services/fzt-frontend-build",
+        "pinFile": "k8s/deployment.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/HOMEINFRA-1"
+      },
+      "release": {
+        "module": true,
+        "image": "cluster",
+        "prefix": "v0.1"
+      },
+      "inputs": {
+        "web-app.test": [
+          "backend/**",
+          "scripts/check-no-hs256.mjs"
+        ]
+      }
+    },
     "romaine-life/fzt-terminal": {
       "suites": [
         "go",

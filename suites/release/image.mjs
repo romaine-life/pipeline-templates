@@ -8,4 +8,4 @@ else if (kind==='web') {
   const {run}=await import('../lib.mjs');
   await imageOperation(cfg.web,process.argv[2],async()=>run('az',['acr','login','--name',cfg.web.image.split('.')[0]]));
 }
-if (kind && process.argv[2]==='publish') fs.copyFileSync('.ci-image-pin','dist/image.txt');
+if (kind && process.argv[2]==='publish') { fs.mkdirSync('dist',{recursive:true}); fs.copyFileSync('.ci-image-pin','dist/image.txt'); }

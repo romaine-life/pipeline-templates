@@ -23,3 +23,9 @@ test('an empty plan reaches the workflow as one placeholder entry, so its jobs e
   const built = {include: [{toolchain: 'go', target: 'linux-amd64'}]};
   assert.deepEqual(JSON.parse(matrixOutput(built)), built);
 });
+
+test('a module may join its cluster image, and nothing else', () => {
+  const entry = {suites: ['cluster-service', 'go', 'release'], cluster: {image: 'forgejo.romaine.life/romaine-life/lib', pinFile: 'k8s/deployment.yaml', workPackage: 'https://openproject.home.romaine.life/wp/X-1'}, release: {module: true, image: 'cluster'}};
+  validate(entry, 'test/lib');
+  assert.throws(() => validate({...entry, web: {image: 'x.azurecr.io/lib'}, release: {module: true, image: 'web'}}, 'test/lib'), /at most its cluster image/);
+});

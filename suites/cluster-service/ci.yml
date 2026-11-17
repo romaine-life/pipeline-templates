@@ -62,6 +62,7 @@ jobs:
       greenmail: ${{ steps.scope.outputs.greenmail }}
       build: ${{ steps.release.outputs.build }}
       joined-image: ${{ steps.scope.outputs.joined-image }}
+      cluster-image-check: ${{ steps.scope.outputs.cluster-image-check }}
       has-services: ${{ steps.scope.outputs.has-services }}
   check-manifests:
     runs-on: ubuntu-latest
@@ -99,7 +100,7 @@ jobs:
       if: always()
       run: node _ci/suites/services.mjs stop
     needs: scope
-    if: github.event_name == 'pull_request' && needs.scope.outputs.image == 'true' && needs.scope.outputs.joined-image == ''
+    if: github.event_name == 'pull_request' && needs.scope.outputs.image == 'true' && needs.scope.outputs.cluster-image-check == 'true'
   publish:
     runs-on: ubuntu-latest
     steps:
