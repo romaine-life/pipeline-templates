@@ -558,6 +558,24 @@
         "docs"
       ]
     },
+    "romaine-life/merge-queue": {
+      "suites": [
+        "cluster-service",
+        "go"
+      ],
+      "go": {
+        "race": [
+          "./..."
+        ]
+      },
+      "cluster": {
+        "image": "forgejo.romaine.life/romaine-life/merge-queue",
+        "baoRole": "merge-queue-publish",
+        "baoSecret": "services/merge-queue-build",
+        "pinFile": "k8s/deployment.yaml",
+        "workPackage": "https://openproject.home.romaine.life/wp/RLMQ-1"
+      }
+    },
     "romaine-life/recorder": {
       "suites": [
         "go",
