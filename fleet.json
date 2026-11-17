@@ -357,6 +357,11 @@
         "go",
         "release"
       ],
+      "go": {
+        "dependencies": [
+          "github.com/romaine-life/composer"
+        ]
+      },
       "release": {
         "toolchains": [
           "go"
@@ -610,6 +615,22 @@
           "bin/**",
           "tools/**"
         ]
+      }
+    },
+    "romaine-life/composer": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "ubuntu-latest",
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "module": true,
+        "prefix": "v0.1"
       }
     },
     "romaine-life/eight-queens": {
@@ -879,6 +900,9 @@
       "go": {
         "platforms": [
           "windows-latest"
+        ],
+        "dependencies": [
+          "github.com/romaine-life/composer"
         ]
       },
       "release": {
