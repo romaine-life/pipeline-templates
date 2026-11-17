@@ -54,6 +54,17 @@ test('a sleep counts as a poll only inside a loop', async () => {
     ['while ($true) { Start-Sleep 5 }', true],
   ]) assert.equal(loopWaits(commands), polls, commands);
 });
+test('a request counts as a poll only in a shell loop', async () => {
+  const {shellLoopRequest} = await import('../default/rules.mjs');
+  for (const [commands, polls] of [
+    ['until curl -sf http://x/health; do echo waiting; done', true],
+    ['while ! wget -q http://x; do :; done', true],
+    ['for key in $(curl -s http://x/keys); do\n  curl -X PATCH http://x/$key\ndone', false],
+    ['while true; do\n  for i in 1 2; do echo $i; done\n  curl -sf http://x && break\ndone', true],
+    ['while (off < end) { off += 10; }\nconst response = await fetch(url);', false],
+    ['curl -sf http://x/health\nfor f in *.json; do jq empty "$f"; done', false],
+  ]) assert.equal(shellLoopRequest(commands), polls, commands);
+});
 test('relative imported helper scripts remain covered by the rules', () => {
   const sources={'ci/deploy.mjs':"import './nested/wait.mjs'",'ci/nested/wait.mjs':'while (true) { setTimeout(fn, 3000); }'};
   assert.match(violations(valid.replace('go build ./cmd/...','node ci/deploy.mjs'),p=>sources[p] ?? null).join('\n'),/loop waits/);

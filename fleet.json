@@ -529,6 +529,64 @@
         ]
       }
     },
+    "romaine-life/chess-tactics": {
+      "suites": [
+        "cluster-service",
+        "tofu",
+        "web-app"
+      ],
+      "cluster": {
+        "renders": [
+          {
+            "kind": "helm",
+            "path": "k8s",
+            "name": "chess-tactics"
+          }
+        ],
+        "build": false,
+        "smoke": false
+      },
+      "web": {
+        "packages": [
+          "backend",
+          "frontend"
+        ],
+        "node": "22",
+        "image": "romainecr.azurecr.io/chess-tactics",
+        "pinFile": "k8s/values.yaml",
+        "pinFields": {
+          "build.prTitle": "prTitle",
+          "build.prNumber": "prNumber",
+          "build.prUrl": "prUrl",
+          "build.commit": "commit"
+        },
+        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
+      },
+      "service": {
+        "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9"
+      },
+      "release": {
+        "prefix": "v0.1"
+      },
+      "tofu": {
+        "version": "1.9.0",
+        "backend": {
+          "resource_group_name": "infra",
+          "storage_account_name": "nelsontofu",
+          "container_name": "tfstate",
+          "key": "chess-tactics.tfstate"
+        }
+      },
+      "inputs": {
+        "web-app.test": [
+          "backend/**",
+          "frontend/**",
+          "packages/**",
+          "bin/**",
+          "tools/**"
+        ]
+      }
+    },
     "romaine-life/eight-queens": {
       "suites": [
         "tofu",

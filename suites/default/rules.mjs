@@ -59,6 +59,21 @@ function pythonLoopSleep(text) {
     return false;
   });
 }
+// A request in a shell while/until loop is a poll: a curl or wget in its condition or between
+// its do and done. A for loop walks a list, a request per item, and isn't one; a JavaScript
+// loop that polls waits through setTimeout, which counts above; and a while that parses a file
+// beside an unrelated fetch is neither.
+export function shellLoopRequest(text) {
+  const loops = [];
+  let pending = null, waiting = 0;
+  for (const [, word] of text.matchAll(/(?<![\w.$-])(while|until|for|do|done|curl|wget)(?![\w-])/g)) {
+    if (word === 'while' || word === 'until' || word === 'for') pending = word === 'for' ? 'for' : 'wait';
+    else if (word === 'do') { loops.push(pending || 'for'); if (pending === 'wait') waiting++; pending = null; }
+    else if (word === 'done') { if (loops.pop() === 'wait') waiting--; }
+    else if (pending === 'wait' || waiting > 0) return true;
+  }
+  return false;
+}
 export function loopWaits(commands) {
   return shellLoopSleep(commands) || pythonLoopSleep(commands) ||
     (/\b(?:Start-Sleep|setTimeout|setInterval)\b/i.test(commands) && /\b(?:while|until|for|retry|retries)\b/i.test(commands));
@@ -85,7 +100,7 @@ export function violations(text, read) {
       const commands = scriptText(step.run || '', read);
       if (loopWaits(commands)) bad.push(`${name}: loop waits on a runner`);
       if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|(?<![?&])\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
-      if (/\b(?:while|until)\b/.test(commands) && /\b(?:curl|wget|fetch)\s*[(\s]/.test(commands)) bad.push(`${name}: request loop holds a runner`);
+      if (shellLoopRequest(commands)) bad.push(`${name}: request loop holds a runner`);
       const isCheck = check.test(commands) || /\/(?:check-|lint|test)/.test(step.uses || '') || /^(?:check|test|lint|validate|plan|parse)(?:-|$)/i.test(name);
       if (isCheck && !prOnly(job.if) && !prOnly(step.if)) bad.push(`${name}: check must be guarded by github.event_name == 'pull_request'`);
     }
