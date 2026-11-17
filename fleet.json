@@ -64,6 +64,16 @@
         "smoke": false
       }
     },
+    "nelsong6/guitar-looper-cli": {
+      "suites": [
+        "rust"
+      ],
+      "rust": {
+        "platforms": [
+          "windows-latest"
+        ]
+      }
+    },
     "nelsong6/home-cluster": {
       "suites": [
         "cluster-service",

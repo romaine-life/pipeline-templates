@@ -95,6 +95,7 @@ jobs:
     - uses: ./_ci/actions/rust-toolchain
       with:
         components: clippy, rustfmt
+    - uses: ./_ci/actions/setup-uv
     - run: node _ci/suites/rust/test.mjs
       env:
         PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
@@ -117,6 +118,7 @@ jobs:
     - uses: ./_ci/actions/rust-toolchain
       with:
         components: clippy, rustfmt
+    - uses: ./_ci/actions/setup-uv
     - run: node _ci/suites/rust/test.mjs
       env:
         PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
@@ -144,6 +146,7 @@ jobs:
     - uses: ./_ci/actions/rust-toolchain
       with:
         components: clippy, rustfmt
+    - uses: ./_ci/actions/setup-uv
     - run: node _ci/suites/rust/test.mjs
       env:
         PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}

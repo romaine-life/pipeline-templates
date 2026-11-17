@@ -59,7 +59,8 @@ an unknown field fails.
 
 `default`, `go`, `rust`, `cmake`, `dotnet`, `python`, `release`, `cluster-service`,
 `web-app`, `tofu`, `docs`, `powershell`. Each `suites/<suite>/ci.yml` has a `scope` job that
-decides from the PR's diff which checks run, and runs the scripts beside it.
+decides from the PR's diff which checks run, and runs the scripts beside it. The Rust test jobs
+have uv on PATH, for tests that compare a port with the Python it replaces.
 
 ## Before a push
 
