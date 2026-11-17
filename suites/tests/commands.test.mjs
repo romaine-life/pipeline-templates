@@ -32,7 +32,7 @@ function probe(script, args = [], env = {}, cfg = {}) {
 }
 test('toolchain scripts execute standard commands and propagate failures', () => {
   for (const [script,expected,cfg] of [
-    ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go'],{}],['go/build.mjs',['go','go'],{}],
+    ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go','go'],{}],['go/build.mjs',['go','go'],{}],
     ['rust/format.mjs',['cargo'],{}],['rust/test.mjs',['rustc','cargo','cargo'],{}],['rust/build.mjs',['rustc','cargo','cargo'],{}],
     ['web-app/test.mjs',process.platform === 'win32' ? ['npm.cmd','npm.cmd','npm.cmd'] : ['npm','npm','npm'],{}],
     ['powershell/files.mjs',['git'],{}],['docs/validate.mjs',['git','git','git'],{}],
@@ -84,6 +84,19 @@ test('Go cross targets, per-target packages and Windows GUI link mode are data',
   assert.equal(builds.length,2);assert.equal(builds[0].goos,'windows');assert.equal(builds[1].goarch,'arm64');
   assert.ok(builds[0].args.some(a=>a.includes('-H windowsgui')));assert.equal(builds[1].args.some(a=>a.includes('windowsgui')),false);
   assert.ok(builds[1].args.includes('dist/probe-linux-arm64'));
+});
+test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',()=>{
+  const cfg={release:{toolchains:['go'],goTargets:[{goos:'js',goarch:'wasm',packages:['.']}]}};
+  const only=probe('go/test.mjs',[],{PROBE_GO_LIST:''},cfg);assert.equal(only.result.status,0,only.result.stderr);
+  assert.deepEqual(only.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[['list',''],['vet','js']]);
+  const both=probe('go/test.mjs',[],{},cfg);
+  assert.deepEqual(both.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[['list',''],['vet',''],['test',''],['vet','js']]);
+  assert.notEqual(probe('go/test.mjs',[],{PROBE_GO_LIST:''}).result.status,0,'no packages and no js/wasm target is an error');
+  const goroot=fs.mkdtempSync(path.join(os.tmpdir(),'goroot-'));
+  fs.mkdirSync(path.join(goroot,'lib','wasm'),{recursive:true});fs.writeFileSync(path.join(goroot,'lib','wasm','wasm_exec.js'),'// runtime');
+  const build=probe('go/build.mjs',[],{PROBE_GOROOT:goroot},cfg);assert.equal(build.result.status,0,build.result.stderr);
+  assert.ok(build.trace.some(t=>t.command==='go' && t.args[0]==='build' && t.goos==='js'));
+  fs.rmSync(goroot,{recursive:true,force:true});
 });
 test('Go dependency dispatch opens and queues one PR', () => {
   const {result,trace} = probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod'},{go:{dependencies:['github.com/romaine-life/fzt']}});

@@ -1,5 +1,14 @@
-import {run} from '../lib.mjs';
+import {capture, run} from '../lib.mjs';
+import {config} from '../config.mjs';
 import {goEnvironment} from './environment.mjs';
 goEnvironment();
-run('go', ['vet', '-p', '4', './...']);
-run('go', ['test', '-p', '4', './...']);
+// A js/wasm release target's code builds only for js/wasm, so it is vetted there as
+// well; a module that is only that (fzt-browser) has no native packages to vet or test.
+const wasm = (config().release?.goTargets || []).some(t => t.goos === 'js' && t.goarch === 'wasm');
+const native = capture('go', ['list', './...']) !== '';
+if (!native && !wasm) throw new Error('no Go packages build here, and no js/wasm release target names where they do');
+if (native) {
+  run('go', ['vet', '-p', '4', './...']);
+  run('go', ['test', '-p', '4', './...']);
+}
+if (wasm) run('go', ['vet', '-p', '4', './...'], {env: {GOOS: 'js', GOARCH: 'wasm'}});

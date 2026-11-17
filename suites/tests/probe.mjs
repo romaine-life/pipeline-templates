@@ -15,7 +15,8 @@ child.spawnSync = (command, args, options) => {
     : 'README.md\0main.go\0config.json\0';
   if (command === 'git' && args.includes('--name-only')) stdout = process.env.PROBE_DIFF || '';
   if (command === 'git' && args[0] === 'rev-parse') stdout = 'a'.repeat(40);
-  if (command === 'go' && args[0] === 'list') stdout = 'example.com/probe/cmd/probe';
+  if (command === 'go' && args[0] === 'list') stdout = process.env.PROBE_GO_LIST ?? 'example.com/probe/cmd/probe';
+  if (command === 'go' && args[0] === 'env' && args[1] === 'GOROOT') stdout = process.env.PROBE_GOROOT || '';
   if (command === 'cargo' && args[0] === 'build') {
     fs.mkdirSync(path.join(process.env.CARGO_TARGET_DIR,'release'),{recursive:true});
     fs.writeFileSync(path.join(process.env.CARGO_TARGET_DIR,'release',`probe${process.platform === 'win32' ? '.exe' : ''}`), 'binary');

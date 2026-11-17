@@ -41,6 +41,10 @@ export function buildGo(cfg=config()) {
       if(target.buildmode==='c-shared'){const header=`dist/${asset.replace(/\.dll$/,'.h')}`;if(fs.existsSync(header))fs.unlinkSync(header);}
       } finally {if (embed && fs.existsSync(resource)) fs.unlinkSync(resource);}
     }
+    // A js/wasm binary runs only beside the wasm_exec.js of the Go that built it.
+    if (target.goos==='js' && target.goarch==='wasm' && !fs.existsSync('dist/wasm_exec.js')) {
+      fs.copyFileSync(path.join(capture('go',['env','GOROOT']),'lib','wasm','wasm_exec.js'),'dist/wasm_exec.js');
+    }
   }
 }
 if (process.argv[1]?.replaceAll('\\','/').endsWith('/go/build.mjs')) buildGo();
