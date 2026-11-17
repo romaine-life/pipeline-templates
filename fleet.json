@@ -371,6 +371,21 @@
         ]
       }
     },
+    "romaine-life/fzt": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "go": {
+        "platforms": [
+          "windows-latest"
+        ]
+      },
+      "release": {
+        "module": true,
+        "prefix": "v0.2"
+      }
+    },
     "romaine-life/fzt-automate": {
       "suites": [
         "go",
