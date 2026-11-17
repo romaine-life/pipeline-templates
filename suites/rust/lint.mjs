@@ -22,7 +22,7 @@ if(!specs[name])throw new Error('rust/lint.mjs typos|machete|audit');
 const [pkg,version,binary]=specs[name];
 const compiler=capture('rustc',['--version']).replace(/[^\w.-]/g,'-');
 const root=kept(`rust-tools/${pkg}/${version}/${compiler}`),executable=path.join(root,'bin',`${binary}${process.platform==='win32' ? '.exe' : ''}`);
-if(!fs.existsSync(executable))run('cargo',['install','--locked','-j','4','--root',root,`${pkg}@${version}`],{env:{CARGO_TARGET_DIR:kept(`rust-tools/${pkg}/${version}/${compiler}/target`)}});
+if(!fs.existsSync(executable))run('cargo',['install','--locked','-j','4','--root',root,`${pkg}@${version}`],{env:{CARGO_TARGET_DIR:kept(`rust-tools/${pkg}/${version}/${compiler}/target`),CARGO_BUILD_BUILD_DIR:kept(`rust-tools/${pkg}/${version}/${compiler}/target`)}});
 if(name==='typos'){
   const files=tracked().filter(f=>/\.(rs|md|toml)$/.test(f));
   for(let i=0;i<files.length;i+=64)run(executable,files.slice(i,i+64));

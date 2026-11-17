@@ -31,7 +31,15 @@ export function cargoCache(job) {
   const toolchain = capture('rustc', ['--version']).replace(/[^\w.+-]/g, '-');
   const root = kept(`cargo-target/${repo}`);
   const key = process.env.GITHUB_JOB ? `${process.env.GITHUB_JOB}-${process.platform}` : job;
-  process.env.CARGO_TARGET_DIR = targetDirectory(root, toolchain, key);
+  const shared = targetDirectory(root, toolchain, key);
+  // In CI, jobs of one repository can build at once in the kept folder. Cargo's lock covers a
+  // build, not reading its outputs after, so a parallel build could replace them in between.
+  // The compiled crates stay in the kept folder (Cargo's build-dir); the binaries and their
+  // dependency lists come out into this job's own temporary folder.
+  if (process.env.RUNNER_TEMP) {
+    process.env.CARGO_BUILD_BUILD_DIR = shared;
+    process.env.CARGO_TARGET_DIR = path.join(process.env.RUNNER_TEMP, 'cargo-target');
+  } else process.env.CARGO_TARGET_DIR = shared;
   if (process.platform === 'linux' && process.env.CI_CARGO_LOCKED !== '1') {
     const result = spawnSync('flock', ['-n', '-s', path.join(root, `${toolchain}.lock`), process.execPath, ...process.argv.slice(1)],
       {stdio:'inherit',env:{...process.env,CI_CARGO_LOCKED:'1'}});
