@@ -120,9 +120,6 @@ jobs:
         token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
-    - run: node _ci/suites/web-app/dependencies.mjs stage
-      env:
-        DEPENDENCY_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     - run: node _ci/suites/web-app/image.mjs check
     - name: Remove job services
       if: always()
@@ -158,9 +155,6 @@ jobs:
         suffix: ${{ needs.scope.outputs.suffix }}
         publish: 'true'
       id: version
-    - run: node _ci/suites/web-app/dependencies.mjs stage
-      env:
-        DEPENDENCY_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     - run: node _ci/suites/web-app/image.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

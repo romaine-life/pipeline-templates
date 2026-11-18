@@ -22,7 +22,7 @@ const write=(file,data='payload')=>{fs.mkdirSync(path.dirname(file),{recursive:t
 test('a Windows-only dependency is staged once and both Rust target parts assemble without duplicate names',()=>fixture(async()=>{
   const linux='x86_64-unknown-linux-gnu',windows='x86_64-pc-windows-msvc',bytes=Buffer.from('pinned DLL');
   const cfg={version:1,release:{toolchains:['rust'],rustTargets:[{target:linux},{target:windows}],dependencies:[{toolchain:'rust',targets:[windows],url:'https://artifacts.home.romaine.life/fzt.dll',sha256:hash(bytes),destination:'dist/fzt.dll'}],assetNames:{[`rust-${linux}`]:{[`spotify_player-${linux}`]:'spotify_player'},[`rust-${windows}`]:{[`spotify_player-${windows}.exe`]:'spotify_player.exe'}}}};
-  fleetEntry((cfg));let fetched=0;globalThis.fetch=async()=>{fetched++;return new Response(bytes);};
+  const {dependencies:downloads,...release}=cfg.release;fs.mkdirSync('release',{recursive:true});fs.writeFileSync('release/dependencies.json',JSON.stringify(downloads));fleetEntry({...cfg,suites:['release'],release});let fetched=0;globalThis.fetch=async()=>{fetched++;return new Response(bytes);};
   for(const target of [linux,windows]) {
     process.env.RELEASE_TARGET=target;process.env.RELEASE_PART=`rust-${target}`;
     await dependencies('rust');write(`dist/spotify_player-${target}${target===windows?'.exe':''}`);

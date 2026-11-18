@@ -8,9 +8,8 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   go: ['dependencies'], rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['assets', 'dispatch', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  release: ['assets', 'dispatch', 'rustTargets', 'external', 'dotnetProjects', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
-  web: ['dependencies'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
@@ -78,7 +77,7 @@ export function validate(value, where = 'fleet entry') {
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['web','dependencies']]) {
+  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
@@ -116,30 +115,6 @@ function settings(value) {
       safePath(source);
       if(source.split('*').length>2 || typeof target!=='string' || !/^[\w.*+{}-]+$/.test(target) || target.startsWith('ci-release-') || target.split('*').length>2 || target.replaceAll('{tag}','').replaceAll('{version}','').includes('{'))throw new Error('asset rename needs one optional wildcard and a plain published name with {tag}/{version}');
     }
-  }
-  const destinations = new Set();
-  for (const dependency of value.web?.dependencies || []) {
-    // Inputs to the web image, or to a release build that embeds them (fzt-desktop's frontend).
-    if (!value.web.image && !value.release?.toolchains?.length) throw new Error('web.dependencies are inputs to the web image or a release build');
-    if (!dependency || Object.keys(dependency).some(k => !['repository', 'asset', 'path', 'destination'].includes(k))) throw new Error('unknown web dependency field');
-    if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(dependency.repository || '')) throw new Error('a web dependency names an owned repository');
-    if (Boolean(dependency.asset) === Boolean(dependency.path)) throw new Error('a web dependency is a release asset or a path at the release tag, not both');
-    if (dependency.asset && !/^[\w.+-]+$/.test(dependency.asset)) throw new Error('web dependency asset must be a plain file name');
-    if (dependency.path) safePath(dependency.path);
-    safePath(dependency.destination);
-    if (destinations.has(dependency.destination)) throw new Error(`two web dependencies stage ${dependency.destination}`);
-    destinations.add(dependency.destination);
-  }
-  for (const dependency of value.release?.dependencies || []) {
-    if(Object.keys(dependency).some(k=>!['toolchain','targets','url','sha256','lock','destination','extract'].includes(k)))throw new Error('unknown release dependency field');
-    if(dependency.extract!==undefined)safePath(dependency.extract);
-    if(dependency.toolchain && !toolchains.includes(dependency.toolchain))throw new Error('dependency toolchain is not declared');
-    safePath(dependency.destination);
-    if(dependency.targets && (!Array.isArray(dependency.targets) || !dependency.targets.length || new Set(dependency.targets).size!==dependency.targets.length || dependency.targets.some(t=>!/^[-\w]+$/.test(t))))throw new Error('dependency.targets must be unique target names');
-    if (dependency.lock) safePath(dependency.lock);
-    if (!dependency.lock && !/^[0-9a-f]{64}$/.test(dependency.sha256 || '')) throw new Error('release dependency needs a lock file or sha256');
-    const url=new URL(dependency.url.replace('{tag}','version'));
-    if (url.protocol!=='https:' || !['artifacts.home.romaine.life','forgejo.romaine.life'].includes(url.hostname)) throw new Error('release dependencies come from Artifact Keeper or Forgejo');
   }
   for (const archive of value.release?.archives || []) {
     if(Object.keys(archive).some(k=>!['toolchain','targets','name','sources','entries'].includes(k)))throw new Error('unknown archive field');

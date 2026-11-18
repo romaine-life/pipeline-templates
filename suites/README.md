@@ -65,9 +65,8 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 | `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
-| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
+| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
 | `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk` |
-| `web` | `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds; being replaced by npm packages on Forgejo (below, PIPT-32) |
 
 ### What the repository's name and files decide
 
@@ -112,6 +111,14 @@ copies in) changed since the release that built the image the pin file runs; oth
 release keeps that image, and its pin PR moves only the pin fields, so the pod isn't
 restarted. On a PR the image's `--self-test` runs with the assembled release at `/ci/dist`,
 in a layer only the check runs, for an image that runs a release binary it doesn't hold.
+
+## What a release downloads
+
+What a release packs beside its build from elsewhere (shows' libmpv) is its repository's
+`release/dependencies.json` (`suites/layout.mjs`): a list of `{url, sha256 or lock,
+destination}`, each from Artifact Keeper or Forgejo; `extract` takes one file out of a
+downloaded archive, a 7z included on a Windows build. The release downloads each once, checks
+its SHA-256, and fails on a mismatch.
 
 ## npm packages on Forgejo
 

@@ -20,7 +20,7 @@ export const inputs = {
   'cluster-service.manifests': ['k8s/**'],
   'cluster-service.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**'],
   'web-app.test': everything,
-  'web-app.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**', 'dependencies.lock'],
+  'web-app.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**'],
   'tofu.plan': ['tofu/**'],
   'docs.validate': ['**/*.md'],
   'powershell.parse': ['**/*.ps1', '**/*.psm1', '**/*.psd1'],

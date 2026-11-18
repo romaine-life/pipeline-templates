@@ -14,9 +14,8 @@ test('ordinary source changes never rebuild release targets on a PR',()=>{
   for(const file of ['cmd/app/app.manifest','resources/app.rc','resources/app.ico','vendor/gui.syso','installer/setup.wxs','ci/package/windows.ps1','scripts/build-release.mjs','Cargo.lock','go.sum','frontend/package-lock.json','uv.lock','App/packages.lock.json'])assert.equal(packagingChanged([file],cfg,()=>null),true,file);
   assert.equal(packagingChanged(['Cargo.lock'],{release:{toolchains:['go']}},()=>null),false);
   assert.equal(packagingChanged(['pinned-library.lock'],{release:{dependencies:[{lock:'pinned-library.lock'}]}},()=>null),true);
-  // A take-up of the pinned inputs a release embeds (web.dependencies) rebuilds it on the PR.
-  assert.equal(packagingChanged(['dependencies.lock'],{release:{toolchains:['rust']},web:{dependencies:[{repository:'romaine-life/fzt-browser',asset:'fzt.wasm',destination:'src/fzt.wasm'}]}},()=>null),true);
-  assert.equal(packagingChanged(['dependencies.lock'],{release:{toolchains:['rust']}},()=>null),false);
+  // A change to what a release downloads (release/dependencies.json) rebuilds it on the PR.
+  assert.equal(packagingChanged(['release/dependencies.json'],{release:{dependencies:[{url:'https://artifacts.home.romaine.life/x.7z',sha256:'a'.repeat(64),destination:'dist/x.dll'}]}},()=>null),true);
   assert.equal(packagingChanged(['unrelated/package-lock.json'],cfg,()=>null),false);
   for(const file of ['CMakeLists.txt','App/App.csproj','pyproject.toml'])assert.equal(packagingChanged([file],cfg,()=>null),true);
 });

@@ -15,7 +15,8 @@ test('pinned release dependencies are verified once and archive recipes reuse th
   try{
     process.chdir(root);process.env.CI_CACHE_ROOT=path.join(root,'cache');fs.writeFileSync('.goreleaser.yaml','{version: 2, builds: [{id: app, main: ., targets: [linux_amd64_v1]}]}');
     fs.writeFileSync('dependency.lock',`v1.0.0 ${hash(bytes)}`);
-    fleetEntry(({version:1,release:{dependencies:[{url:'https://artifacts.home.romaine.life/dependency/{tag}',lock:'dependency.lock',destination:'dist/dependency.bin'}],archives:[{name:'bundle.zip',sources:['dist/dependency.bin']}]}}));
+    fs.mkdirSync('release');fs.writeFileSync('release/dependencies.json',JSON.stringify([{url:'https://artifacts.home.romaine.life/dependency/{tag}',lock:'dependency.lock',destination:'dist/dependency.bin'}]));
+    fleetEntry(({version:1,suites:['release'],release:{archives:[{name:'bundle.zip',sources:['dist/dependency.bin']}]}}));
     globalThis.fetch=async()=>{fetches++;return new Response(bytes);};
     await dependencies('go');await dependencies('go');assert.equal(fetches,1);
     archives('go');assert.equal(Buffer.from(unzipSync(fs.readFileSync('dist/bundle.zip'))['dependency.bin']).toString(),bytes.toString());
@@ -32,7 +33,8 @@ test('a release dependency can be one file out of an archive',async()=>{
     fs.mkdirSync('source/lib',{recursive:true});fs.writeFileSync('source/lib/runtime.dll','runtime');fs.writeFileSync('source/other.h','header');
     run(tar,['-czf','bundle.tar.gz','-C','source','lib/runtime.dll','other.h']);
     const bytes=fs.readFileSync('bundle.tar.gz');
-    fleetEntry({version:1,release:{dependencies:[{url:'https://artifacts.home.romaine.life/bundle.tar.gz',sha256:hash(bytes),extract:'lib/runtime.dll',destination:'dist/runtime.dll'}]}});
+    fs.mkdirSync('release');fs.writeFileSync('release/dependencies.json',JSON.stringify([{url:'https://artifacts.home.romaine.life/bundle.tar.gz',sha256:hash(bytes),extract:'lib/runtime.dll',destination:'dist/runtime.dll'}]));
+    fleetEntry({version:1,suites:['release']});
     globalThis.fetch=async()=>new Response(bytes);
     await dependencies('go');
     assert.equal(fs.readFileSync('dist/runtime.dll','utf8'),'runtime');

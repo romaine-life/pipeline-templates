@@ -4,6 +4,7 @@ import {capture} from '../lib.mjs';
 import {matches,relevant} from '../input-patterns.mjs';
 import {embedded,imageInputs} from '../dependencies.mjs';
 import {forgejoDependencies,ownPackage} from '../packages.mjs';
+import {downloadsFile} from '../layout.mjs';
 import {pythonProjects} from '../conventions.mjs';
 
 const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
@@ -17,7 +18,7 @@ export function settings(cfg) {
 }
 const locks={go:['**/go.mod','**/go.sum','go.work','go.work.sum'],rust:['**/Cargo.lock','rust-toolchain*','.cargo/**','**/.cargo/**'],dotnet:['**/packages.lock.json','global.json','NuGet.Config','**/*.*proj','**/*.props','**/*.targets'],cmake:['vcpkg.json','vcpkg-configuration.json','CMakePresets.json','**/CMakeLists.txt','**/*.cmake']};
 export function packagingInputs(cfg,read) {
-  const patterns=[...(cfg.release?.toolchains || []).flatMap(kind=>locks[kind] || []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)],metadata=[];
+  const patterns=[...(cfg.release?.toolchains || []).flatMap(kind=>locks[kind] || []),...(cfg.release?.dependencies?.length ? [downloadsFile] : []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)],metadata=[];
   // The npm package a release publishes is what its package.json lists (packages.mjs).
   if(ownPackage(undefined,read))patterns.push('package.json');
   // The root's npm packages from Forgejo, which a release that embeds them installs first (build.mjs).
@@ -50,8 +51,8 @@ export function packagingScope(files,cfg,base=process.env.BASE) {
   return packagingChanged(files,cfg,file=>existing.has(file) ? capture('git',['show',`${mergeBase}:${file}`]) : null);
 }
 // What a merge's release reads beyond its patterns, inside the ignored files too: what its code
-// embeds, its joined image's inputs, its pinned dependencies' locks and the sources its archives
+// embeds, its joined image's inputs, its downloads and their locks and the sources its archives
 // ship (tuimail's carry its README and LICENSE).
 export function releaseInputs(cfg,read) {
-  return [...(cfg.release?.toolchains || []).flatMap(kind=>embedded()[kind] || []),...(cfg.release?.image ? imageInputs(cfg[cfg.release.image],read) : []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)];
+  return [...(cfg.release?.toolchains || []).flatMap(kind=>embedded()[kind] || []),...(cfg.release?.image ? imageInputs(cfg[cfg.release.image],read) : []),...(cfg.release?.dependencies?.length ? [downloadsFile] : []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)];
 }
