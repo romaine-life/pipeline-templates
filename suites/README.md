@@ -128,8 +128,12 @@ A repository that uses one names the registry and the sign-in in an `.npmrc` bes
 
 ```ini
 @romaine-life:registry=https://forgejo.romaine.life/api/packages/romaine-life/npm/
-//forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN?}
+//forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN}
 ```
+
+The variable is written without npm 11's `?` default: npm 10, which Node 20's and 22's
+images carry, sends `${FORGEJO_PACKAGES_TOKEN?}` literally as the token. Unset, it leaves every
+other npm command working.
 
 Nothing stores a credential for them (nelsong6/forgejo README, Package sign-in). In CI
 the suite action sets `FORGEJO_PACKAGES_TOKEN` to the job's own short-lived token, so its jobs

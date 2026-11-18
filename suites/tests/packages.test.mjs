@@ -40,7 +40,7 @@ test('a job signs in with its own token for the audience asked', async () => {
 
 test('a repository reads packages when an .npmrc signs in for them, and takes only those its lock gets from Forgejo', () => inDir(() => {
   fs.mkdirSync('backend');
-  fs.writeFileSync('backend/.npmrc', '//forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN?}\n');
+  fs.writeFileSync('backend/.npmrc', '//forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN}\n');
   fs.writeFileSync('other.npmrc', '${FORGEJO_PACKAGES_TOKEN}');
   assert.equal(usesPackages(['backend/.npmrc']), true);
   assert.equal(usesPackages(['other.npmrc']), false);

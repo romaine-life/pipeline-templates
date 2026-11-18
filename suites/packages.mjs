@@ -4,7 +4,7 @@
 // .npmrc beside its package.json:
 //
 //   @romaine-life:registry=https://forgejo.romaine.life/api/packages/romaine-life/npm/
-//   //forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN?}
+//   //forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN}
 //
 // No credential is stored anywhere: Forgejo's authorized integrations (nelsong6/forgejo
 // README, Package sign-in) take a CI job's own short-lived token, and on a home PC one OpenBao
