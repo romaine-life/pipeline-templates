@@ -5,6 +5,7 @@ import path from 'node:path';
 import {capture, kept, run, hash} from '../lib.mjs';
 import {tool} from '../tools.mjs';
 import {msvc} from './msvc.mjs';
+import {vcpkg} from './vcpkg.mjs';
 export function buildDirectory() {
   const version=capture('cmake',['--version']).split('\n')[0].replace(/[^\w.-]/g,'-');
   const repo=(process.env.GITHUB_REPOSITORY || path.basename(process.cwd())).replace(/[^\w.-]/g,'-');
@@ -15,6 +16,7 @@ export async function configureBuild() {
   process.env.PATH=path.dirname(cmake)+path.delimiter+process.env.PATH;
   msvc();
   const dir=buildDirectory();
+  const dependencies=await vcpkg(dir);
   process.env.SCCACHE_DIR=kept('sccache');
   const compilerCache=await tool('sccache');
   // Each build runs its own sccache server. On a host-network runner every job's container
@@ -24,7 +26,7 @@ export async function configureBuild() {
   if (process.platform==='win32') process.env.SCCACHE_SERVER_PORT=String(await freePort());
   else process.env.SCCACHE_SERVER_UDS=path.join(server,'server.sock');
   try {
-    run('cmake',['--preset','ci','-B',dir,`-DCMAKE_MAKE_PROGRAM=${await tool('ninja')}`,`-DCMAKE_C_COMPILER_LAUNCHER=${compilerCache}`,`-DCMAKE_CXX_COMPILER_LAUNCHER=${compilerCache}`]);
+    run('cmake',['--preset','ci','-B',dir,`-DCMAKE_MAKE_PROGRAM=${await tool('ninja')}`,`-DCMAKE_C_COMPILER_LAUNCHER=${compilerCache}`,`-DCMAKE_CXX_COMPILER_LAUNCHER=${compilerCache}`,...dependencies]);
     run('cmake',['--build',dir,'--config','Release','--parallel','4']);
   } finally {
     // A build that failed before its first compile started no server to stop.

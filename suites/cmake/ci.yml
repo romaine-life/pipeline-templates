@@ -71,6 +71,8 @@ jobs:
     - uses: ./_ci/actions/suite
     - uses: ./_ci/actions/home-cache
     - run: node _ci/suites/cmake/test.mjs
+      env:
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-linux == 'true'
   check-test-windows:
@@ -88,6 +90,8 @@ jobs:
     - uses: ./_ci/actions/suite
     - uses: ./_ci/actions/home-cache
     - run: node _ci/suites/cmake/test.mjs
+      env:
+        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-windows == 'true'
     defaults:

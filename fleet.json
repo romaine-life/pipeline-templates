@@ -53,6 +53,44 @@
         ]
       }
     },
+    "nelsong6/at-tmux": {
+      "suites": [
+        "cmake",
+        "release"
+      ],
+      "cmake": {
+        "platforms": [
+          "windows-latest"
+        ],
+        "buildPlatform": "windows-latest"
+      },
+      "release": {
+        "toolchains": [
+          "cmake"
+        ],
+        "prefixFrom": "CMakeLists.txt",
+        "homeSync": true,
+        "assetNames": {
+          "cmake": {
+            "cmake/bin": "tmux-windows-{tag}.zip",
+            "cmake/at-protocol.txt": "at-protocol.txt"
+          }
+        }
+      },
+      "inputs": {
+        "cmake.test": [
+          "cmd-parse.y",
+          "tmux.1",
+          "dep/**",
+          "regress/**"
+        ],
+        "release.build": [
+          "cmd-parse.y",
+          "tmux.1",
+          "dep/**"
+        ]
+      }
+    },
     "nelsong6/avatars": {
       "suites": [
         "cluster-service",

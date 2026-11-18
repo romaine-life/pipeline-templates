@@ -76,6 +76,12 @@ in a layer only the check runs, for an image that runs a release binary it doesn
 decides from the PR's diff which checks run, and runs the scripts beside it. The Rust test jobs
 have uv on PATH, for tests that compare a port with the Python it replaces.
 
+`cmake` configures a repository's `ci` preset with Ninja and sccache. One with a
+`vcpkg.json` gets its dependencies from Visual Studio's vcpkg in manifest mode (the preset
+names `$env{VCPKG_ROOT}`'s toolchain file): built packages are kept on the runner, every
+download goes through Artifact Keeper (`cmake/vcpkg-fetch.mjs`), and the registry and any
+private port come from Forgejo.
+
 ## Before a push
 
 `ci-check` (at-home-tools) runs `suites/check.mjs` in a repository's worktree: for the
