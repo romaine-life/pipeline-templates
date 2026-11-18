@@ -394,12 +394,45 @@
     },
     "romaine-life/at-terminal-rio": {
       "suites": [
+        "release",
         "rust"
       ],
       "topics": [
+        "home-sync",
+        "release-archive",
+        "release-rust",
+        "rust-build-windows-amd64",
         "rust-test-linux",
         "rust-test-windows"
-      ]
+      ],
+      "release": {
+        "rustTargets": [
+          {
+            "target": "x86_64-pc-windows-msvc",
+            "package": "rioterm"
+          }
+        ],
+        "archives": [
+          {
+            "toolchain": "rust",
+            "targets": [
+              "x86_64-pc-windows-msvc"
+            ],
+            "name": "at-terminal-windows-amd64.zip",
+            "sources": [
+              "dist/rio-x86_64-pc-windows-msvc.exe",
+              "dist/conpty.dll",
+              "dist/OpenConsole.exe",
+              "misc/windows/conhost/LICENSE",
+              "release/assets/rust-x86_64-pc-windows-msvc/at-protocol.txt"
+            ],
+            "entries": {
+              "rio-x86_64-pc-windows-msvc.exe": "at-terminal-rio.exe",
+              "LICENSE": "LICENSE-ConPTY.txt"
+            }
+          }
+        ]
+      }
     },
     "romaine-life/auth": {
       "suites": [
