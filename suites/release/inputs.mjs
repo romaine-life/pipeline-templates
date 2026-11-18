@@ -52,7 +52,8 @@ export function packagingScope(files,cfg,base=process.env.BASE) {
 }
 // What a merge's release reads beyond its patterns, inside the ignored files too: what its code
 // embeds, its joined image's inputs, its downloads and their locks and the sources its archives
-// ship (tuimail's carry its README and LICENSE).
+// ship (tuimail's carry its README and LICENSE), and the workflow an external part builds with
+// (at-terminal's build.yml).
 export function releaseInputs(cfg,read) {
-  return [...(cfg.release?.toolchains || []).flatMap(kind=>embedded()[kind] || []),...(cfg.release?.image ? imageInputs(cfg[cfg.release.image],read) : []),...(cfg.release?.dependencies?.length ? [downloadsFile] : []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)];
+  return [...(cfg.release?.toolchains || []).flatMap(kind=>embedded()[kind] || []),...(cfg.release?.external || []).map(part=>`.forgejo/workflows/${part.workflow}`),...(cfg.release?.image ? imageInputs(cfg[cfg.release.image],read) : []),...(cfg.release?.dependencies?.length ? [downloadsFile] : []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)];
 }

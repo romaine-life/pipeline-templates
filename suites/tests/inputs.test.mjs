@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {inputs, relevant, matches, changed,pushFiles} from '../inputs.mjs';
 import {broad} from '../input-patterns.mjs';
+import {releaseInputs} from '../release/inputs.mjs';
 import {publishEvent} from '../lib.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -16,18 +17,22 @@ test('narrow checks read their tool\'s files; tests and a merge\'s release read 
     assert.equal(relevant(['assets/embed.txt'], job, ['assets/embed.txt']), true, job);
   }
   assert.deepEqual([...broad].sort(), ['cmake.test','dotnet.test','go.test','python.test','release.build','rust.test','web-app.test']);
-  const tests = ['cmd/app/main_test.go','internal/x/testdata/case.json','tests/cli.rs','crate/tests/it.rs','test/fixture.txt','benches/speed.rs','src/app.test.ts','frontend/src/view.spec.js','Tests/Unit/Parse.cs','App/Tests/Run.cs','.gitignore','frontend/.gitignore'];
+  const tests = ['cmd/app/main_test.go','internal/x/testdata/case.json','tests/cli.rs','crate/tests/it.rs','test/fixture.txt','benches/speed.rs','src/app.test.ts','frontend/src/view.spec.js','Tests/Unit/Parse.cs','App/Tests/Run.cs','.gitignore','frontend/.gitignore','.forgejo/workflows/ci.yml'];
   for (const job of broad) {
-    for (const file of ['frontend/src/app.ts','scripts/build.mjs','regress/case.sh','probes/probe.rs','.forgejo/workflows/ci.yml','Cargo.toml']) assert.ok(relevant([file], job), `${job} ${file}`);
+    for (const file of ['frontend/src/app.ts','scripts/build.mjs','regress/case.sh','probes/probe.rs','.forgejo/container/run.cmd','Cargo.toml']) assert.ok(relevant([file], job), `${job} ${file}`);
     for (const file of ['README.md','frontend/README.md','docs/guide.txt','LICENSE','LICENSE-MIT','k8s/values.yaml','tofu/main.tf']) assert.equal(relevant([file], job), false, `${job} ${file}`);
     assert.ok(relevant(['README.md','src/main.rs'], job), job);
     // A file the repository names as an input (an archived README, a Go embed) counts even there.
     assert.ok(relevant(['README.md'], job, ['README.md']), job);
-    // The tests read their own files; a merge's release doesn't, since they can't change what it ships.
+    // The tests read their own files and the workflows; a merge's release doesn't, since they can't change what it ships.
     for (const file of tests) assert.equal(relevant([file], job), job !== 'release.build', `${job} ${file}`);
   }
   assert.ok(relevant(['internal/x/testdata/embedded.txt'], 'release.build', ['internal/x/testdata/embedded.txt']));
   assert.ok(relevant(['src/app.test.ts','src/app.ts'], 'release.build'));
+  // A workflow that builds a release part itself is an input to the release.
+  const external = releaseInputs({release: {external: [{id: 'msix', workflow: 'build.yml'}]}});
+  assert.ok(relevant(['.forgejo/workflows/build.yml'], 'release.build', external));
+  assert.equal(relevant(['.forgejo/workflows/checks.yml'], 'release.build', external), false);
 });
 test('the manifests check reads k8s/, where every render is', () => {
   for (const file of ['k8s/kustomization.yaml','k8s/values-unserved.yaml','k8s/templates/a.yaml']) assert.ok(relevant([file],'cluster-service.manifests'),file);

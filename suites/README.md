@@ -164,7 +164,8 @@ scripts put the files in place.
    `LICENSE`, `COPYING`, `NOTICE`), `k8s/` (an image-pin PR changes it, and a pin must never
    cut a release) and `tofu/`; a release (a static app's deploy included) also ignores the
    tests (`*_test.go`, `testdata/`, `tests/`, `test/`, `Tests/`, `benches/`, `*.test.*`,
-   `*.spec.*`) and `.gitignore`, which can't change what it ships.
+   `*.spec.*`), `.gitignore` and `.forgejo/workflows/`, which can't change what it ships (a
+   workflow an external release part builds with counts).
    The other checks, the PR's release packaging among them, read their tool's files. Go
    embeds, Rust includes, Dockerfile `COPY` sources, linked docs and the files a
    release archives count wherever they are. No repository adds patterns of its own.
