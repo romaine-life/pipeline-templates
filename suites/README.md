@@ -85,3 +85,15 @@ and their commands, so a suite change reaches it with no edit there. A test job 
 its own platform, and a few jobs run on the pull request only, each with the reason
 `check.mjs` gives (`ciOnly`): image builds, release builds and packaging, OpenTofu plans,
 and tests that need services on the runner's Docker network.
+
+The repository's own workflows (`.forgejo/workflows`, else `.github/workflows`) count too
+(`own-workflows.mjs`, AHT-168): every job a pull request would start there runs through its
+own steps and shells, after the jobs it needs, whose outputs decide its condition, or is
+named with why the pull request runs it instead. Secrets and variables, a matrix,
+containers, system package installs, reusable workflows, actions that aren't a composite
+action ci-check holds, and setting up the runner's machine leave a job to the pull request;
+pipeline-templates' toolchain setup actions and `actions/setup-*` are skipped, the PC's own
+tools standing in as they do for the suites' checks. A job for the other system runs too,
+but its failing is reported as the pull request's to decide, and one whose twin for this
+system runs the same steps (`suite-tests-linux` and `suite-tests-windows`) is that twin's
+run.

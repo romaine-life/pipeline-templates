@@ -1,15 +1,18 @@
 // ci-check (at-home-tools) runs this from a repository's worktree before a push: the
 // checks its suites' pull-request run would start for the commits since the default
 // branch, through the same scripts. Each suite's ci.yml is read for its check jobs, their
-// conditions and their commands, so nothing here lists what a suite runs.
+// conditions and their commands, so nothing here lists what a suite runs; the repository's
+// own workflows are read the same way, and each of their jobs runs or is named
+// (own-workflows.mjs).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import YAML from 'yaml';
 import {capture, run, suites, templates} from './lib.mjs';
-import {config} from './config.mjs';
-import {scope} from './inputs.mjs';
+import {config, currentRepository} from './config.mjs';
+import {changed, scope} from './inputs.mjs';
+import {runOwn} from './own-workflows.mjs';
 
 // Check jobs a PC doesn't run; the pull request runs them.
 export const ciOnly = {
@@ -63,11 +66,16 @@ export function plan(suite, outputs, cfg, platform = process.platform) {
   return jobs;
 }
 
-// The commit the pull request would be compared with: where HEAD leaves the default branch.
-export function base() {
+// The branch the pull request would go into: origin's default.
+export function defaultBranch() {
   const head = capture('git', ['ls-remote', '--symref', 'origin', 'HEAD']).match(/^ref: refs\/heads\/(\S+)\s+HEAD/m);
   if (!head) throw new Error("origin doesn't name its default branch");
-  run('git', ['fetch', '--quiet', 'origin', head[1]]);
+  return head[1];
+}
+
+// The commit the pull request would be compared with: where HEAD leaves the default branch.
+export function base(branch = defaultBranch()) {
+  run('git', ['fetch', '--quiet', 'origin', branch]);
   return capture('git', ['merge-base', 'HEAD', 'FETCH_HEAD']);
 }
 
@@ -84,7 +92,8 @@ async function outputs(suite) {
   }
 }
 
-export async function check({platform = process.platform, from = base()} = {}) {
+export async function check({platform = process.platform, branch, from} = {}) {
+  if (!from) from = base(branch ??= defaultBranch());
   process.env.BASE = from;
   const cfg = config();
   const failed = [], skipped = [];
@@ -102,6 +111,9 @@ export async function check({platform = process.platform, from = base()} = {}) {
       if (error) failed.push(`${job.name}: ${error.message}`);
     }
   }
+  const own = runOwn({root: capture('git', ['rev-parse', '--show-toplevel']), repository: currentRepository(), base: from,
+    branch: branch ?? 'main', files: changed(from), platform});
+  ran += own.ran; failed.push(...own.failed); skipped.push(...own.skipped);
   console.log(`\nci-check: ${ran} check job(s) ran${failed.length ? `, ${failed.length} failed` : ', all passed'}.`);
   for (const line of failed) console.log(`  failed  ${line}`);
   for (const line of skipped) console.log(`  on the PR only  ${line}`);
