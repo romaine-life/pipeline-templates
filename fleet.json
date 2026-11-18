@@ -392,6 +392,15 @@
         "cmake-test-windows"
       ]
     },
+    "romaine-life/at-terminal-rio": {
+      "suites": [
+        "rust"
+      ],
+      "topics": [
+        "rust-test-linux",
+        "rust-test-windows"
+      ]
+    },
     "romaine-life/auth": {
       "suites": [
         "go",
