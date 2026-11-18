@@ -26,9 +26,9 @@ test('an empty plan reaches the workflow as one placeholder entry, so its jobs e
 });
 
 test('a module may join its cluster image, and nothing else', () => {
-  const entry = {suites: ['cluster-service', 'go', 'release'], topics: ['cluster-image', 'release-module'], cluster: {image: 'forgejo.romaine.life/romaine-life/lib', pinFile: 'k8s/deployment.yaml', workPackage: 'https://openproject.home.romaine.life/wp/X-1'}, release: {image: 'cluster'}};
+  const entry = {suites: ['cluster-service', 'go', 'release'], topics: ['cluster-image', 'release-module'], release: {image: 'cluster'}};
   validate(entry, 'test/lib');
-  assert.throws(() => validate({...entry, topics: [...entry.topics, 'web-image'], web: {image: 'x.azurecr.io/lib'}, release: {image: 'web'}}, 'test/lib'), /at most its cluster image/);
+  assert.throws(() => validate({...entry, topics: [...entry.topics, 'web-image'], release: {image: 'web'}}, 'test/lib'), /at most its cluster image/);
 });
 
 test("a module's joined cluster image is a PR check, reuse included", () => {

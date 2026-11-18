@@ -14,7 +14,7 @@ try {
   process.env.VERSION='v0.1.1';
   write('.gitignore','dist/\n**/bin/\n**/obj/\n**/__pycache__/\n**/.pytest_cache/\n**/.venv/\n');
   const goTargets=process.platform==='linux' ? [{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64'},{goos:'darwin',goarch:'arm64'}] : [{goos:'windows',goarch:'amd64'}];
-  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']},web:{packages:['frontend']}}));
+  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']}}));
   write('README.md','# Fixture\n');
   write('go.mod','module example.com/fixture\n\ngo 1.26.2\n');
   write('cmd/fixture/main.go','package main\n\nimport "fmt"\n\nvar version string\n\nfunc main() { fmt.Println(version) }\n');
@@ -85,18 +85,23 @@ try {
     const pod='apiVersion: v1\nkind: Pod\nmetadata:\n  name: fixture\nspec:\n  containers:\n    - name: fixture\n      image: artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f\n';
     write('k8s/pod.yaml',pod);
     write('k8s/kustomization.yaml','resources:\n- pod.yaml\n');
-    write('chart/Chart.yaml','apiVersion: v2\nname: fixture\nversion: 0.1.0\n');
-    write('chart/templates/pod.yaml',pod);
-    fleetEntry(({version:1,cluster:{renders:[{kind:'kustomize',path:'k8s'},{kind:'helm',path:'chart'}]}}));
+    // The renders follow k8s/: a kustomization, then a chart with a values- case beside it.
+    run('git',['add','k8s']);
+    fleetEntry(({version:1,suites:['cluster-service']}));
+    script('cluster-service/manifests.mjs');
+    run('git',['rm','-qf','k8s/kustomization.yaml']);
+    write('k8s/Chart.yaml','apiVersion: v2\nname: fixture\nversion: 0.1.0\n');
+    write('k8s/templates/pod.yaml',pod);
+    write('k8s/values-case.yaml','case: true\n');
+    run('git',['add','k8s']);
     script('cluster-service/manifests.mjs');
     if (process.env.CI_FIXTURE_DOCKER === '1') {
       write('Dockerfile','FROM artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f\nENTRYPOINT ["/bin/true"]\n');
       script('cluster-service/image.mjs',['check']);
       const cfg=currentEntry();
       cfg.release={toolchains:['go'],image:'cluster'};
-      cfg.cluster.image='forgejo.romaine.life/test/fixture';
-      // A cluster image is a cluster service's, selected by its cluster-image topic.
-      cfg.suites=[...new Set([...(cfg.suites || []),'cluster-service'])];
+      // A cluster image is a cluster service's, selected by its cluster-image topic, and named
+      // for the repository.
       fleetEntry((cfg));
       script('release/image.mjs',['check']);
     }

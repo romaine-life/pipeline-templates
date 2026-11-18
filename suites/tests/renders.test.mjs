@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {argoPlan} from '../cluster-service/manifests.mjs';
-import {validate} from '../config.mjs';
+import {renders} from '../layout.mjs';
 
 const app = (name, repo, source, namespace) => `apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -44,7 +44,10 @@ test("an app of apps renders each of this repository's apps as Argo CD would", (
   } finally { process.chdir(cwd); fs.rmSync(root, {recursive: true, force: true}); }
 });
 
-test('an argocd render names only its root Application', () => {
-  validate({suites: ['cluster-service'], cluster: {renders: [{kind: 'argocd', path: 'k8s/root-app.yaml'}]}}, 'test/cluster');
-  assert.throws(() => validate({suites: ['cluster-service'], cluster: {renders: [{kind: 'argocd', path: 'k8s/root-app.yaml', values: 'v.yaml'}]}}, 'test/cluster'), /root Application/);
+test('k8s/ decides the renders: a chart and its values- cases, a kustomization, or an app of apps', () => {
+  assert.deepEqual(renders(['k8s/Chart.yaml', 'k8s/values.yaml', 'k8s/values-unserved.yaml', 'k8s/templates/a.yaml', 'tests/values-x.yaml'], 'store'), [
+    {kind: 'helm', path: 'k8s', name: 'store'}, {kind: 'helm', path: 'k8s', name: 'store', values: 'k8s/values-unserved.yaml'}]);
+  assert.deepEqual(renders(['k8s/kustomization.yaml', 'k8s/deployment.yaml'], 'app'), [{kind: 'kustomize', path: 'k8s'}]);
+  assert.deepEqual(renders(['k8s/root-app.yaml', 'k8s/apps/a.yaml'], 'cluster'), [{kind: 'argocd', path: 'k8s/root-app.yaml'}]);
+  assert.deepEqual(renders(['nas/repo-sync/kustomization.yaml'], 'home'), []);
 });

@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {inputs, relevant, matches, changed,pushFiles} from '../inputs.mjs';
 import {broad} from '../input-patterns.mjs';
-import {found} from '../fingerprints.mjs';
 import {publishEvent} from '../lib.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -30,12 +29,9 @@ test('narrow checks read their tool\'s files; tests and a merge\'s release read 
   assert.ok(relevant(['internal/x/testdata/embedded.txt'], 'release.build', ['internal/x/testdata/embedded.txt']));
   assert.ok(relevant(['src/app.test.ts','src/app.ts'], 'release.build'));
 });
-test('the manifests check reads its render paths and values wherever the entry puts them', async () => {
-  const cluster={renders:[{kind:'kustomize',path:'nas/repo-sync'},{kind:'helm',path:'k8s',name:'app',values:'tests/unserved.yaml'}]};
-  const renders=await found('cluster-service.manifests',{cluster});
-  for (const file of ['nas/repo-sync/kustomization.yaml','tests/unserved.yaml','k8s/values.yaml']) assert.ok(relevant([file],'cluster-service.manifests',renders),file);
-  assert.equal(relevant(['nas/other.ps1'],'cluster-service.manifests',renders),false);
-  assert.ok(relevant(['k8s/values.yaml'],'cluster-service.manifests',await found('cluster-service.manifests',{})));
+test('the manifests check reads k8s/, where every render is', () => {
+  for (const file of ['k8s/kustomization.yaml','k8s/values-unserved.yaml','k8s/templates/a.yaml']) assert.ok(relevant([file],'cluster-service.manifests'),file);
+  assert.equal(relevant(['nas/other.ps1'],'cluster-service.manifests'),false);
 });
 test('globs include root files, nested files and deletions without a negative catch-all', () => {
   for (const file of ['main.go','cmd/app/main.go']) assert.ok(matches(file, '**/*.go'));

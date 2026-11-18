@@ -9,7 +9,7 @@ import {readLock, writeLock, sourceURL, stage, newest, lockFile} from '../web-ap
 
 const wasm = {repository: 'romaine-life/fzt-browser', asset: 'fzt.wasm', destination: 'frontend/fzh/fzt.wasm'};
 const model = {repository: 'romaine-life/string-box', path: 'renders/string-box.glb', destination: 'string-box/public/string-box.glb'};
-const web = {image: 'x.azurecr.io/site', dependencies: [wasm, model]};
+const web = {dependencies: [wasm, model]};
 
 test('the lock reads and writes as sorted <destination> <tag> <sha256> lines', () => {
   const sha = 'a'.repeat(64);

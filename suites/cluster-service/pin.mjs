@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import {queuePR} from '../queue.mjs';
 import {api, post, request, run, requirePublish} from '../lib.mjs';
 import {config} from '../config.mjs';
-import {updatePin, prSources} from './pin-fields.mjs';
+import {updatePin} from './pin-fields.mjs';
+import {workPackage} from '../layout.mjs';
 requirePublish();
 const cfg = (process.argv[2] === 'web' ? config().web : config().cluster) || {};
-if (!cfg.pinFile || !/^https:\/\/openproject\.home\.romaine\.life\/wp\/[A-Z][A-Z0-9]*-\d+$/.test(cfg.workPackage || '')) throw new Error('cluster pinFile and workPackage are required');
+if (!cfg.pinFile) throw new Error(`no single tracked YAML file pins ${cfg.image} by digest`);
 const pin = fs.readFileSync('.ci-image-pin', 'utf8').trim();
 const token = process.env.PIN_TOKEN;
 if (!token) throw new Error('missing PIPELINE_DISPATCH_TOKEN for pin CI');
@@ -29,10 +30,10 @@ if (ahead) { console.log(`${ahead.html_url} pins a newer release`); process.exit
 run('git', ['fetch', '--no-tags', '--depth=1', 'origin', process.env.DEFAULT_BRANCH], {env});
 run('git', ['checkout', '-B', branch, 'FETCH_HEAD']);
 const original = fs.readFileSync(cfg.pinFile, 'utf8');
-// The PR this release's commit merged, for a pin field that names it (none for a direct push).
+// The PR this release's commit merged (none for a direct push): the pin PR links its work
+// package, and a pin field may name it.
 const commit = process.env.SOURCE_SHA || process.env.GITHUB_SHA;
-const merged = Object.values(cfg.pinFields || {}).some(source => prSources.includes(source))
-  ? await request(`${api()}/commits/${commit}/pull`, {token: process.env.TOKEN, allow404: true}) : null;
+const merged = await request(`${api()}/commits/${commit}/pull`, {token: process.env.TOKEN, allow404: true});
 const updated = updatePin(original, cfg, pin, {pr: merged});
 if (updated !== original) {
   fs.writeFileSync(cfg.pinFile, updated);
@@ -40,7 +41,7 @@ if (updated !== original) {
   run('git', ['-c', 'user.name=forgejo-actions', '-c', 'user.email=forgejo-actions@noreply.romaine.life', 'commit', '-m', `Pin ${cfg.image} ${process.env.VERSION}`]);
   run('git', ['push', 'origin', `HEAD:refs/heads/${branch}`], {env});
   const pr = await post(`${api()}/pulls`, {base: process.env.DEFAULT_BRANCH, head: branch,
-    title: `Pin ${cfg.image} ${process.env.VERSION}`, body: `Published image ${pin}. ${cfg.workPackage}`}, {token});
+    title: `Pin ${cfg.image} ${process.env.VERSION}`, body: [`Published image ${pin}.`, workPackage(merged?.body)].filter(Boolean).join(' ')}, {token});
   await queuePR(pr.number,{token});
   // An older release's pin still open would put an older image back: this one supersedes it.
   for (const old of open) {

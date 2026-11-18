@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import {capture,hash,suites} from './lib.mjs';
-import {inputs,input,ignoredBy,matches,renderInputs} from './input-patterns.mjs';
+import {inputs,input,ignoredBy,matches} from './input-patterns.mjs';
 import {embedded,imageInputs,docLinks} from './dependencies.mjs';
 import {packagingInputs,packagingMetadata,releaseInputs,settings} from './release/inputs.mjs';
 import {pythonProjects,requiredDocs,tofuVersion} from './conventions.mjs';
@@ -20,7 +20,6 @@ export async function found(check,cfg,read) {
   if(check==='go.test' || check==='rust.test')return embedded()[check.split('.')[0]];
   if(check==='docs.validate')return [...docLinks().flatMap(target=>[target,`${target.replace(/\/+$/,'')}/**`]),...requiredDocs];
   if(check==='default.rules'){const {dependencies}=await import('./default/rules.mjs');return dependencies();}
-  if(check==='cluster-service.manifests')return renderInputs(cfg.cluster);
   if(check.endsWith('.image'))return imageInputs((check==='cluster-service.image'?cfg.cluster:cfg.web) || {},read);
   if(check==='release.build')return releaseInputs(cfg,read);
   if(check==='release.package')return packagingInputs(cfg,read).patterns;
@@ -37,7 +36,7 @@ export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
   if(check==='python.test')configuration={projects:pythonProjects(entries.map(entry=>entry.path))};
   if(check==='web-app.test')configuration={packages:cfg.web?.packages || ['.']};
   if(check==='tofu.plan')configuration={version:tofuVersion};
-  if(check==='cluster-service.manifests')configuration={renders:cfg.cluster?.renders || [{kind:'kustomize',path:'k8s'}]};
+  if(check==='cluster-service.manifests')configuration={renders:cfg.cluster?.renders || []};
   if(check.endsWith('.image')) {
     const section=(check==='cluster-service.image'?cfg.cluster:cfg.web) || {};
     configuration={build:section.build!==false,...(section.context?{context:section.context}:{}),...(section.build===false?{image:section.image}:{})};

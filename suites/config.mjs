@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {capture, readJSON, safePath, templates} from './lib.mjs';
 import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic, valueSelectors} from './topics.mjs';
+import {layout} from './layout.mjs';
 
 // A fleet entry: its suites, its setting topics (topics.mjs), and the values a convention
 // doesn't decide yet.
@@ -9,8 +10,7 @@ const fields = {
   go: ['dependencies'], rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
   release: ['assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
-  cluster: ['renders', 'image', 'context', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
-  web: ['packages', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies'],
+  web: ['dependencies'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
@@ -33,11 +33,12 @@ export function fleet(file = process.env.CI_FLEET || path.join(templates, 'fleet
 }
 
 // A repository's settings are its entry in the fleet list, with the selections its topics
-// make (read from Forgejo when it runs, topics.mjs); one the list leaves out has none.
-export function config(repo = currentRepository(), repos = fleet(), topics) {
+// make (read from Forgejo when it runs, topics.mjs), the names its own name gives, and what
+// its files decide (layout.mjs); one the list leaves out has none.
+export function config(repo = currentRepository(), repos = fleet(), topics, checkout) {
   const entry = repos[repo];
   if (!entry) return {suites: []};
-  return settings(resolve(entry, topics ?? currentTopics()));
+  return layout(settings(resolve(entry, topics ?? currentTopics(), repo)), repo, checkout);
 }
 
 // A fleet entry, as the list holds it; the settings its topics give it must hold too.
@@ -59,6 +60,7 @@ export function validate(value, where = 'fleet entry') {
   }
   // Forgejo keeps at most 25 topics on a repository.
   if (value.suites.length + topics.length > 25) throw new Error(`${where}: more than 25 topics`);
+  if (topics.includes('web-static') && topics.includes('web-image')) throw new Error(`${where}: a web app deploys a Static Web App (web-static) or an image (web-image), not both`);
   // A value a topic selects is there exactly when the topic is.
   for (const [topic, [name, field]] of Object.entries(valueSelectors)) {
     if ((value[name]?.[field] !== undefined) !== topics.includes(topic)) throw new Error(`${where}: ${name}.${field} goes with topic ${topic}`);
@@ -70,18 +72,16 @@ export function validate(value, where = 'fleet entry') {
     if (Object.keys(part).length < 2) throw new Error(`${where}: release.rustTargets holds a target's values; its topic alone builds it`);
   }
   if (new Set((value.release?.rustTargets || []).map(part => part.target)).size !== (value.release?.rustTargets || []).length) throw new Error(`${where}: release.rustTargets names a target twice`);
-  settings(resolve(value, topics));
+  settings(resolve(value, topics, /^[\w.-]+\/[\w.-]+$/.test(where) ? where : undefined));
   return value;
 }
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies']]) {
+  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['web','dependencies']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
-  if (value.cluster?.renders && !value.cluster.renders.length) throw new Error('cluster.renders must be nonempty');
-  if (value.web?.packages && !value.web.packages.length) throw new Error('web.packages must be nonempty');
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
   if (value.release?.module && (['toolchains', 'external', 'goTargets', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
   const toolchains = value.release?.toolchains || [];
@@ -155,26 +155,10 @@ function settings(value) {
     if(archive.targets && (!Array.isArray(archive.targets) || !archive.targets.length))throw new Error('archive.targets must be nonempty');
     for(const [source,target] of Object.entries(archive.entries || {})){safePath(source);if(!/^[\w.+-]+$/.test(target))throw new Error('archive entries must name plain files');}
   }
-  for (const p of value.web?.packages || ['.']) if (p !== '.') safePath(p);
   for (const p of value.release?.assets || []) safePath(p);
   for (const target of value.release?.dispatch || []) {
     if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(target.repository || '') || Object.keys(target).some(k=>!['repository','workflow'].includes(k))) throw new Error('release.dispatch must name an owned repository and optional workflow');
     if (target.workflow) safePath(target.workflow);
-  }
-  for (const item of value.cluster?.renders || []) {
-    if (!['helm', 'kustomize', 'argocd'].includes(item.kind)) throw new Error('cluster.renders.kind must be helm, kustomize or argocd');
-    if (item.kind === 'argocd' && (item.values || item.name)) throw new Error('an argocd render takes its apps from the root Application at path');
-    safePath(item.path);
-    if (item.values) safePath(item.values);
-    for (const key of Object.keys(item)) if (!['kind', 'path', 'values', 'name'].includes(key)) throw new Error(`unknown render field: ${key}`);
-  }
-  if (value.cluster?.pinFile) safePath(value.cluster.pinFile);
-  if (value.cluster?.context !== undefined) safePath(value.cluster.context);
-  if (value.web?.pinFile) safePath(value.web.pinFile);
-  for(const section of ['cluster','web'])if(value[section]?.pinFields!==undefined) {
-    const fields=value[section].pinFields;
-    if(!value[section].pinFile || !fields || Array.isArray(fields) || typeof fields!=='object' || !Object.keys(fields).length)throw new Error(`${section}.pinFields needs pinFile and a nonempty field map`);
-    for(const [field,source] of Object.entries(fields))if(!/^[A-Za-z_][\w-]*(?:\.[A-Za-z_][\w-]*)*$/.test(field) || field.split('.').some(key=>['__proto__','constructor','prototype'].includes(key)) || !['tag','commit','version','date','prNumber','prTitle','prUrl'].includes(source))throw new Error(`${section}.pinFields maps dotted YAML fields to tag, commit, version, date or the merged PR's prNumber, prTitle or prUrl`);
   }
   for (const [name, image] of Object.entries(value.service || {})) {
     if (typeof image !== 'string' || !/^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/.test(image)) throw new Error(`service.${name} must be a digest-pinned Artifact Keeper image`);
@@ -184,8 +168,5 @@ function settings(value) {
   if (users !== undefined && (!Array.isArray(users) || !users.length || users.some(user => typeof user !== 'string' || !/^[\w.+-]+:[^\s,@:]+@[\w.-]+$/.test(user)))) {
     throw new Error('greenmail.users are login:password@domain, as GreenMail takes them');
   }
-  if (value.web?.image && !/^[a-z0-9]+\.azurecr\.io\/[\w./-]+$/.test(value.web.image)) throw new Error('web.image must name an ACR image without a tag');
-  if (value.web?.staticApp && (value.web.image || value.web.containerApp || value.web.pinFile || !value.web.resourceGroup || (value.web.packages || ['.']).length!==1)) throw new Error('staticApp needs one package and resourceGroup without an image');
-  if (value.web?.containerApp && (value.web.pinFile || !value.web.resourceGroup)) throw new Error('choose a pin PR or a containerApp and resourceGroup');
   return value;
 }

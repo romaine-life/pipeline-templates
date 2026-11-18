@@ -21,7 +21,6 @@ const serviceNames = ['postgres', 'manticore', 'greenmail'];
 // Selectors that pick a value fleet.json still holds (to become conventions or repository
 // files): the topic decides whether it applies, the value what it is.
 export const valueSelectors = {
-  'cluster-image': ['cluster', 'image'], 'web-image': ['web', 'image'], 'web-static': ['web', 'staticApp'],
   'release-archive': ['release', 'archives'],
   'release-source-list': ['release', 'sourceLists'], 'release-external': ['release', 'external'],
   ...Object.fromEntries(serviceNames.map(name => [`service-${name}`, ['service', name]])),
@@ -46,7 +45,10 @@ export const validTopic = topic => typeof topic === 'string' && /^[a-z0-9][-.a-z
 // The settings the suites read, from a fleet entry and the topics the repository carries:
 // a topic turns its setting on; without it the setting is off (tests run on Linux only).
 // The values a selector picks stay in the entry and apply only while their topic is set.
-export function resolve(entry, topics) {
+// What an image, its registry sign-in and a Static Web App are called follows from the
+// repository's name (PIPT-30).
+export function resolve(entry, topics, repo = 'owner/repo') {
+  const name = repo.split('/')[1];
   const on = new Set(topics.filter(isSettingTopic));
   const cfg = structuredClone(entry);
   delete cfg.topics;
@@ -64,6 +66,9 @@ export function resolve(entry, topics) {
   // A cluster service builds and smoke-tests its own image only with cluster-image;
   // without it, it renders and pins what upstream publishes.
   if (cfg.suites?.includes('cluster-service') && !on.has('cluster-image')) Object.assign(section('cluster'), {build: false, smoke: false});
+  if (on.has('cluster-image')) Object.assign(section('cluster'), {image: `forgejo.romaine.life/${repo}`, baoRole: `${name}-publish`, baoSecret: `services/${name}-build`});
+  if (on.has('web-image')) section('web').image = `romainecr.azurecr.io/${name}`;
+  if (on.has('web-static')) Object.assign(section('web'), {staticApp: `${name}-app`, resourceGroup: `${name}-rg`});
   for (const [topic, [name, field]] of Object.entries(valueSelectors)) {
     if (!on.has(topic)) { if (cfg[name]) delete cfg[name][field]; continue; }
     if (cfg[name]?.[field] === undefined) throw new Error(`topic ${topic} needs ${name}.${field} in fleet.json`);

@@ -41,9 +41,9 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `rust-typos`, `rust-machete`, `rust-audit` | Rust lints; `audit` checks RustSec's advisories, read fresh through Artifact Keeper, when `Cargo.lock` changes |
 | `windows-powershell` | The PowerShell parse check runs in Windows PowerShell too |
 | `service-postgres`, `service-manticore`, `service-greenmail` | The tests' services, each the image `service.<name>` names. The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
-| `cluster-image` | A cluster service builds and smoke-tests its own image, `cluster.image`; without it the service renders and pins what upstream publishes |
-| `web-image` | The web app builds the image `web.image` |
-| `web-static` | The web app deploys to the Static Web App `web.staticApp` in `web.resourceGroup` |
+| `cluster-image` | A cluster service builds and smoke-tests its own image; without it the service renders and pins what upstream publishes |
+| `web-image` | The web app builds its image |
+| `web-static` | The web app deploys to its Static Web App |
 | `web-history` | The tests compare with the base branch, so the test job gets full history (`origin/<base>`) |
 | `release-source` | A documentation repository cuts a source release |
 | `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
@@ -67,10 +67,29 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
 | `release` | `goTargets`, `windowsGui`, `goStampPackages`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
 | `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk` |
-| `cluster` | `renders`, `image`, `context`: the image's build context, where its `Dockerfile` is (the repository root by default), `baoRole`, `baoSecret`, `pinFile`, `pinFields`, `workPackage` |
-| `web` | `packages`, `image`, `pinFile`, `pinFields`, `workPackage`, `containerApp`, `resourceGroup`, `staticApp`, `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
+| `web` | `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
 
-A few things come from the repository rather than the list (`suites/conventions.mjs`): its
+### What the repository's name and files decide
+
+A cluster service or web app is configured by its name and layout, not the list (PIPT-30):
+
+- Its image is `forgejo.romaine.life/<owner>/<repo>` (`cluster-image`, signing in to the
+  registry as OpenBao role `<repo>-publish`, reading `secret/services/<repo>-build`) or
+  `romainecr.azurecr.io/<repo>` (`web-image`). It builds from `k8s/image/` when its
+  `Dockerfile` is there, else from the root.
+- Its Static Web App is `<repo>-app` in resource group `<repo>-rg` (`web-static`).
+- `k8s/` is what the cluster runs, rendered as a Helm chart (`Chart.yaml`, as release
+  `<repo>`, with its `values.yaml` and once more over each `values-<case>.yaml` beside it),
+  a kustomization (`kustomization.yaml`), or an Argo CD app of apps (`root-app.yaml`).
+- The pin file is the one tracked YAML file that pins the image by digest. Its top-level
+  `release` map, if it has one, holds pin fields named for what each takes: `tag`,
+  `commit`, `version` (the tag without its v), `date` (when the release was pinned, UTC,
+  to the second), or the PR the release's commit merged, `prNumber`, `prTitle`, `prUrl`.
+  The pin PR links the work package that PR links.
+- Its npm packages are each `package.json` at the root or one directory down with a `test`
+  script.
+
+A few other things come from the repository rather than the list (`suites/conventions.mjs`): its
 Rust toolchain is its `rust-toolchain.toml` (channel and components), as rustup reads it, else
 the pinned stable; its Node major is its `.nvmrc` or `.node-version`, else 24; its Python is
 its `.python-version`, else 3.12, and its Python projects are the root's `pyproject.toml`,
@@ -87,7 +106,7 @@ nothing ships beside it.
 A release with `release.image: cluster` publishes the cluster image and proposes its pin.
 The image is built again only when its inputs (its `Dockerfile`, `.dockerignore` and what it
 copies in) changed since the release that built the image the pin file runs; otherwise the
-release keeps that image, and its pin PR moves only the `pinFields`, so the pod isn't
+release keeps that image, and its pin PR moves only the pin fields, so the pod isn't
 restarted. On a PR the image's `--self-test` runs with the assembled release at `/ci/dist`,
 in a layer only the check runs, for an image that runs a release binary it doesn't hold.
 
@@ -102,7 +121,7 @@ in a layer only the check runs, for an image that runs a release binary it doesn
    tests (`*_test.go`, `testdata/`, `tests/`, `test/`, `Tests/`, `benches/`, `*.test.*`,
    `*.spec.*`) and `.gitignore`, which can't change what it ships.
    The other checks, the PR's release packaging among them, read their tool's files. Go
-   embeds, Rust includes, Dockerfile `COPY` sources, linked docs, render paths and the files a
+   embeds, Rust includes, Dockerfile `COPY` sources, linked docs and the files a
    release archives count wherever they are. No repository adds patterns of its own.
 3. Builds keep their caches on the runners (Go, Cargo per repository and toolchain,
    tools, OpenTofu providers).

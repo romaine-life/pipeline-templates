@@ -168,7 +168,7 @@ jobs:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
-    - run: node _ci/suites/web-app/deploy.mjs
+    - run: node _ci/suites/cluster-service/pin.mjs web
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}

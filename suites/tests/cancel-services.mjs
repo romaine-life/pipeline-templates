@@ -51,7 +51,7 @@ try {
     }
     dockerEnv.push('DOCKER_CERT_PATH=/fixture/docker-certs');
   }
-  for(const file of ['services.mjs','docker-events.mjs','config.mjs','topics.mjs','lib.mjs'])fs.copyFileSync(path.join(suites,file),path.join(dir,'suites',file));
+  for(const file of ['services.mjs','docker-events.mjs','config.mjs','topics.mjs','layout.mjs','lib.mjs'])fs.copyFileSync(path.join(suites,file),path.join(dir,'suites',file));
   fs.copyFileSync(fleetEntry({service:JSON.parse(fs.readFileSync(new URL('./service-images.json',import.meta.url),'utf8'))},'test/cancel'),path.join(dir,'fleet.json'));
   fs.writeFileSync(path.join(dir,'hold.mjs'),`import fs from 'node:fs';import net from 'node:net';console.log('CI_CANCEL_READY:'+JSON.parse(fs.readFileSync('.ci-services.json')).id);net.createServer().listen(0,'127.0.0.1');`);
   fs.writeFileSync(path.join(dir,'result.mjs'),`import fs from 'node:fs';console.log('CI_CANCELLED_CONFIRMED');fs.writeFileSync('cancelled-proof','cancelled');`);

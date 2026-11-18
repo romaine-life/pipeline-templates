@@ -10,7 +10,7 @@ child.spawnSync = (command, args, options) => {
   if (command === 'rustc') stdout = 'rustc 1.100.0 (abc 2026-01-01)';
   if (command === 'python') stdout = 'Python 3.12.10';
   if (command === 'dotnet' && args[0]==='--version') stdout = '9.0.321';
-  if (command === 'git' && args[0] === 'ls-files') stdout = args.includes('--eol')
+  if (command === 'git' && args[0] === 'ls-files') stdout = args.length === 2 && process.env.PROBE_TRACKED ? process.env.PROBE_TRACKED.split(',').join('\0') + '\0' : args.includes('--eol')
     ? ['README.md','main.go','config.json'].map(f => `i/lf    w/${f === 'main.go' ? process.env.PROBE_GO_EOL || 'crlf' : 'lf'}  attr/                 \t${f}`).join('\0') + '\0'
     : 'README.md\0main.go\0config.json\0';
   if (command === 'git' && args.includes('--name-only')) stdout = process.env.PROBE_DIFF || '';
@@ -35,6 +35,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (u.includes('/auth/forgejo/login')) body = {auth:{client_token:'bao'}};
   if (u.includes('/secret/data/')) body = {data:{data:{'registry-token':'registry'}}};
   if (u.endsWith('/pulls')) body = {number:7,html_url:'https://forgejo.romaine.life/test/probe/pulls/7'};
+  if (u.includes('/commits/') && u.endsWith('/pull')) body = process.env.PROBE_MERGED ? {number:3,title:'Merged',html_url:'https://forgejo.romaine.life/test/probe/pulls/3',body:process.env.PROBE_MERGED} : {};
   if (u.includes('/labels?')) body = [{id:1,name:'queue'}];
   if (u.includes('/pulls?')) body = process.env.PROBE_OPEN_PIN ? [{number:5,body:'Previous pin',html_url:'https://forgejo.romaine.life/test/probe/pulls/5',head:{ref:`ci-pin/${process.env.PROBE_OPEN_PIN}`,sha:'a'.repeat(40)}}]
     : process.env.PROBE_OPEN ? [{number:6,body:'Previous take-up',html_url:'https://forgejo.romaine.life/test/probe/pulls/6',head:{ref:'deps/0',sha:'a'.repeat(40)}}] : [];

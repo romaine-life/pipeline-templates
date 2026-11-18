@@ -50,7 +50,10 @@ export function entryFor(settings) {
   if (build !== smoke) throw new Error('cluster-image builds and smoke-tests the image together');
   if (entry.suites.includes('cluster-service')) { if (build !== false) topics.push('cluster-image'); }
   else if (build !== undefined) throw new Error('cluster.build belongs to the cluster-service suite');
-  for (const [name, field, topic] of [['web', 'image', 'web-image'], ['web', 'staticApp', 'web-static'],
+  // An image and a Static Web App are named for the repository: the topic alone selects them.
+  flag('web', 'image', 'web-image');
+  flag('web', 'static', 'web-static');
+  for (const [name, field, topic] of [
     ['release', 'archives', 'release-archive'], ['release', 'sourceLists', 'release-source-list'], ['release', 'external', 'release-external'],
     ['service', 'postgres', 'service-postgres'], ['service', 'manticore', 'service-manticore'], ['service', 'greenmail', 'service-greenmail']]) {
     if (entry[name]?.[field] !== undefined) topics.push(topic);

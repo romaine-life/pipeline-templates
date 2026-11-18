@@ -57,7 +57,3 @@ export function relevant(files, job, found = []) {
   if (!inputs[job]) throw new Error(`unknown check: ${job}`);
   return files.some(file => input(file, job, found));
 }
-// A cluster service's render paths and values files, wherever the entry puts them.
-export function renderInputs(cluster) {
-  return (cluster?.renders || [{kind: 'kustomize', path: 'k8s'}]).flatMap(render => [render.path, `${render.path}/**`, ...(render.values ? [render.values] : [])]);
-}

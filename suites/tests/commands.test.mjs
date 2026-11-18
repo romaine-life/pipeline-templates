@@ -19,7 +19,7 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}) {
     fs.writeFileSync(path.join(root,'go.mod'),'module example.com/probe\n');
     fs.writeFileSync(path.join(root,'go.sum'),'dependency checksums\n');
     fs.writeFileSync(path.join(root,'.ci-image-pin'),`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}`);
-    fs.mkdirSync(path.join(root,'k8s'));
+    fs.mkdirSync(path.join(root,'k8s'),{recursive:true});
     fs.writeFileSync(path.join(root,'k8s/deployment.yaml'),`image: forgejo.romaine.life/test/probe:v0.1.0@sha256:${'a'.repeat(64)}`);
     const log = path.join(root,'trace');
     const result = spawnSync(process.execPath,['--import',pathToFileURL(path.join(suites,'tests/probe.mjs')).href,path.join(suites,script),...args],{cwd:root,encoding:'utf8',env:{...process.env,
@@ -67,26 +67,32 @@ test('PRs cannot apply infrastructure or propose pins', () => {
   }
 });
 test('image checks smoke once, publication skips smoke and queues the pin without polling', () => {
-  const cfg = {suites:['cluster-service'],cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
-  let check = probe('cluster-service/image.mjs',['check'],{},cfg);
+  const cfg = {suites:['cluster-service']}, tracked = {PROBE_TRACKED:'k8s/deployment.yaml'};
+  let check = probe('cluster-service/image.mjs',['check'],tracked,cfg);
   assert.equal(check.result.status,0,check.result.stderr);
-  assert.deepEqual(check.trace.filter(t=>t.command).map(t=>t.args[0]),['build','run','image']);
+  assert.deepEqual(check.trace.filter(t=>t.command==='docker').map(t=>t.args[0]),['build','run','image']);
   const built=check.trace.find(t=>t.args?.[0]==='build').args.at(-2);
   assert.deepEqual(check.trace.at(-1).args,['image','rm',built],'the job removes the image it built');
-  const publish = probe('cluster-service/image.mjs',['publish'],{},cfg);
+  const publish = probe('cluster-service/image.mjs',['publish'],tracked,cfg);
   assert.equal(publish.result.status,0,publish.result.stderr);
   assert.deepEqual(publish.trace.filter(t=>t.command==='docker').at(-1).args.slice(0,2),['image','rm']);
   assert.equal(publish.trace.filter(t=>t.command==='docker').at(-1).args.length,4,'the job removes its image and the registry tag');
   assert.equal(publish.trace.some(t=>t.command==='docker' && t.args[0]==='run'),false);
   assert.equal(publish.trace.some(t=>t.command==='docker' && t.args[0]==='login' && t.input==='<stdin>'),true);
-  const pin = probe('cluster-service/pin.mjs',[],{},cfg);
+  // The registry sign-in is the repository's publish role, reading its build secret.
+  assert.equal(publish.trace.find(t=>t.url?.includes('/auth/forgejo/login')).body.role,'probe-publish');
+  assert.ok(publish.trace.some(t=>t.url?.endsWith('/secret/data/services/probe-build')));
+  const pin = probe('cluster-service/pin.mjs',[],{...tracked,PROBE_MERGED:'Moves the probe. https://openproject.home.romaine.life/wp/PIPT-30'},cfg);
   assert.equal(pin.result.status,0,pin.result.stderr);
   assert.equal(pin.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
+  // The pin PR links the work package the PR its release merged links.
+  assert.match(pin.trace.find(t=>t.url?.endsWith('/pulls')).body.body,/ https:\/\/openproject\.home\.romaine\.life\/wp\/PIPT-30$/);
+  assert.notEqual(probe('cluster-service/pin.mjs',[],{},cfg).result.status,0,'no file pins the image');
   assert.equal(pin.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
 });
 test('a pin is made on the default branch as it is now, and supersedes an older open pin, never a newer one',()=>{
-  const cfg = {suites:['cluster-service'],cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-14'}};
-  const older = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.9'},cfg);
+  const cfg = {suites:['cluster-service']};
+  const older = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.9',PROBE_TRACKED:'k8s/deployment.yaml'},cfg);
   assert.equal(older.result.status,0,older.result.stderr);
   const git = older.trace.filter(t=>t.command==='git').map(t=>t.args.slice(0,2).join(' '));
   assert.ok(git.indexOf('fetch --no-tags') >= 0 && git.indexOf('fetch --no-tags') < git.indexOf('checkout -B'), git.join(', '));
@@ -94,7 +100,7 @@ test('a pin is made on the default branch as it is now, and supersedes an older 
   assert.equal(older.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
   assert.equal(older.trace.some(t=>t.url?.endsWith('/pulls/5') && t.method==='PATCH' && t.body?.state==='closed'),true);
   assert.equal(older.trace.some(t=>t.url?.endsWith('/branches/ci-pin%2Fv0.1.9') && t.method==='DELETE'),true);
-  const newer = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.11'},cfg);
+  const newer = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.11',PROBE_TRACKED:'k8s/deployment.yaml'},cfg);
   assert.equal(newer.result.status,0,newer.result.stderr);
   assert.equal(newer.trace.some(t=>t.url?.endsWith('/pulls') || t.method==='PATCH'),false);
 });
@@ -144,17 +150,18 @@ test('Go dependency dispatch opens and queues one PR', () => {
   assert.equal(newer.trace.some(t=>t.method==='PATCH' && t.url.endsWith('/pulls/6')),true);
   assert.equal(newer.trace.some(t=>t.method==='DELETE' && t.url.endsWith('/branches/deps%2F0')),true);
 });
-test('web publication logs into ACR and direct deploy uses the digest pin', () => {
-  const cfg={web:{image:'test.azurecr.io/probe',containerApp:'probe',resourceGroup:'test'}};
-  const {result,trace}=probe('web-app/image.mjs',['publish'],{PROBE_IMAGE:'test.azurecr.io/probe'},cfg);
+test('web publication logs into ACR, and its pin PR moves the file that pins the image', () => {
+  const cfg={suites:['web-app'],web:{image:true}},files={'k8s/values.yaml':`image: romainecr.azurecr.io/probe:v0.1.0@sha256:${'a'.repeat(64)}\n`};
+  const env={PROBE_IMAGE:'romainecr.azurecr.io/probe',PROBE_TRACKED:'k8s/deployment.yaml,k8s/values.yaml'};
+  const {result,trace}=probe('web-app/image.mjs',['publish'],env,cfg,files);
   assert.equal(result.status,0,result.stderr);
-  assert.equal(trace.some(t=>t.command==='az' && t.args[0]==='acr'),true);
-  const deploy=probe('web-app/deploy.mjs',[],{},cfg);
+  assert.ok(trace.some(t=>t.command==='az' && t.args.join(' ')==='acr login --name romainecr'));
+  const deploy=probe('cluster-service/pin.mjs',['web'],env,cfg,files);
   assert.equal(deploy.result.status,0,deploy.result.stderr);
-  assert.equal(deploy.trace.some(t=>t.command==='az' && t.args.includes('--image')),true);
+  assert.ok(deploy.trace.some(t=>t.command==='git' && t.args.join(' ')==='add -- k8s/values.yaml'));
 });
 test('manifest script executes every renderer, strict schemas and digest check', {skip:process.platform!=='linux'}, () => {
-  const {result,trace} = probe('cluster-service/manifests.mjs',[],{}, {cluster:{renders:[{kind:'kustomize',path:'k8s'},{kind:'helm',path:'k8s',values:'k8s/values.yaml'}]}});
+  const {result,trace} = probe('cluster-service/manifests.mjs',[],{PROBE_TRACKED:'k8s/Chart.yaml,k8s/values.yaml,k8s/values-case.yaml'}, {suites:['cluster-service']});
   assert.equal(result.status,0,result.stderr);
   assert.equal(trace.filter(t=>t.command==='kubeconform').length,2);
   assert.equal(trace.filter(t=>t.command==='python3').length,2);
@@ -162,8 +169,8 @@ test('manifest script executes every renderer, strict schemas and digest check',
 
 
 test('bot PRs are queued for merge-queue by their queue label',()=>{
-  const cfg={suites:['cluster-service'],cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
-  for(const [script,args,settings,extra] of [['cluster-service/image.mjs',['publish'],cfg,{}],['cluster-service/pin.mjs',[],cfg,{}],['go/dependencies.mjs',[],{go:{dependencies:['github.com/romaine-life/fzt']}},{PROBE_DIFF:'go.mod'}]]) {
+  const cfg={suites:['cluster-service']},tracked={PROBE_TRACKED:'k8s/deployment.yaml'};
+  for(const [script,args,settings,extra] of [['cluster-service/image.mjs',['publish'],cfg,tracked],['cluster-service/pin.mjs',[],cfg,tracked],['go/dependencies.mjs',[],{go:{dependencies:['github.com/romaine-life/fzt']}},{PROBE_DIFF:'go.mod'}]]) {
     const result=probe(script,args,extra,settings);assert.equal(result.result.status,0,result.result.stderr);
     assert.equal(result.trace.some(t=>t.url?.endsWith('/merge')),false);
     if(!script.endsWith('/image.mjs'))assert.equal(result.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);

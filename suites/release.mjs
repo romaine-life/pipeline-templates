@@ -59,6 +59,7 @@ export async function releaseScope(suite) {
 }
 // The image the pin file runs (`<image>:<tag>@sha256:<digest>`), when it names exactly one.
 export function pinnedImage(section) {
+  if (!section.pinFile) return null;
   const escaped = section.image.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pins = [...new Set(fs.readFileSync(section.pinFile, 'utf8').match(new RegExp(`${escaped}:[\\w.+-]+@sha256:[0-9a-f]{64}`, 'g')) || [])];
   return pins.length === 1 ? pins[0] : null;

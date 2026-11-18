@@ -12,12 +12,11 @@ test('unknown settings and unsafe paths fail visibly', () => {
   for (const bad of [{}, {suites: ['nope']}, {suites: ['default']}, {suites: ['go', 'go']}, {suites: [], go: {command: 'whatever'}},
     {suites: [], inputs: {'go.test': ['assets/**']}}, {suites: [], go: {platforms: ['windows-latest']}}, {suites: [], release: {homeSync: true}},
     {suites: ['release'], release: {prefix: 'v0.1'}}, {suites: ['tofu'], tofu: {version: '1.9.0'}}, {suites: ['docs'], docs: {required: ['INDEX.md']}}, {suites: ['web-app'], web: {node: '22'}},
-    ...[[], {}, {'release.tag': 'command'}, {'__proto__.tag': 'tag'}].map(pinFields => ({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields}})),
-    {suites: [], web: {pinFields: {'release.tag': 'tag'}}}]) {
+    {suites: ['cluster-service'], cluster: {image: 'forgejo.romaine.life/o/app'}}, {suites: ['web-app'], web: {pinFile: 'k8s/values.yaml'}},
+    {suites: ['web-app'], topics: ['web-static', 'web-image']}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
   }
   assert.deepEqual(validate({suites: ['go'], topics: ['go-test-windows', 'go-test-linux']}).suites, ['go']);
-  assert.equal(validate({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields: {'release.tag': 'tag', 'release.commit': 'commit', 'release.version': 'version'}}}).cluster.pinFields['release.commit'], 'commit');
 });
 
 test('setting topics are Forgejo topics, never a suite, and the list holds only them', () => {
@@ -30,8 +29,6 @@ test('a selected value is in the list exactly when its topic is', () => {
   const image = `artifacts.home.romaine.life/dockerhub/library/postgres:17@sha256:${'a'.repeat(64)}`;
   validate({suites: ['go'], topics: ['service-postgres'], service: {postgres: image}});
   for (const bad of [{suites: ['go'], service: {postgres: image}}, {suites: ['go'], topics: ['service-postgres']},
-    {suites: ['web-app'], topics: ['web-static'], web: {resourceGroup: 'rg'}}, {suites: ['web-app'], web: {staticApp: 'app', resourceGroup: 'rg'}},
-    {suites: ['cluster-service'], topics: ['cluster-image']}, {suites: ['cluster-service'], cluster: {image: 'forgejo.romaine.life/o/app'}},
     {suites: ['release'], topics: ['release-rust'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]}},
     {suites: ['release'], topics: ['release-rust', 'rust-build-linux-amd64'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu'}]}}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
@@ -56,7 +53,11 @@ test('topics select the settings the suites read', () => {
   const bare = resolve({suites: ['go', 'rust', 'release']}, []);
   assert.deepEqual(bare, {suites: ['go', 'rust', 'release'], topics: []});
   assert.deepEqual(checkVariants('rust', bare).map(c => c.key), ['rust.format/ubuntu-latest', 'rust.test/ubuntu-latest']);
-  assert.throws(() => resolve({suites: ['web-app']}, ['web-image']), /web-image needs web.image/);
+  // An image, its registry sign-in and a Static Web App are named for the repository.
+  const named = resolve({suites: ['cluster-service', 'web-app']}, ['cluster-image', 'web-image'], 'o/app');
+  assert.deepEqual(named.cluster, {image: 'forgejo.romaine.life/o/app', baoRole: 'app-publish', baoSecret: 'services/app-build'});
+  assert.deepEqual(named.web, {image: 'romainecr.azurecr.io/app'});
+  assert.deepEqual(resolve({suites: ['web-app']}, ['web-static'], 'o/site').web, {staticApp: 'site-app', resourceGroup: 'site-rg'});
 });
 
 test('a repository reads its own entry from the fleet list with its live topics, and one it leaves out has no suites', () => {

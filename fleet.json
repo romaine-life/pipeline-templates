@@ -3,16 +3,7 @@
     "nelsong6/artifact-keeper": {
       "suites": [
         "cluster-service"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "artifact-keeper"
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/at-terminal": {
       "suites": [
@@ -73,19 +64,6 @@
       ],
       "service": {
         "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42"
-      },
-      "cluster": {
-        "renders": [
-          {
-            "kind": "kustomize",
-            "path": "k8s"
-          }
-        ],
-        "image": "forgejo.romaine.life/nelsong6/avatars",
-        "baoRole": "avatars-publish",
-        "baoSecret": "services/avatars-build",
-        "pinFile": "k8s/deployment.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
       }
     },
     "nelsong6/emulation-screensaver": {
@@ -108,30 +86,13 @@
     "nelsong6/forgejo": {
       "suites": [
         "cluster-service"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "forgejo"
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/home-cluster": {
       "suites": [
         "cluster-service",
         "powershell"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "argocd",
-            "path": "k8s/root-app.yaml"
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/home-hub": {
       "suites": [
@@ -140,28 +101,12 @@
       ],
       "topics": [
         "cluster-image"
-      ],
-      "cluster": {
-        "image": "forgejo.romaine.life/nelsong6/home-hub",
-        "baoRole": "home-hub-publish",
-        "baoSecret": "services/home-hub-build",
-        "pinFile": "k8s/deployment.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/HOMEINFRA-1"
-      }
+      ]
     },
     "nelsong6/jellyfin": {
       "suites": [
         "cluster-service"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "jellyfin"
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/journal-biking": {
       "suites": [
@@ -245,36 +190,12 @@
     "nelsong6/openbao": {
       "suites": [
         "cluster-service"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "openbao"
-          },
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "openbao",
-            "values": "tests/unserved.yaml"
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/openproject": {
       "suites": [
         "cluster-service"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "openproject"
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/pcloud-sync": {
       "suites": [
@@ -292,13 +213,6 @@
       ],
       "service": {
         "manticore": "artifacts.home.romaine.life/dockerhub/manticoresearch/manticore:29.9.0@sha256:6e32ad69a4a1bf5e596b8b2abd00b7625fc2a146c3877b365a4d4840f5cffd12"
-      },
-      "cluster": {
-        "image": "forgejo.romaine.life/nelsong6/session-index",
-        "baoRole": "session-index-publish",
-        "baoSecret": "services/session-index-build",
-        "pinFile": "k8s/deployment.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/SESSIDX-6"
       }
     },
     "nelsong6/sf6-nelson-lab": {
@@ -401,26 +315,6 @@
             "package": "spotify_player"
           }
         ]
-      },
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "spt-session",
-            "values": "k8s/values.yaml"
-          }
-        ],
-        "image": "forgejo.romaine.life/nelsong6/spt-session",
-        "context": "k8s/image",
-        "baoRole": "spotify-player-publish",
-        "baoSecret": "services/spt-session-build",
-        "pinFile": "k8s/values.yaml",
-        "pinFields": {
-          "release.tag": "tag",
-          "release.commit": "commit"
-        },
-        "workPackage": "https://openproject.home.romaine.life/wp/SPT-35"
       }
     },
     "nelsong6/torrent": {
@@ -458,15 +352,7 @@
       ],
       "topics": [
         "web-image"
-      ],
-      "web": {
-        "packages": [
-          "."
-        ],
-        "image": "romainecr.azurecr.io/ambience",
-        "pinFile": "chart/ambience/values.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
-      }
+      ]
     },
     "romaine-life/at": {
       "suites": [
@@ -609,14 +495,6 @@
         "release-go",
         "web-image"
       ],
-      "web": {
-        "packages": [
-          "."
-        ],
-        "image": "romainecr.azurecr.io/auth",
-        "pinFile": "k8s/values.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
-      },
       "release": {
         "image": "web",
         "goTargets": [
@@ -669,30 +547,6 @@
         "web-history",
         "web-image"
       ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "chess-tactics"
-          }
-        ]
-      },
-      "web": {
-        "packages": [
-          "backend",
-          "frontend"
-        ],
-        "image": "romainecr.azurecr.io/chess-tactics",
-        "pinFile": "k8s/values.yaml",
-        "pinFields": {
-          "build.prTitle": "prTitle",
-          "build.prNumber": "prNumber",
-          "build.prUrl": "prUrl",
-          "build.commit": "commit"
-        },
-        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
-      },
       "service": {
         "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9"
       }
@@ -715,14 +569,7 @@
       ],
       "topics": [
         "web-static"
-      ],
-      "web": {
-        "packages": [
-          "frontend"
-        ],
-        "staticApp": "eight-queens-app",
-        "resourceGroup": "eight-queens-rg"
-      }
+      ]
     },
     "romaine-life/fzt": {
       "suites": [
@@ -884,18 +731,6 @@
         "dependencies": [
           "github.com/romaine-life/fzt"
         ]
-      },
-      "web": {
-        "packages": [
-          "backend"
-        ]
-      },
-      "cluster": {
-        "image": "forgejo.romaine.life/romaine-life/fzt-frontend",
-        "baoRole": "fzt-frontend-publish",
-        "baoSecret": "services/fzt-frontend-build",
-        "pinFile": "k8s/deployment.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/HOMEINFRA-1"
       },
       "release": {
         "image": "cluster"
@@ -1082,29 +917,7 @@
       ],
       "topics": [
         "web-image"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "kill-me"
-          }
-        ]
-      },
-      "web": {
-        "packages": [
-          "backend",
-          "frontend"
-        ],
-        "image": "romainecr.azurecr.io/kill-me",
-        "pinFile": "k8s/values.yaml",
-        "pinFields": {
-          "release.version": "version",
-          "release.deployedAt": "date"
-        },
-        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
-      }
+      ]
     },
     "romaine-life/landing-page": {
       "suites": [
@@ -1114,22 +927,7 @@
       "topics": [
         "web-image"
       ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "landing-page"
-          }
-        ]
-      },
       "web": {
-        "packages": [
-          "backend"
-        ],
-        "image": "romainecr.azurecr.io/landing-page",
-        "pinFile": "k8s/values.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
         "dependencies": [
           {
             "repository": "romaine-life/fzt-browser",
@@ -1166,14 +964,7 @@
       ],
       "topics": [
         "web-static"
-      ],
-      "web": {
-        "packages": [
-          "frontend"
-        ],
-        "staticApp": "lights-app",
-        "resourceGroup": "lights-rg"
-      }
+      ]
     },
     "romaine-life/macrocraft": {
       "suites": [
@@ -1188,14 +979,7 @@
       "topics": [
         "cluster-image",
         "go-race"
-      ],
-      "cluster": {
-        "image": "forgejo.romaine.life/romaine-life/merge-queue",
-        "baoRole": "merge-queue-publish",
-        "baoSecret": "services/merge-queue-build",
-        "pinFile": "k8s/deployment.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/RLMQ-1"
-      }
+      ]
     },
     "romaine-life/my-homepage": {
       "suites": [
@@ -1206,22 +990,7 @@
       "topics": [
         "web-image"
       ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "helm",
-            "path": "k8s",
-            "name": "my-homepage"
-          }
-        ]
-      },
       "web": {
-        "packages": [
-          "backend"
-        ],
-        "image": "romainecr.azurecr.io/my-homepage",
-        "pinFile": "k8s/values.yaml",
-        "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
         "dependencies": [
           {
             "repository": "romaine-life/fzt-browser",
@@ -1301,15 +1070,7 @@
       ],
       "topics": [
         "windows-powershell"
-      ],
-      "cluster": {
-        "renders": [
-          {
-            "kind": "kustomize",
-            "path": "nas/repo-sync"
-          }
-        ]
-      }
+      ]
     },
     "romaine-life/spire-pad": {
       "suites": [

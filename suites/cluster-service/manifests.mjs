@@ -55,8 +55,8 @@ function renderTo(executable, args, file) {
 const digests = file => run('python3', [path.join(templates, 'actions/check-image-digests/check.py'), file]);
 
 export async function main() {
-  const renders = config().cluster?.renders || [{kind: 'kustomize', path: 'k8s'}];
-  if (!renders.length) throw new Error('cluster.renders must include the deployed manifests');
+  const renders = config().cluster?.renders || [];
+  if (!renders.length) throw new Error('k8s/ holds no Chart.yaml, kustomization.yaml or Argo CD root-app.yaml to render');
   const temp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'manifests-'));
   try {
     for (const [index, render] of renders.entries()) {

@@ -75,9 +75,9 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
       completionReceipt=await stagePart('macos',['macos.tar.gz'],{deferReceipt:true});assert.equal(await finalize('macos','success',completionReceipt),true);
       await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
     }
-    fleetEntry(({version:1,release:{image:'web'},web:{image:'test.azurecr.io/app'}}));
+    fleetEntry(({version:1,release:{image:'web'},web:{image:true}}));
     const calls=[];
     await deployJoined(async(...args)=>calls.push(args),(...args)=>calls.push(args));
-    assert.deepEqual(calls[0],['image.txt','.ci-image-pin']);assert.ok(calls[1][1][0].replaceAll('\\','/').endsWith('web-app/deploy.mjs'));
+    assert.deepEqual(calls[0],['image.txt','.ci-image-pin']);assert.ok(calls[1][1][0].replaceAll('\\','/').endsWith('cluster-service/pin.mjs'));assert.equal(calls[1][1][1],'web');
   }finally{globalThis.fetch=oldFetch;process.chdir(cwd);for(const k of Object.keys(process.env))if(!(k in oldEnv))delete process.env[k];Object.assign(process.env,oldEnv);fs.rmSync(root,{recursive:true,force:true});}
 });
