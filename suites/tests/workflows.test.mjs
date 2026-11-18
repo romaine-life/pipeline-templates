@@ -55,6 +55,14 @@ test('PR packaging signs and verifies assembled assets with the merge signer, wi
   assert.equal(steps[sign].env.TOKEN,undefined);
 });
 
+// A published archive's signature names its release tag, which home-sync checks; the
+// publishing signer once ran with none and every archive it signed was refused (PIPT-37).
+test('the publishing signer signs with the reserved release tag',()=>{
+  const workflow=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8'));
+  const sign=workflow.jobs.finalize.steps.find(step=>step.run==='node _ci/suites/release/sign-linux.mjs');
+  assert.equal(sign.env.VERSION,'${{ needs.reserve.outputs.tag }}');
+});
+
 
 test('checks use frozen scripts and the pass recorder waits for every native result',()=>{
   for(const suite of fs.readdirSync(suites,{withFileTypes:true}).filter(dir=>dir.isDirectory() && fs.existsSync(path.join(suites,dir.name,'ci.yml')))) {

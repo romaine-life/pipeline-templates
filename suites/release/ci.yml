@@ -287,6 +287,7 @@ jobs:
       env:
         AT_TERMINAL_PFX: ${{ secrets.AT_TERMINAL_PFX }}
         AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
+        VERSION: ${{ needs.reserve.outputs.tag }}
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
     - run: node _ci/suites/release/image.mjs publish
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''

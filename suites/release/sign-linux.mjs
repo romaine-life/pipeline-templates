@@ -9,6 +9,9 @@ import {hash} from '../lib.mjs';
 import {zipDirectory} from './zip.mjs';
 export const archiveSignatureName=name=>`${name}.signature.json`;
 export async function signLinux(directory='dist') {
+  // A signature binds the archive to its repository and tag; one without them is refused
+  // by every consumer, so signing without them is an error here (PIPT-37).
+  if (!/^[\w.+-]+$/.test(process.env.VERSION || '') || !process.env.GITHUB_REPOSITORY) throw new Error('signing needs VERSION (the release tag) and GITHUB_REPOSITORY');
   const temp=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(),'sign-'));
   const pfx=Buffer.from(process.env.AT_TERMINAL_PFX || '','base64');
   let executable;
