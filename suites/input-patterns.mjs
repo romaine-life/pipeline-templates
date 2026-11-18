@@ -1,28 +1,39 @@
+// A broad check (a toolchain's tests, whether a merge cuts a release) reads the whole
+// repository except `ignored`: documentation, the cluster manifests an image-pin PR changes
+// (a pin must never cut a release, or releases loop) and infrastructure. The other checks
+// read only the files their tool reads.
+export const ignored = ['**/*.md', 'docs/**', 'LICENSE', 'LICENSE.*', 'LICENSE-*', 'COPYING', 'COPYING.*', 'NOTICE', 'NOTICE.*', 'k8s/**', 'tofu/**'];
+const everything = ['**'];
 export const inputs = {
   'default.fetches': ['.forgejo/workflows/**', '**/action.yml', '**/action.yaml', '**/Dockerfile*', '**/Containerfile*', '**/*.Dockerfile', '**/Cargo.toml', '**/Cargo.lock'],
   'default.rules': ['.forgejo/workflows/**', '.forgejo/actions/**'],
   'go.format': ['**/*.go', 'go.mod'],
-  'go.test': ['**/*.go', '**/go.mod', '**/go.sum', 'go.work', 'go.work.sum', '**/testdata/**'],
+  'go.test': everything,
   'rust.format': ['**/*.rs', '**/Cargo.toml', 'rustfmt.toml', '.rustfmt.toml', 'rust-toolchain*'],
   'rust.typos': ['**/*.rs','**/*.md','**/*.toml','.typos.toml','rust-toolchain*'],
   'rust.machete': ['**/*.rs','**/Cargo.toml','**/Cargo.lock','rust-toolchain*','.cargo/**','**/.cargo/**'],
   'rust.audit': ['**/Cargo.lock','audit.toml','.cargo/audit.toml'],
-  'cmake.test': ['**/CMakeLists.txt', '**/*.cmake', 'CMakePresets.json', '**/*.c', '**/*.cc', '**/*.cpp', '**/*.h', '**/*.hpp', 'vcpkg.json', 'vcpkg-configuration.json', 'tests/**', 'test/**'],
-  'dotnet.test': ['**/*.cs', '**/*.fs', '**/*.vb', '**/*.*proj', '**/*.sln', '**/*.slnx', 'global.json', '**/*.props', '**/*.targets', '**/packages.lock.json', 'NuGet.Config', '.editorconfig', 'tests/**', 'Tests/**'],
-  'python.test': ['pyproject.toml', 'uv.lock', '.python-version', '**/*.py', '**/*.pyi', 'ruff.toml', '.ruff.toml', 'pytest.ini', 'conftest.py', 'src/**', 'tests/**'],
-  'rust.test': ['**/*.rs', '**/Cargo.toml', '**/Cargo.lock', '**/.cargo/**', '.cargo/**', '**/build.rs', 'rust-toolchain*', '**/tests/**', '**/benches/**'],
+  'cmake.test': everything,
+  'dotnet.test': everything,
+  'python.test': everything,
+  'rust.test': everything,
   'cluster-service.manifests': ['k8s/**'],
   'cluster-service.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**'],
-  'web-app.test': ['package*.json', '.npmrc', 'src/**', 'public/**', '*config.*', 'test/**', 'tests/**'],
+  'web-app.test': everything,
   'web-app.image': ['Dockerfile', '.dockerignore', 'ci/smoke/**', 'dependencies.lock'],
   'tofu.plan': ['tofu/**'],
   'docs.validate': ['**/*.md'],
   'powershell.parse': ['**/*.ps1', '**/*.psm1', '**/*.psd1'],
   'powershell.files': ['**/*.json'],
-  'release.build': ['commands/**','Dockerfile','.dockerignore','ci/smoke/**','cmd/**', 'internal/**', 'pkg/**', '**/*.go', 'go.mod', 'go.sum', '**/*.rs', '**/Cargo.toml', 'Cargo.lock', '.cargo/**', 'rust-toolchain*', 'assets/**', 'package*.json', 'src/**', 'frontend/**', 'backend/**', '**/*.cs', '**/*.*proj', '**/*.props', '**/*.targets', '**/*.sln*', 'global.json', '**/packages.lock.json', '**/*.py', '**/pyproject.toml', '**/uv.lock', '**/CMakeLists.txt', '**/*.cmake', '**/*.cpp', '**/*.c', '**/*.h', 'CMakePresets.json']
-  ,'release.package': ['release/assets/**','ci/build/**','ci/package/**','scripts/build*','scripts/package*','packaging/**','installer/**','**/*.manifest','**/*.appxmanifest','**/*.syso','**/*.rc','**/*.ico','**/*.wxs','**/*.wxi','**/*.nsi','**/*.iss']
+  'release.build': everything,
+  // On a PR the release builds only when what packages it changed; the tests cover the code.
+  'release.package': ['release/assets/**','ci/build/**','ci/package/**','scripts/build*','scripts/package*','packaging/**','installer/**','**/*.manifest','**/*.appxmanifest','**/*.syso','**/*.rc','**/*.ico','**/*.wxs','**/*.wxi','**/*.nsi','**/*.iss']
 };
-inputs['release.build'].push(...inputs['release.package']);
+export const broad = Object.keys(inputs).filter(check => inputs[check] === everything);
+// Tests (and .gitignore) can't change a shipped binary, so a merge that changes only those
+// cuts no release.
+const tests = ['**/*_test.go', '**/testdata/**', 'tests/**', 'test/**', '**/tests/**', 'Tests/**', '**/Tests/**', 'benches/**', '**/*.test.*', '**/*.spec.*', '**/.gitignore'];
+export const ignoredBy = job => !broad.includes(job) ? [] : job === 'release.build' ? [...ignored, ...tests] : ignored;
 export function matches(file, glob) {
   let pattern = '';
   for (let i = 0; i < glob.length; i++) {
@@ -34,10 +45,19 @@ export function matches(file, glob) {
   }
   return new RegExp(`^${pattern}$`).test(file);
 }
-export function relevant(files, job, cfg) {
+// Whether a file is an input to a check: one its patterns name, outside `ignored` for a broad
+// check, or one of `found`, the inputs read from the repository (a Go embed, a linked doc, a
+// Dockerfile's COPY source, a render path), which count wherever they are.
+export function input(file, job, found = []) {
   if (!inputs[job]) throw new Error(`unknown check: ${job}`);
-  let standard = inputs[job];
-  if (job === 'web-app.test') standard = (cfg.web?.packages || ['.']).flatMap(pkg => inputs[job].map(p => pkg === '.' ? p : `${pkg}/${p}`));
-  const patterns = [...standard, ...(cfg.inputs?.[job] || [])];
-  return files.some(f => patterns.some(p => matches(f, p)));
+  if (found.some(p => matches(file, p))) return true;
+  return inputs[job].some(p => matches(file, p)) && !ignoredBy(job).some(p => matches(file, p));
+}
+export function relevant(files, job, found = []) {
+  if (!inputs[job]) throw new Error(`unknown check: ${job}`);
+  return files.some(file => input(file, job, found));
+}
+// A cluster service's render paths and values files, wherever the entry puts them.
+export function renderInputs(cluster) {
+  return (cluster?.renders || [{kind: 'kustomize', path: 'k8s'}]).flatMap(render => [render.path, `${render.path}/**`, ...(render.values ? [render.values] : [])]);
 }

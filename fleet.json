@@ -37,20 +37,6 @@
             ]
           }
         ]
-      },
-      "inputs": {
-        "release.build": [
-          "build/**",
-          "dep/**",
-          "oss/**",
-          "res/**",
-          "tools/**",
-          ".nuget/**",
-          "NuGet.Config",
-          "vcpkg.json",
-          ".forgejo/container/**",
-          ".forgejo/workflows/build.yml"
-        ]
       }
     },
     "nelsong6/at-tmux": {
@@ -76,19 +62,6 @@
             "cmake/at-protocol.txt": "at-protocol.txt"
           }
         }
-      },
-      "inputs": {
-        "cmake.test": [
-          "cmd-parse.y",
-          "tmux.1",
-          "dep/**",
-          "regress/**"
-        ],
-        "release.build": [
-          "cmd-parse.y",
-          "tmux.1",
-          "dep/**"
-        ]
       }
     },
     "nelsong6/avatars": {
@@ -143,12 +116,6 @@
           {
             "target": "x86_64-pc-windows-msvc"
           }
-        ]
-      },
-      "inputs": {
-        "rust.test": [
-          "log/**",
-          "probes/**"
         ]
       }
     },
@@ -418,11 +385,6 @@
           "windows-latest"
         ]
       },
-      "inputs": {
-        "rust.test": [
-          "frontend/**"
-        ]
-      },
       "release": {
         "toolchains": [
           "rust"
@@ -603,14 +565,6 @@
           "container_name": "tfstate",
           "key": "ambience.tfstate"
         }
-      },
-      "inputs": {
-        "web-app.test": [
-          "cmd/ambience/web/**",
-          "scripts/**/*.mjs",
-          "scripts/fixtures/**",
-          "chart/ambience/**"
-        ]
       }
     },
     "romaine-life/at": {
@@ -825,14 +779,6 @@
           "container_name": "tfstate",
           "key": "auth.tfstate"
         }
-      },
-      "inputs": {
-        "web-app.test": [
-          "scripts/**",
-          "tsconfig.json",
-          "drizzle.config.ts",
-          "drizzle/**"
-        ]
       }
     },
     "romaine-life/chess-tactics": {
@@ -883,15 +829,6 @@
           "container_name": "tfstate",
           "key": "chess-tactics.tfstate"
         }
-      },
-      "inputs": {
-        "web-app.test": [
-          "backend/**",
-          "frontend/**",
-          "packages/**",
-          "bin/**",
-          "tools/**"
-        ]
       }
     },
     "romaine-life/composer": {
@@ -931,11 +868,6 @@
           "container_name": "tfstate",
           "key": "eight-queens.tfstate"
         }
-      },
-      "inputs": {
-        "web-app.test": [
-          "frontend/**"
-        ]
       }
     },
     "romaine-life/fzt": {
@@ -1093,18 +1025,6 @@
             "destination": "src/fzt-web.js"
           }
         ]
-      },
-      "inputs": {
-        "rust.test": [
-          "src-tauri/tauri.conf.json",
-          "src-tauri/capabilities/**",
-          "src-tauri/icons/**"
-        ],
-        "release.build": [
-          "src-tauri/tauri.conf.json",
-          "src-tauri/capabilities/**",
-          "src-tauri/icons/**"
-        ]
       }
     },
     "romaine-life/fzt-frontend": {
@@ -1139,12 +1059,6 @@
         "module": true,
         "image": "cluster",
         "prefix": "v0.1"
-      },
-      "inputs": {
-        "web-app.test": [
-          "backend/**",
-          "scripts/check-no-hs256.mjs"
-        ]
       }
     },
     "romaine-life/fzt-picker": {
@@ -1393,13 +1307,6 @@
           "container_name": "tfstate",
           "key": "kill-me.tfstate"
         }
-      },
-      "inputs": {
-        "web-app.test": [
-          "backend/**",
-          "frontend/**",
-          "scripts/**"
-        ]
       }
     },
     "romaine-life/landing-page": {
@@ -1479,11 +1386,6 @@
           "container_name": "tfstate",
           "key": "lights.tfstate"
         }
-      },
-      "inputs": {
-        "web-app.test": [
-          "frontend/**"
-        ]
       }
     },
     "romaine-life/macrocraft": {
@@ -1640,11 +1542,6 @@
         ],
         "build": false,
         "smoke": false
-      },
-      "inputs": {
-        "cluster-service.manifests": [
-          "nas/repo-sync/**"
-        ]
       }
     },
     "romaine-life/spire-pad": {
@@ -1689,18 +1586,6 @@
             "workflow": "workshop.yml"
           }
         ]
-      },
-      "inputs": {
-        "dotnet.test": [
-          "Core/**",
-          "Fixtures/**",
-          "lib/**"
-        ],
-        "release.package": [
-          "SpireLens.json",
-          "Core/**",
-          "lib/**"
-        ]
       }
     },
     "romaine-life/spirelens-mcp": {
@@ -1728,11 +1613,6 @@
             "repository": "romaine-life/landing-page",
             "workflow": "web-app/dependencies.yml"
           }
-        ]
-      },
-      "inputs": {
-        "docs.validate": [
-          "renders/**"
         ]
       }
     },

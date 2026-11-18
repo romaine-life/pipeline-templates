@@ -7,12 +7,12 @@ import {config, fleet, validate} from '../config.mjs';
 
 test('unknown settings and unsafe paths fail visibly', () => {
   for (const bad of [{}, {suites: ['nope']}, {suites: ['default']}, {suites: ['go', 'go']}, {suites: [], go: {command: 'whatever'}},
-    {suites: [], inputs: {'go.test': ['../other']}}, {suites: [], go: {platforms: ['linux']}}, {suites: [], release: {toolchains: ['go'], prefix: 'v0.1', prefixFrom: 'Cargo.toml'}},
+    {suites: [], inputs: {'go.test': ['assets/**']}}, {suites: [], go: {platforms: ['linux']}}, {suites: [], release: {toolchains: ['go'], prefix: 'v0.1', prefixFrom: 'Cargo.toml'}},
     ...[[], {}, {'release.tag': 'command'}, {'__proto__.tag': 'tag'}].map(pinFields => ({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields}})),
     {suites: [], web: {pinFields: {'release.tag': 'tag'}}}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
   }
-  assert.deepEqual(validate({suites: ['go'], go: {platforms: ['windows-latest', 'ubuntu-latest']}, inputs: {'go.test': ['assets/**']}}).suites, ['go']);
+  assert.deepEqual(validate({suites: ['go'], go: {platforms: ['windows-latest', 'ubuntu-latest']}}).suites, ['go']);
   assert.equal(validate({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields: {'release.tag': 'tag', 'release.commit': 'commit', 'release.version': 'version'}}}).cluster.pinFields['release.commit'], 'commit');
 });
 

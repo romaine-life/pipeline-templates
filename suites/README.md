@@ -36,7 +36,6 @@ an unknown field fails.
 | `tofu` | `version`, `backend` |
 | `docs` | `required`, `release` |
 | `powershell` | `windowsPowerShell` |
-| `inputs` | extra file patterns per check (`"go.test": ["assets/**"]`) |
 
 A few things come from the repository rather than the list: its Rust toolchain is its
 `rust-toolchain.toml` (channel and components), as rustup reads it, else the pinned stable;
@@ -56,8 +55,15 @@ in a layer only the check runs, for an image that runs a release binary it doesn
 
 1. A check runs on the pull request only. A merge builds, publishes and deploys; it checks
    nothing again. A check whose inputs are identical to a passing run's reuses it.
-2. A check runs only when files it reads changed (`input-patterns.mjs`, plus Go embeds,
-   Rust includes, Dockerfile `COPY` sources and linked docs).
+2. A check runs only when files it reads changed (`input-patterns.mjs`). The tests, and
+   whether a merge cuts a release, read every file but documentation (Markdown, `docs/`,
+   `LICENSE`, `COPYING`, `NOTICE`), `k8s/` (an image-pin PR changes it, and a pin must never
+   cut a release) and `tofu/`; a release (a static app's deploy included) also ignores the
+   tests (`*_test.go`, `testdata/`, `tests/`, `test/`, `Tests/`, `benches/`, `*.test.*`,
+   `*.spec.*`) and `.gitignore`, which can't change what it ships.
+   The other checks, the PR's release packaging among them, read their tool's files. Go
+   embeds, Rust includes, Dockerfile `COPY` sources, linked docs, render paths and the files a
+   release archives count wherever they are. No repository adds patterns of its own.
 3. Builds keep their caches on the runners (Go, Cargo per repository and toolchain,
    tools, OpenTofu providers).
 4. No job holds a runner while it waits on something else; test services start on the

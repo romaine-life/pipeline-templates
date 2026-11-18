@@ -4,8 +4,9 @@ import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {api, post, request, tracked, requirePublish, capture, output, hash, templates} from './lib.mjs';
 import {config} from './config.mjs';
-import {inputs, relevant, matches} from './input-patterns.mjs';
-import {embedded, imageInputs, docLinks} from './dependencies.mjs';
+import {relevant, matches} from './input-patterns.mjs';
+import {imageInputs} from './dependencies.mjs';
+import {found} from './fingerprints.mjs';
 import {zipDirectory} from './release/zip.mjs';
 const require = createRequire(import.meta.url);
 
@@ -52,12 +53,8 @@ export async function releaseScope(suite) {
   if (!latest) { output('build', true); return; }
   const base = capture('git', ['rev-parse', '--verify', `refs/tags/${latest.tag_name}^{commit}`]);
   const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
-  const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'web-app.test' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
-  const kinds=cfg.release?.toolchains || [];
-  const extra = suite === 'docs' ? docLinks() : ['web-app','cluster-service'].includes(suite) ? imageInputs(suite === 'web-app' ? cfg.web : cfg.cluster)
-    : [...kinds.flatMap(kind=>embedded()[kind] || []), ...(cfg.release?.image ? imageInputs(cfg[cfg.release.image]) : [])];
-  cfg.inputs = {...cfg.inputs, [job]: [...(cfg.inputs?.[job] || []), ...extra, ...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.release?.toolchains?.length && cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources),...(cfg.inputs?.['release.package'] || [])]};
-  output('build', relevant(files, job, cfg));
+  const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'release.build' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
+  output('build', relevant(files, job, await found(job, cfg)));
   if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', joinedImageChanged(cfg.cluster));
 }
 // The image the pin file runs (`<image>:<tag>@sha256:<digest>`), when it names exactly one.

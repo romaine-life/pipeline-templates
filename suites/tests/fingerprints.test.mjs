@@ -29,12 +29,18 @@ test('fingerprints follow code, linked/embedded inputs, configuration, patterns 
     fs.writeFileSync('data.txt','changed embedding');commit();assert.notEqual(await fp('docs.validate'),linked);assert.notEqual(await fp(),original);assert.equal(await fp('go.format'),format);
     fs.mkdirSync('linked');fs.writeFileSync('linked/data.txt','linked directory');fs.appendFileSync('README.md','[directory](linked/)\n');commit();
     const directory=await fp('docs.validate');fs.unlinkSync('linked/data.txt');commit();assert.notEqual(await fp('docs.validate'),directory);
-    const source=await fp();
+    let source=await fp();
     fs.writeFileSync('settings.json','{"version":1}');commit();const json=await fp('powershell.files');
+    // A test reads any file but docs, cluster manifests and infrastructure.
+    assert.notEqual(await fp(),source);source=await fp();
     fs.writeFileSync('settings.json','{"version":1,"docs":{"required":["README.md"]}}');commit();
-    assert.notEqual(await fp('powershell.files'),json);assert.equal(await fp(),source);
+    assert.notEqual(await fp('powershell.files'),json);assert.notEqual(await fp(),source);source=await fp();
+    fs.mkdirSync('k8s');fs.writeFileSync('k8s/values.yaml','tag: v1\n');fs.mkdirSync('tofu');fs.writeFileSync('tofu/main.tf','');fs.mkdirSync('docs');fs.writeFileSync('docs/notes.txt','notes');fs.writeFileSync('LICENSE','MIT');commit();
+    assert.equal(await fp(),source);
+    // An embedded file counts even among the docs.
+    fs.writeFileSync('main.go','package main\n//go:embed data.txt docs/help.md\nvar data string\n');fs.writeFileSync('docs/help.md','help');commit();source=await fp();
+    fs.writeFileSync('docs/help.md','changed help');commit();assert.notEqual(await fp(),source);source=await fp();
     assert.equal(await fp('go.test','ubuntu-latest',{...cfg,docs:{required:['other.md']}}),source);
-    assert.notEqual(await fp('go.test','ubuntu-latest',{...cfg,inputs:{'go.test':['extra/**']}}),source);
     assert.notEqual(await fp('go.test','ubuntu-latest',cfg,'b'.repeat(40)),source);
     assert.notEqual(await fp('rust.test','ubuntu-latest',{rust:{features:['tls']}}),await fp('rust.test','ubuntu-latest',{rust:{features:[]}}));
     assert.notEqual(await fp('go.test','services',{service:{postgres:'one'}}),await fp('go.test','services',{service:{postgres:'two'}}));

@@ -54,7 +54,9 @@ test('the real PR scope process plans independent native Windows and Linux-servi
   assert.equal(outputs['service-test'],'true');assert.equal(outputs.test,'true');assert.deepEqual(JSON.parse(outputs.platforms),['ubuntu-latest','windows-latest']);assert.equal(outputs['test-linux'],'false');assert.equal(outputs['test-windows'],'true');
   for(const entry of Object.values(checks)){assert.match(entry.fingerprint,/^[a-f0-9]{64}$/);assert.equal(entry.suite,outputs['suite-sha']);assert.equal(entry.pass,null);}
 });
-test("a PR that doesn't touch a check's inputs doesn't run it, with no recorded pass to reuse",async()=>{
-  const outputs=await prScope(root=>fs.writeFileSync(path.join(root,'notes.txt'),'changed\n'));
+test("a PR that changes only docs and manifests doesn't run the tests, and any other change does",async()=>{
+  const outputs=await prScope(root=>{fs.writeFileSync(path.join(root,'README.md'),'changed\n');fs.mkdirSync(path.join(root,'k8s'));fs.writeFileSync(path.join(root,'k8s/values.yaml'),'tag: v1\n');});
   for(const name of ['format','test','service-test','test-linux','test-windows'])assert.equal(outputs[name],'false',name);
+  const other=await prScope(root=>fs.writeFileSync(path.join(root,'notes.txt'),'changed\n'));
+  assert.equal(other.format,'false');assert.equal(other.test,'true');assert.equal(other['test-windows'],'true');
 });

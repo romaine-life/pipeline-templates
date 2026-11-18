@@ -1,9 +1,8 @@
 import fs from 'node:fs';
 import {capture, output} from './lib.mjs';
 import {config} from './config.mjs';
-import {embedded, imageInputs, docLinks} from './dependencies.mjs';
-
 import {inputs,relevant} from './input-patterns.mjs';
+import {found} from './fingerprints.mjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 export {inputs,matches,relevant} from './input-patterns.mjs';
@@ -23,18 +22,6 @@ export function testPlatforms(suite,cfg,needed) {
 }
 export async function scope(suite) {
   const cfg = config();
-  for (const job of Object.keys(cfg.inputs || {})) if (!inputs[job]) throw new Error(`unknown check input: ${job}`);
-  cfg.inputs = {...cfg.inputs};
-  const add = (job, paths) => cfg.inputs[job] = [...(cfg.inputs[job] || []), ...paths];
-  if (suite === 'python') for (const dir of cfg.python?.projects || ['.']) add('python.test', inputs['python.test'].map(p=>dir==='.' ? p : `${dir}/${p}`));
-  if (suite === 'release') add('release.build',[...(cfg.release?.dependencies || []).flatMap(d=>d.lock ? [d.lock] : []),...(cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(a=>a.sources)]);
-  if (['go', 'rust'].includes(suite)) add(`${suite}.test`, embedded()[suite]);
-  if (suite === 'docs') add('docs.validate', docLinks());
-  if (['cluster-service', 'web-app'].includes(suite)) add(`${suite}.image`, imageInputs(suite === 'web-app' ? cfg.web : cfg.cluster));
-  if (suite === 'default') {
-    const {dependencies} = await import('./default/rules.mjs');
-    cfg.inputs = {...cfg.inputs, 'default.rules': [...(cfg.inputs?.['default.rules'] || []), ...dependencies()]};
-  }
   const files = process.env.GITHUB_EVENT_NAME === 'pull_request' || !process.env.GITHUB_EVENT_NAME ? changed() : [];
   let reuse;
   if(process.env.GITHUB_ACTIONS==='true' && process.env.GITHUB_EVENT_NAME==='pull_request') {
@@ -45,7 +32,7 @@ export async function scope(suite) {
   // run of the same inputs has passed yet. A recorded pass lets a PR skip what it already ran;
   // it never makes a check run whose inputs the PR didn't touch.
   const needed=(check,variant)=>!reuse || Object.values(reuse.checks).some(entry=>entry.check===check && (!variant || entry.variant===variant) && !entry.pass);
-  const testInputs=`${suite}.test` in inputs?`${suite}.test`:'go.test';
+  const testInputs=`${suite}.test` in inputs?`${suite}.test`:'go.test',testFound=testInputs===`${suite}.test` ? await found(testInputs,cfg) : [];
   for (const job of Object.keys(inputs).filter(k => k.startsWith(`${suite}.`))) {
     if(job==='release.package') {
       const {packagingScope}=await import('./release/inputs.mjs');
@@ -53,19 +40,19 @@ export async function scope(suite) {
       continue;
     }
     const disabled=job==='cluster-service.image' && cfg.cluster?.smoke===false || ['rust.typos','rust.machete','rust.audit'].includes(job) && !cfg.rust?.lints?.includes(job.split('.')[1]);
-    output(job.split('.')[1], !disabled && relevant(files, job, cfg) && (job==='release.build' || needed(job,job==='powershell.parse'?'ubuntu-latest':undefined)));
+    output(job.split('.')[1], !disabled && relevant(files, job, await found(job, cfg)) && (job==='release.build' || needed(job,job==='powershell.parse'?'ubuntu-latest':undefined)));
   }
   if (suite === 'tofu') {
     const pushed = process.env.GITHUB_EVENT_NAME === 'push' ? pushFiles() : null;
-    output('apply', process.env.GITHUB_EVENT_NAME !== 'pull_request' && (pushed === null || relevant(pushed, 'tofu.plan', cfg)));
+    output('apply', process.env.GITHUB_EVENT_NAME !== 'pull_request' && (pushed === null || relevant(pushed, 'tofu.plan')));
   }
   output('has-services', Object.keys(cfg.service || {}).length > 0);
-  const platforms=testPlatforms(suite,cfg,platform=>relevant(files,testInputs,cfg) && needed(`${suite}.test`,platform));
+  const platforms=testPlatforms(suite,cfg,platform=>relevant(files,testInputs,testFound) && needed(`${suite}.test`,platform));
   output('platforms',JSON.stringify(platforms.platforms));
   output('test-linux',platforms.run['ubuntu-latest']===true);
   output('test-windows',platforms.run['windows-latest']===true);
-  output('service-test',Object.keys(cfg.service || {}).length>0 && relevant(files,testInputs,cfg) && needed(`${suite}.test`,'services'));
-  output('parse-legacy',suite==='powershell' && cfg.powershell?.windowsPowerShell===true && relevant(files,'powershell.parse',cfg) && needed('powershell.parse','windows-legacy'));
+  output('service-test',Object.keys(cfg.service || {}).length>0 && relevant(files,testInputs,testFound) && needed(`${suite}.test`,'services'));
+  output('parse-legacy',suite==='powershell' && cfg.powershell?.windowsPowerShell===true && relevant(files,'powershell.parse') && needed('powershell.parse','windows-legacy'));
   output('fingerprints',JSON.stringify(reuse?.checks || {}));
   output('suite-sha',reuse?.suiteSHA || capture('git',['-C',path.dirname(fileURLToPath(import.meta.url)),'rev-parse','HEAD']));
   output('reuse',Object.values(reuse?.checks || {}).some(entry=>entry.pass));

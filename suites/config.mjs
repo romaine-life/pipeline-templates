@@ -2,7 +2,7 @@ import path from 'node:path';
 import {capture, readJSON, safePath, templates} from './lib.mjs';
 
 const fields = {
-  suites: null, inputs: null,
+  suites: null,
   go: ['platforms', 'dependencies', 'race'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
   release: ['module', 'toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
@@ -52,7 +52,6 @@ export function validate(value, where = 'fleet entry') {
   for (const [section, field] of [['release','module'],['rust','noDefaultFeatures'],['cluster','build'],['cluster','smoke'],['docs','release'],['powershell','windowsPowerShell'],['web','history']]) {
     if (value[section]?.[field] !== undefined && typeof value[section][field] !== 'boolean') throw new Error(`${section}.${field} must be boolean`);
   }
-  if (value.inputs && (Array.isArray(value.inputs) || typeof value.inputs !== 'object')) throw new Error('inputs must map check names to path arrays');
   if (value.cluster?.renders && !value.cluster.renders.length) throw new Error('cluster.renders must be nonempty');
   if (value.web?.packages && !value.web.packages.length) throw new Error('web.packages must be nonempty');
   for (const tool of ['go', 'rust', 'cmake', 'dotnet', 'python']) {
@@ -135,10 +134,6 @@ export function validate(value, where = 'fleet entry') {
     for (const file of archive.sources) {safePath(file);if(file==='dist')throw new Error('archive sources must name files or subdirectories, not the output root');}
     if(archive.targets && (!Array.isArray(archive.targets) || !archive.targets.length))throw new Error('archive.targets must be nonempty');
     for(const [source,target] of Object.entries(archive.entries || {})){safePath(source);if(!/^[\w.+-]+$/.test(target))throw new Error('archive entries must name plain files');}
-  }
-  for (const [job, paths] of Object.entries(value.inputs || {})) {
-    if (!/^[a-z-]+\.[a-z-]+$/.test(job) || !Array.isArray(paths) || !paths.length) throw new Error(`invalid input set: ${job}`);
-    for (const p of paths) safePath(p);
   }
   for (const p of value.web?.packages || ['.']) if (p !== '.') safePath(p);
   for (const p of value.docs?.required || []) safePath(p);
