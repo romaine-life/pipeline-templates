@@ -1,7 +1,8 @@
 name: Fleet
 
-# Every repository's suites live in fleet.json. A pull request that changes the list or
-# how it is applied shows the changes it would make; its merge makes them.
+# Every repository's suites and setting topics live in fleet.json. A pull request that
+# changes the list or how it is applied shows the changes it would make; its merge makes
+# them.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -31,7 +32,7 @@ jobs:
           from=${BASE:-$BEFORE}
           if [ -z "$from" ] || [ "$from" = 0000000000000000000000000000000000000000 ]; then echo run=true >> "$GITHUB_OUTPUT"; exit 0; fi
           range="$from...HEAD"; [ "$EVENT" = pull_request ] || range="$from..HEAD"
-          if git diff --name-only "$range" | grep -qxE 'fleet\.json|suites/fleet\.mjs|suites/config\.mjs|suites/lib\.mjs|\.forgejo/workflows/fleet\.yml'; then
+          if git diff --name-only "$range" | grep -qxE 'fleet\.json|suites/fleet\.mjs|suites/config\.mjs|suites/topics\.mjs|suites/lib\.mjs|\.forgejo/workflows/fleet\.yml'; then
             echo run=true >> "$GITHUB_OUTPUT"
           fi
       - uses: ./actions/suite

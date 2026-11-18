@@ -1,19 +1,24 @@
-// Aligns every owned repository to fleet.json: its ci- topics name exactly its suites, and
-// its default branch requires each suite's pull-request statuses. A repository the list
-// doesn't name carries no ci- topics. `plan` prints what would change and proves the token
-// may write by writing one repository's settings back unchanged; `apply` changes them.
+// Aligns every owned repository to fleet.json: its ci- topics name exactly its suites, its
+// setting topics (topics.mjs) exactly the entry's topics, and its default branch requires
+// each suite's pull-request statuses. A repository the list doesn't name carries neither.
+// Any other topic (one set by hand) is left as it is. `plan` prints what would change and
+// proves the token may write by writing one repository's settings back unchanged; `apply`
+// changes them.
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {request} from './lib.mjs';
 import {fleet} from './config.mjs';
+import {isSettingTopic} from './topics.mjs';
 
 const owners = ['romaine-life', 'nelsong6'];
 const server = () => (process.env.GITHUB_SERVER_URL || 'https://forgejo.romaine.life').replace(/\/$/, '');
 const api = p => `${server()}/api/v1${p}`;
 const send = (method, p, body) => request(api(p), {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
 
-export function topicsFor(current, suites) {
-  return [...current.filter(t => !t.startsWith('ci-')), ...suites.map(s => `ci-${s}`)].sort();
+export function topicsFor(current, suites, settings = []) {
+  const want = [...current.filter(t => !t.startsWith('ci-') && !isSettingTopic(t)), ...suites.map(s => `ci-${s}`), ...settings].sort();
+  if (want.length > 25) throw new Error(`more than Forgejo's 25 topics: ${want.join(' ')}`);
+  return want;
 }
 
 export function checksFor(suites) {
@@ -40,8 +45,8 @@ export async function align(mode, repos = fleet()) {
   let changes = 0;
   for (const repo of all) {
     const suites = repos[repo.full_name]?.suites;
-    const {topics} = await request(api(`/repos/${repo.full_name}/topics`));
-    const want = topicsFor(topics, suites || []);
+    const {topics} = await request(api(`/repos/${repo.full_name}/topics?limit=50`));
+    const want = topicsFor(topics, suites || [], repos[repo.full_name]?.topics);
     if (!same([...topics].sort(), want)) {
       changes++;
       console.log(`${repo.full_name}: topics ${JSON.stringify(topics)} -> ${JSON.stringify(want)}`);

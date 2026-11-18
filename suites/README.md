@@ -14,13 +14,17 @@ repository's CI is configured: changing the fleet, or any repository in it, is o
 here. The `Fleet` workflow aligns every owned repository to it: on a PR it prints what the
 merge would change, and the merge changes it.
 
-- A listed repository's `ci-` topics become exactly `ci-<suite>` for each suite listed.
+- A listed repository's `ci-` topics become exactly `ci-<suite>` for each suite listed,
+  and its setting topics exactly the entry's `topics`.
 - Its default branch requires each suite's pull-request statuses, `Suite <suite> / *
   (pull_request)`, `default` included.
-- A repository the list doesn't name carries no `ci-` topics.
+- A repository the list doesn't name carries no `ci-` or setting topics.
+- Any other topic, one set by hand, is left as it is.
 
-An entry is `{"suites": [...]}` plus any of the settings below. `config.mjs` validates it;
-an unknown field fails.
+An entry is `{"suites": [...], "topics": [...]}` plus any of the settings below.
+`config.mjs` validates it; an unknown field or topic fails. Setting topics (`topics.mjs`)
+are the repository's CI selections; the suites don't read them yet, so each entry's are the
+ones its settings make (`config.test.mjs` holds them to that).
 
 | Section | Fields |
 |---|---|

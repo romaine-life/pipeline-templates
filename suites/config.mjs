@@ -1,8 +1,9 @@
 import path from 'node:path';
 import {capture, readJSON, safePath, templates} from './lib.mjs';
+import {isSettingTopic, validTopic} from './topics.mjs';
 
 const fields = {
-  suites: null,
+  suites: null, topics: null,
   go: ['platforms', 'dependencies', 'race'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
   release: ['module', 'toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
@@ -46,6 +47,13 @@ export function validate(value, where = 'fleet entry') {
       for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`${where}: unknown field ${key}.${field}`);
     }
   }
+  // The setting topics Fleet sets on the repository (topics.mjs); the suites don't read them yet.
+  const topics = value.topics ?? [];
+  if (!Array.isArray(topics) || new Set(topics).size !== topics.length || topics.some(topic => !validTopic(topic) || !isSettingTopic(topic))) {
+    throw new Error(`${where}: topics must name each setting topic once (suites are ci- topics, from suites)`);
+  }
+  // Forgejo keeps at most 25 topics on a repository.
+  if (value.suites.length + topics.length > 25) throw new Error(`${where}: more than 25 topics`);
   for (const [section, field] of [['go','dependencies'],['go','race'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies'],['docs','required']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }

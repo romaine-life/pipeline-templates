@@ -20,6 +20,11 @@
       "suites": [
         "release"
       ],
+      "topics": [
+        "home-sync",
+        "release-external",
+        "version-four-part"
+      ],
       "release": {
         "prefix": "v1.25",
         "suffix": ".0",
@@ -43,6 +48,12 @@
       "suites": [
         "cmake",
         "release"
+      ],
+      "topics": [
+        "cmake-test-windows",
+        "home-sync",
+        "release-cmake",
+        "version-from-manifest"
       ],
       "cmake": {
         "platforms": [
@@ -68,6 +79,10 @@
       "suites": [
         "cluster-service",
         "go"
+      ],
+      "topics": [
+        "cluster-image",
+        "service-postgres"
       ],
       "go": {
         "platforms": [
@@ -100,6 +115,12 @@
       "suites": [
         "release",
         "rust"
+      ],
+      "topics": [
+        "home-sync",
+        "release-rust",
+        "rust-build-windows-amd64",
+        "rust-test-windows"
       ],
       "rust": {
         "platforms": [
@@ -139,6 +160,9 @@
       "suites": [
         "rust"
       ],
+      "topics": [
+        "rust-test-windows"
+      ],
       "rust": {
         "platforms": [
           "windows-latest"
@@ -165,6 +189,9 @@
       "suites": [
         "cluster-service",
         "go"
+      ],
+      "topics": [
+        "cluster-image"
       ],
       "cluster": {
         "image": "forgejo.romaine.life/nelsong6/home-hub",
@@ -206,6 +233,9 @@
       "suites": [
         "docs"
       ],
+      "topics": [
+        "release-source"
+      ],
       "docs": {
         "required": [
           "README.md",
@@ -230,6 +260,9 @@
     "nelsong6/journal-llm-philosophy": {
       "suites": [
         "docs"
+      ],
+      "topics": [
+        "release-source"
       ],
       "docs": {
         "required": [
@@ -258,6 +291,9 @@
       "suites": [
         "docs"
       ],
+      "topics": [
+        "release-source"
+      ],
       "docs": {
         "required": [
           "README.md",
@@ -270,6 +306,9 @@
     "nelsong6/journal-psychology-philosophy": {
       "suites": [
         "docs"
+      ],
+      "topics": [
+        "release-source"
       ],
       "docs": {
         "required": [
@@ -355,6 +394,10 @@
         "cluster-service",
         "go"
       ],
+      "topics": [
+        "cluster-image",
+        "service-manticore"
+      ],
       "service": {
         "manticore": "artifacts.home.romaine.life/dockerhub/manticoresearch/manticore:29.9.0@sha256:6e32ad69a4a1bf5e596b8b2abd00b7625fc2a146c3877b365a4d4840f5cffd12"
       },
@@ -379,6 +422,12 @@
         "powershell",
         "release",
         "rust"
+      ],
+      "topics": [
+        "release-archive",
+        "release-rust",
+        "rust-build-windows-amd64",
+        "rust-test-windows"
       ],
       "rust": {
         "platforms": [
@@ -422,6 +471,13 @@
         "release",
         "rust"
       ],
+      "topics": [
+        "home-sync",
+        "release-rust",
+        "rust-build-windows-amd64",
+        "rust-test-linux",
+        "rust-test-windows"
+      ],
       "rust": {
         "platforms": [
           "ubuntu-latest",
@@ -446,6 +502,18 @@
         "cluster-service",
         "release",
         "rust"
+      ],
+      "topics": [
+        "cluster-image",
+        "home-sync",
+        "release-rust",
+        "release-source-list",
+        "rust-build-linux-amd64",
+        "rust-build-windows-amd64",
+        "rust-machete",
+        "rust-test-windows",
+        "rust-typos",
+        "version-from-manifest"
       ],
       "rust": {
         "platforms": [
@@ -525,6 +593,9 @@
       "suites": [
         "docs"
       ],
+      "topics": [
+        "release-source"
+      ],
       "docs": {
         "release": true
       }
@@ -547,6 +618,9 @@
         "go",
         "tofu",
         "web-app"
+      ],
+      "topics": [
+        "web-image"
       ],
       "web": {
         "packages": [
@@ -572,6 +646,11 @@
         "powershell",
         "release"
       ],
+      "topics": [
+        "home-sync",
+        "release-powershell",
+        "windows-powershell"
+      ],
       "powershell": {
         "windowsPowerShell": true
       },
@@ -587,6 +666,10 @@
       "suites": [
         "go",
         "release"
+      ],
+      "topics": [
+        "home-sync",
+        "release-go"
       ],
       "go": {
         "dependencies": [
@@ -614,6 +697,11 @@
       "suites": [
         "go",
         "release"
+      ],
+      "topics": [
+        "go-test-windows",
+        "home-sync",
+        "release-go"
       ],
       "go": {
         "platforms": [
@@ -697,6 +785,10 @@
       "suites": [
         "cmake"
       ],
+      "topics": [
+        "cmake-test-linux",
+        "cmake-test-windows"
+      ],
       "cmake": {
         "platforms": [
           "ubuntu-latest",
@@ -710,6 +802,13 @@
         "release",
         "tofu",
         "web-app"
+      ],
+      "topics": [
+        "go-test-linux",
+        "go-test-windows",
+        "home-sync",
+        "release-go",
+        "web-image"
       ],
       "go": {
         "platforms": [
@@ -787,6 +886,11 @@
         "tofu",
         "web-app"
       ],
+      "topics": [
+        "service-postgres",
+        "web-history",
+        "web-image"
+      ],
       "cluster": {
         "renders": [
           {
@@ -836,6 +940,11 @@
         "go",
         "release"
       ],
+      "topics": [
+        "go-test-linux",
+        "go-test-windows",
+        "release-module"
+      ],
       "go": {
         "platforms": [
           "ubuntu-latest",
@@ -851,6 +960,9 @@
       "suites": [
         "tofu",
         "web-app"
+      ],
+      "topics": [
+        "web-static"
       ],
       "web": {
         "packages": [
@@ -875,6 +987,10 @@
         "go",
         "release"
       ],
+      "topics": [
+        "go-test-windows",
+        "release-module"
+      ],
       "go": {
         "platforms": [
           "windows-latest"
@@ -889,6 +1005,12 @@
       "suites": [
         "go",
         "release"
+      ],
+      "topics": [
+        "go-test-linux",
+        "go-test-windows",
+        "home-sync",
+        "release-go"
       ],
       "go": {
         "platforms": [
@@ -937,6 +1059,9 @@
         "go",
         "release"
       ],
+      "topics": [
+        "release-go"
+      ],
       "go": {
         "dependencies": [
           "github.com/romaine-life/fzt",
@@ -982,6 +1107,11 @@
       "suites": [
         "release",
         "rust"
+      ],
+      "topics": [
+        "release-rust",
+        "rust-build-windows-amd64",
+        "rust-test-windows"
       ],
       "rust": {
         "platforms": [
@@ -1034,6 +1164,11 @@
         "release",
         "web-app"
       ],
+      "topics": [
+        "cluster-image",
+        "go-test-windows",
+        "release-module"
+      ],
       "go": {
         "platforms": [
           "windows-latest"
@@ -1066,6 +1201,14 @@
         "go",
         "release",
         "rust"
+      ],
+      "topics": [
+        "go-test-windows",
+        "home-sync",
+        "release-go",
+        "release-rust",
+        "rust-build-windows-amd64",
+        "rust-test-windows"
       ],
       "go": {
         "platforms": [
@@ -1139,6 +1282,11 @@
         "go",
         "release"
       ],
+      "topics": [
+        "go-test-windows",
+        "home-sync",
+        "release-go"
+      ],
       "go": {
         "platforms": [
           "windows-latest"
@@ -1198,6 +1346,12 @@
         "go",
         "release"
       ],
+      "topics": [
+        "go-test-linux",
+        "go-test-windows",
+        "home-sync",
+        "release-go"
+      ],
       "go": {
         "platforms": [
           "ubuntu-latest",
@@ -1225,6 +1379,11 @@
       "suites": [
         "go",
         "release"
+      ],
+      "topics": [
+        "go-test-windows",
+        "home-sync",
+        "release-go"
       ],
       "go": {
         "platforms": [
@@ -1271,6 +1430,9 @@
         "tofu",
         "web-app"
       ],
+      "topics": [
+        "web-image"
+      ],
       "cluster": {
         "renders": [
           {
@@ -1313,6 +1475,9 @@
       "suites": [
         "cluster-service",
         "web-app"
+      ],
+      "topics": [
+        "web-image"
       ],
       "cluster": {
         "renders": [
@@ -1370,6 +1535,9 @@
         "tofu",
         "web-app"
       ],
+      "topics": [
+        "web-static"
+      ],
       "web": {
         "packages": [
           "frontend"
@@ -1398,6 +1566,10 @@
         "cluster-service",
         "go"
       ],
+      "topics": [
+        "cluster-image",
+        "go-race"
+      ],
       "go": {
         "race": [
           "./..."
@@ -1416,6 +1588,9 @@
         "cluster-service",
         "tofu",
         "web-app"
+      ],
+      "topics": [
+        "web-image"
       ],
       "cluster": {
         "renders": [
@@ -1482,6 +1657,11 @@
         "go",
         "release"
       ],
+      "topics": [
+        "go-test-windows",
+        "home-sync",
+        "release-go"
+      ],
       "go": {
         "platforms": [
           "windows-latest"
@@ -1513,6 +1693,9 @@
       "suites": [
         "powershell"
       ],
+      "topics": [
+        "windows-powershell"
+      ],
       "powershell": {
         "windowsPowerShell": true
       }
@@ -1520,6 +1703,9 @@
     "romaine-life/shell-config-profile-5": {
       "suites": [
         "powershell"
+      ],
+      "topics": [
+        "windows-powershell"
       ],
       "powershell": {
         "windowsPowerShell": true
@@ -1529,6 +1715,9 @@
       "suites": [
         "cluster-service",
         "powershell"
+      ],
+      "topics": [
+        "windows-powershell"
       ],
       "powershell": {
         "windowsPowerShell": true
@@ -1554,6 +1743,12 @@
         "dotnet",
         "go",
         "release"
+      ],
+      "topics": [
+        "dotnet-test-windows",
+        "go-test-linux",
+        "go-test-windows",
+        "release-dotnet"
       ],
       "dotnet": {
         "platforms": [
@@ -1604,6 +1799,9 @@
         "docs",
         "python"
       ],
+      "topics": [
+        "release-source"
+      ],
       "docs": {
         "release": true
       },
@@ -1620,6 +1818,12 @@
       "suites": [
         "release",
         "rust"
+      ],
+      "topics": [
+        "home-sync",
+        "release-rust",
+        "rust-build-windows-amd64",
+        "rust-test-windows"
       ],
       "rust": {
         "platforms": [
@@ -1643,6 +1847,20 @@
       "suites": [
         "release",
         "rust"
+      ],
+      "topics": [
+        "home-sync",
+        "release-archive",
+        "release-rust",
+        "rust-audit",
+        "rust-build-linux-amd64",
+        "rust-build-linux-arm64",
+        "rust-build-windows-amd64",
+        "rust-build-windows-arm64",
+        "rust-test-linux",
+        "rust-test-windows",
+        "service-greenmail",
+        "version-from-manifest"
       ],
       "rust": {
         "platforms": [

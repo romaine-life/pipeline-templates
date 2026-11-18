@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {config, fleet, validate} from '../config.mjs';
+import {settingTopics, validTopic} from '../topics.mjs';
+import {topicsFor} from '../fleet.mjs';
+import {entryFor} from './fleet-entry.mjs';
 
 test('unknown settings and unsafe paths fail visibly', () => {
   for (const bad of [{}, {suites: ['nope']}, {suites: ['default']}, {suites: ['go', 'go']}, {suites: [], go: {command: 'whatever'}},
@@ -31,6 +34,22 @@ test('a repository reads its own entry from the fleet list, and one it leaves ou
 
 test('the real fleet list is valid', () => {
   assert.ok(Object.keys(fleet()).length > 0);
+});
+
+test('setting topics are Forgejo topics, never a suite, and the list holds only them', () => {
+  for (const topic of settingTopics) assert.ok(validTopic(topic) && !topic.startsWith('ci-'), topic);
+  for (const topics of [['ci-go'], ['game'], ['go-race', 'go-race'], 'go-race']) assert.throws(() => validate({suites: ['go'], topics}), JSON.stringify(topics));
+  assert.throws(() => validate({suites: ['go'], topics: settingTopics.slice(0, 25)}), /25 topics/);
+});
+
+// Until the suites read them, each repository's topics are the ones its settings make.
+test("the list's topics are the ones its settings make", () => {
+  for (const [repo, {topics = [], ...entry}] of Object.entries(fleet())) assert.deepEqual(topics, entryFor(entry).topics, repo);
+});
+
+test('Fleet owns ci- and setting topics, and leaves any other topic as it is', () => {
+  assert.deepEqual(topicsFor(['game', 'ci-old', 'go-race', 'rust-audit'], ['go'], ['go-race', 'home-sync']), ['ci-go', 'game', 'go-race', 'home-sync']);
+  assert.deepEqual(topicsFor(['game', 'ci-go', 'go-race'], []), ['game']);
 });
 
 test('GreenMail users and Rust glibc floors are checked where they are declared', () => {
