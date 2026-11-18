@@ -179,6 +179,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       published: ${{ steps.draft.outputs.published }}
   build:
+    enable-openid-connect: true
     name: build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})
     needs:
     - scope
@@ -321,6 +322,7 @@ jobs:
     with:
       release-tag: ${{ needs.finalize.outputs.tag }}
   publish:
+    enable-openid-connect: true
     needs: [scope, finalize]
     if: needs.finalize.outputs.ready == 'true' && needs.finalize.outputs.home-sync != 'true'
     runs-on: ubuntu-latest
@@ -344,6 +346,7 @@ jobs:
         VERSION: ${{ needs.finalize.outputs.tag }}
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
   dispatch:
+    enable-openid-connect: true
     needs:
     - scope
     - finalize
@@ -368,6 +371,7 @@ jobs:
       env:
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
   check-build:
+    enable-openid-connect: true
     name: check-build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.build == 'true' && needs.scope.outputs.has-local == 'true'

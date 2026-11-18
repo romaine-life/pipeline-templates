@@ -1,5 +1,5 @@
 name: Suite scripts
-description: Install the suite scripts' locked dependencies, keep compiler caches outside the checkout, and read the repository's topics.
+description: Install the suite scripts' locked dependencies, keep compiler caches outside the checkout, read the repository's topics, and sign in for npm packages on Forgejo when the repository uses them.
 inputs:
   token:
     description: The job's token, to read the repository's topics into CI_TOPICS. The suites pass it; a job that runs no suite needs no topics.
@@ -48,3 +48,16 @@ runs:
         SCRIPTS: ${{ github.action_path }}/../../suites
         TOKEN: ${{ inputs.token }}
       run: node (Join-Path $env:SCRIPTS 'topics.mjs')
+    # A repository that reads npm packages from Forgejo (an .npmrc naming
+    # FORGEJO_PACKAGES_TOKEN) gets the job's own short-lived token for them
+    # (suites/packages.mjs); a job without enable-openid-connect gets none.
+    - shell: bash
+      if: runner.os != 'Windows'
+      env:
+        SCRIPTS: ${{ github.action_path }}/../../suites
+      run: node "$SCRIPTS/packages.mjs" sign-in
+    - shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+      if: runner.os == 'Windows'
+      env:
+        SCRIPTS: ${{ github.action_path }}/../../suites
+      run: node (Join-Path $env:SCRIPTS 'packages.mjs') sign-in

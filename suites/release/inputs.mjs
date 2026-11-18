@@ -3,6 +3,7 @@ import TOML from '@iarna/toml';
 import {capture} from '../lib.mjs';
 import {matches,relevant} from '../input-patterns.mjs';
 import {embedded,imageInputs} from '../dependencies.mjs';
+import {forgejoDependencies,ownPackage} from '../packages.mjs';
 import {pythonProjects} from '../conventions.mjs';
 
 const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
@@ -17,6 +18,10 @@ export function settings(cfg) {
 const locks={go:['**/go.mod','**/go.sum','go.work','go.work.sum'],rust:['**/Cargo.lock','rust-toolchain*','.cargo/**','**/.cargo/**'],dotnet:['**/packages.lock.json','global.json','NuGet.Config','**/*.*proj','**/*.props','**/*.targets'],cmake:['vcpkg.json','vcpkg-configuration.json','CMakePresets.json','**/CMakeLists.txt','**/*.cmake']};
 export function packagingInputs(cfg,read) {
   const patterns=[...(cfg.release?.toolchains || []).flatMap(kind=>locks[kind] || []),...(cfg.release?.dependencies || []).flatMap(item=>item.lock ? [item.lock] : []),...(cfg.web?.dependencies?.length ? ['dependencies.lock'] : []),...(cfg.release?.archives || []).flatMap(item=>item.sources)],metadata=[];
+  // The npm package a release publishes is what its package.json lists (packages.mjs).
+  if(ownPackage(undefined,read))patterns.push('package.json');
+  // The root's npm packages from Forgejo, which a release that embeds them installs first (build.mjs).
+  if(!cfg.release?.toolchains?.includes('npm') && forgejoDependencies('.').length){patterns.push('package-lock.json','.npmrc');metadata.push({path:'package.json',kind:'npm'});}
   if(cfg.release?.toolchains?.includes('python'))for(const dir of pythonProjects())for(const file of ['uv.lock','pyproject.toml','setup.py','setup.cfg','.python-version'])patterns.push(dir==='.' ? file : `${dir}/${file}`);
   if(cfg.release?.toolchains?.includes('npm'))for(const dir of cfg.web?.packages || ['.']) {
     const prefix=dir==='.' ? '' : `${dir}/`;

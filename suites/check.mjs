@@ -14,6 +14,7 @@ import {config, currentRepository, fleet} from './config.mjs';
 import {localToken, readTopics} from './topics.mjs';
 import {changed, scope} from './inputs.mjs';
 import {runOwn} from './own-workflows.mjs';
+import {readToken, usesPackages} from './packages.mjs';
 
 // Check jobs a PC doesn't run; the pull request runs them.
 export const ciOnly = {
@@ -100,6 +101,9 @@ export async function check({platform = process.platform, branch, from} = {}) {
   // reads them with the job's token in CI; the scripts below inherit them.
   const repository = currentRepository();
   if (process.env.CI_TOPICS === undefined && fleet()[repository]) process.env.CI_TOPICS = JSON.stringify(await readTopics(repository, {token: localToken()}));
+  // npm packages from Forgejo, read with the token OpenBao signs for this PC, as CI reads
+  // them with the job's own (packages.mjs).
+  if (process.env.FORGEJO_PACKAGES_TOKEN === undefined && usesPackages()) process.env.FORGEJO_PACKAGES_TOKEN = await readToken();
   const cfg = config();
   const failed = [], skipped = [];
   let ran = 0;

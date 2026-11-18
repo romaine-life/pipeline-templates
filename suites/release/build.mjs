@@ -6,6 +6,7 @@ import {archives} from './archives.mjs';
 import {config} from '../config.mjs';
 import {packageAssets} from './assets.mjs';
 import {stage} from '../web-app/dependencies.mjs';
+import {forgejoDependencies} from '../packages.mjs';
 const kind=process.env.RELEASE_TOOLCHAIN || process.argv[2];
 if (!['go','rust','npm','python','dotnet','cmake','powershell'].includes(kind)) throw new Error('unknown release toolchain');
 fs.rmSync('dist',{recursive:true,force:true});fs.mkdirSync('dist');
@@ -15,6 +16,9 @@ await dependencies(kind);
 // A release that embeds pinned inputs from other repositories (web.dependencies) stages them
 // before it builds, as the web image does.
 await stage(config().web?.dependencies || []);
+// A release that embeds npm packages from Forgejo (fzt-desktop's frontend takes fzt-browser's)
+// installs its root's packages before it builds; the package's own scripts put them in place.
+if (kind!=='npm' && forgejoDependencies('.').length) run(process.platform==='win32' ? 'npm.cmd' : 'npm',['ci','--prefer-offline','--no-audit','--no-fund'],{shell:process.platform==='win32'});
 run(process.execPath,[path.join(suites,kind==='npm' ? 'web-app' : kind,'build.mjs')]);
 const staticAssets=path.join('release','assets',process.env.RELEASE_PART || kind);
 // Each entry on its own: Node 22 counts dist/ itself as the collision when a folder is copied

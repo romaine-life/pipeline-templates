@@ -82,6 +82,7 @@ jobs:
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.validate == 'true'
   release:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

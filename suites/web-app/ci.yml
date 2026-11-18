@@ -72,6 +72,7 @@ jobs:
       joined-image: ${{ steps.scope.outputs.joined-image }}
       has-services: ${{ steps.scope.outputs.has-services }}
   check-test:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     # A repo whose tests compare with the base branch (web-history) gets full history, which
@@ -102,6 +103,7 @@ jobs:
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test == 'true'
   check-image:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

@@ -653,21 +653,7 @@
           "go-js-wasm": {
             "fzt-browser-js-wasm": "fzt.wasm"
           }
-        },
-        "dispatch": [
-          {
-            "repository": "romaine-life/landing-page",
-            "workflow": "web-app/dependencies.yml"
-          },
-          {
-            "repository": "romaine-life/my-homepage",
-            "workflow": "web-app/dependencies.yml"
-          },
-          {
-            "repository": "romaine-life/fzt-desktop",
-            "workflow": "release/dependencies.yml"
-          }
-        ]
+        }
       }
     },
     "romaine-life/fzt-desktop": {
@@ -1122,15 +1108,7 @@
       ],
       "topics": [
         "release-source"
-      ],
-      "release": {
-        "dispatch": [
-          {
-            "repository": "romaine-life/landing-page",
-            "workflow": "web-app/dependencies.yml"
-          }
-        ]
-      }
+      ]
     },
     "romaine-life/string-lab": {
       "suites": [

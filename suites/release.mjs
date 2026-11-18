@@ -8,6 +8,7 @@ import {relevant, matches} from './input-patterns.mjs';
 import {imageInputs} from './dependencies.mjs';
 import {found} from './fingerprints.mjs';
 import {zipDirectory} from './release/zip.mjs';
+import {dispatchConsumers, publishPackage} from './packages.mjs';
 const require = createRequire(import.meta.url);
 
 export async function stage({url = api(), tag = process.env.VERSION, sha = process.env.GITHUB_SHA, files, token = process.env.TOKEN}) {
@@ -94,6 +95,10 @@ export async function publish() {
 }
 export async function dispatch() {
   requirePublish();
+  // The release's npm package, when its package.json names one, then a take-up to every
+  // repository that uses it (packages.mjs).
+  const name = await publishPackage();
+  if (name) await dispatchConsumers(name);
   if (config().release?.mirror) {
     if (!process.env.DISPATCH_TOKEN) throw new Error('mirror sync requires PIPELINE_DISPATCH_TOKEN');
     const options={token:process.env.DISPATCH_TOKEN};

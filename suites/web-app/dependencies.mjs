@@ -40,7 +40,8 @@ async function download(url, token) {
 
 // Every declared input is pinned, every pin is declared, and the staged bytes match their pins.
 export async function stage(dependencies = config().web?.dependencies || [], {get = download, token = process.env.DEPENDENCY_TOKEN, cache = () => kept('release-inputs')} = {}) {
-  if (!dependencies.length) return;
+  // A repository that has moved its inputs to npm packages (PIPT-32) has no lock left.
+  if (!dependencies.length || !fs.existsSync(lockFile)) return;
   if (!token) throw new Error('pinned inputs need DEPENDENCY_TOKEN');
   const lock = readLock(fs.readFileSync(lockFile, 'utf8'));
   for (const destination of lock.keys()) if (!dependencies.some(d => d.destination === destination)) throw new Error(`${lockFile} pins ${destination}, which web.dependencies doesn't declare`);

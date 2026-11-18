@@ -19,7 +19,10 @@ try {
 if (build) {
   // The release version (a PR build has none) and commit, for an image that shows them.
   const args = ['--build-arg', `SOURCE_SHA=${process.env.GITHUB_SHA || capture('git', ['rev-parse', 'HEAD']).trim()}`,
-    ...(process.env.VERSION ? ['--build-arg', `APP_VERSION=${process.env.VERSION}`] : [])];
+    ...(process.env.VERSION ? ['--build-arg', `APP_VERSION=${process.env.VERSION}`] : []),
+    // The job's sign-in for npm packages on Forgejo (packages.mjs), which a Dockerfile's
+    // `RUN --mount=type=secret,id=FORGEJO_PACKAGES_TOKEN,env=FORGEJO_PACKAGES_TOKEN` reads.
+    ...(process.env.FORGEJO_PACKAGES_TOKEN ? ['--secret', 'id=FORGEJO_PACKAGES_TOKEN,env=FORGEJO_PACKAGES_TOKEN'] : [])];
   const context = cfg.context || '.';
   run('docker', ['build', '--network', 'host', ...args, '-f', path.posix.join(context, 'Dockerfile'), '-t', image, context], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
   tagged.push(image);

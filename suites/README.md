@@ -67,7 +67,7 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
 | `release` | `goTargets`, `windowsGui`, `goStampPackages`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
 | `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk` |
-| `web` | `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
+| `web` | `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds; being replaced by npm packages on Forgejo (below, PIPT-32) |
 
 ### What the repository's name and files decide
 
@@ -109,6 +109,38 @@ copies in) changed since the release that built the image the pin file runs; oth
 release keeps that image, and its pin PR moves only the pin fields, so the pod isn't
 restarted. On a PR the image's `--self-test` runs with the assembled release at `/ci/dist`,
 in a layer only the check runs, for an image that runs a release binary it doesn't hold.
+
+## npm packages on Forgejo
+
+A repository whose root `package.json` names a package in its owner's scope
+(`@romaine-life/<name>`, not `private`) publishes it to Forgejo's npm registry with each
+release, at the release's version: the files its `files` lists, from the release's commit,
+with the release's assets in `dist/` (`suites/packages.mjs`). Then each fleet repository whose
+`package.json` uses it gets a take-up PR (`web-app/dependencies.yml`, or
+`release/dependencies.yml` for one without the web-app suite), which takes the newest version
+of every package it gets from Forgejo, pinned exactly.
+
+A repository that uses one names the registry and the sign-in in an `.npmrc` beside its
+`package.json`:
+
+```ini
+@romaine-life:registry=https://forgejo.romaine.life/api/packages/romaine-life/npm/
+//forgejo.romaine.life/api/packages/romaine-life/npm/:_authToken=${FORGEJO_PACKAGES_TOKEN?}
+```
+
+Nothing stores a credential for them (nelsong6/forgejo README, Package sign-in). In CI
+the suite action sets `FORGEJO_PACKAGES_TOKEN` to the job's own short-lived token, so its jobs
+that read or publish packages set `enable-openid-connect`; `ci-check` sets it to the token
+OpenBao signs for the PC's role `forgejo-packages`. A Docker build gets it as the secret
+`FORGEJO_PACKAGES_TOKEN`:
+
+```dockerfile
+RUN --mount=type=secret,id=FORGEJO_PACKAGES_TOKEN,env=FORGEJO_PACKAGES_TOKEN npm ci
+```
+
+A release that embeds packages in a non-npm build (fzt-desktop's frontend takes
+fzt-browser's files) runs `npm ci` in its root before it builds, and the package's own
+scripts put the files in place.
 
 ## The rules every suite keeps
 
