@@ -40,6 +40,10 @@ export const tools = {
     linux:['0.22.2',`${mirror}/github/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-musl-v0.22.2.tgz`,'7fb9497f8594b389e5fce5ef9b92db08432996895b2e0c5a0167a69ed445c428','cargo-audit-x86_64-unknown-linux-musl-v0.22.2/cargo-audit'],
     win32:['0.22.2',`${mirror}/github/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-pc-windows-msvc-v0.22.2.zip`,'0a7316540862c13d954f648917ceacca593747baed6eec180fafa590be2710ab','cargo-audit-x86_64-pc-windows-msvc-v0.22.2/cargo-audit.exe']
   },
+  goreleaser: {
+    linux:['2.20.2',`${mirror}/github/goreleaser/goreleaser/releases/download/v2.20.2/goreleaser_Linux_x86_64.tar.gz`,'f3d24969a7389a46613875711d15a96d8f6ef1553d84c6ace09d69ac1e7d44c0','goreleaser'],
+    win32:['2.20.2',`${mirror}/github/goreleaser/goreleaser/releases/download/v2.20.2/goreleaser_Windows_x86_64.zip`,'d230d6def8b6059b277d472a2790501516b429ffe83b91469daad8b7736b8a5d','goreleaser.exe']
+  },
   // A Rust build for a Linux target at a glibc floor, or for another architecture: zig is the
   // C toolchain and linker cargo-zigbuild drives. Zig ships on PyPI as a wheel holding it whole.
   zig: ['0.17.0', 'https://artifacts.home.romaine.life/pypi/pypi/simple/ziglang/ziglang-0.17.0.post0-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl', 'c9528d6a2cdf56a701bb8cafbc9967f59d88ecc8bb42b87ec2f9693418f69ce3', 'package/ziglang/zig', true],

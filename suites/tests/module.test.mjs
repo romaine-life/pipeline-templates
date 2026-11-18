@@ -13,7 +13,7 @@ test('release-module plans no build and refuses build settings', () => {
   const plan = releasePlan(resolve(entry, entry.topics));
   assert.deepEqual(plan.matrix.include, []);
   assert.equal(plan.local, false);
-  for (const [topics, extra] of [[['release-go'], {}], [[], {goTargets: [{goos: 'linux', goarch: 'amd64'}]}], [[], {assets: ['dist/x']}]]) {
+  for (const [topics, extra] of [[['release-go'], {}], [[], {assets: ['dist/x']}]]) {
     assert.throws(() => validate({...entry, topics: [...entry.topics, ...topics], release: extra}, 'test/lib'), /builds nothing/);
   }
 });

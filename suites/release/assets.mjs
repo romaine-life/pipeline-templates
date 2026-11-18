@@ -11,9 +11,7 @@ function substitute(pattern,name) {
   return name.startsWith(pieces[0]) && name.endsWith(pieces[1]) && name.length>=pieces[0].length+pieces[1].length?name.slice(pieces[0].length,name.length-pieces[1].length):null;
 }
 export function assetName(name,{kind,part=kind,target='',cfg=config()}={}) {
-  let selector=part;
-  if(kind==='go')for(const item of cfg.release?.goTargets || [])if(name.endsWith(`-${item.goos}-${item.goarch}${item.buildmode==='c-shared'?'.dll':item.goos==='windows'?'.exe':''}`))selector=`go-${item.goos}-${item.goarch}`;
-  const maps={...(cfg.release?.assetNames?.[part] || {}),...(cfg.release?.assetNames?.[selector] || {})};
+  const maps=cfg.release?.assetNames?.[part] || {};
   const expand=value=>value.replaceAll('{tag}',process.env.VERSION || '').replaceAll('{version}',(process.env.VERSION || '').replace(/^v/,''));
   let standard=null;
   if(kind==='rust' && target) {

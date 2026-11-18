@@ -10,7 +10,7 @@ import {completeExternal} from '../release/complete-external.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
 test('joined release places Go and npm on Linux and only MSVC Rust on Windows',()=>{
-  const result=releasePlan({release:{toolchains:['go','rust','npm'],rustTargets:[{target:'x86_64-unknown-linux-gnu'},{target:'x86_64-pc-windows-msvc'}]}});
+  const result=releasePlan({release:{toolchains:['go','rust','npm'],rustTargets:[{target:'x86_64-unknown-linux-gnu'},{target:'x86_64-pc-windows-msvc'}]}},[{id:'app',buildmode:'',targets:[{goos:'linux',goarch:'amd64'}]}]);
   assert.deepEqual(result.matrix.include.map(p=>[p.toolchain,p.runner]),[['go','ubuntu-latest'],['rust','ubuntu-latest'],['rust','windows-latest'],['npm','ubuntu-latest']]);
   assert.throws(()=>releasePlan({release:{toolchains:['assets']}}),/declare the builders/);
 });
@@ -19,7 +19,7 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'joined-'));
   let rel=null,id=0,dispatches=0,callbacks=0,completionReceipt;const data=new Map(),states=[];
   try {
-    process.chdir(root);
+    process.chdir(root);fs.writeFileSync('.goreleaser.yaml','{version: 2, builds: [{id: app, main: ., targets: [linux_amd64_v1]}]}');
     Object.assign(process.env,{VERSION:'v0.1.1',SOURCE_SHA:'a'.repeat(40),GITHUB_SHA:'a'.repeat(40),GITHUB_EVENT_NAME:'push',GITHUB_REF:'refs/heads/main',DEFAULT_BRANCH:'main',GITHUB_SERVER_URL:'https://forgejo.romaine.life',GITHUB_REPOSITORY:'test/app',TOKEN:'test-token',GITHUB_DISPATCH_TOKEN:'github-token',GITHUB_OUTPUT:path.join(root,'outputs')});
     fleetEntry(({version:1,release:{toolchains:['go','rust','npm'],manifest:'bundle.json',checksumManifest:'SHA256SUMS',external:[{id:'macos',repository:'romaine-life/app',workflow:'macos.yml',assets:['macos.tar.gz']}]}}));
     globalThis.fetch=async(url,options={})=>{

@@ -47,8 +47,7 @@ test('per-target archives rename their contained executable and consume it befor
 }));
 test('default names and target overrides preserve native consumers, and C-shared Go gets its own Windows part',()=>{
   assert.equal(assetName('coach-x86_64-pc-windows-msvc.exe',{kind:'rust',target:'x86_64-pc-windows-msvc',cfg:{}}),'coach-windows-amd64.exe');
-  assert.equal(assetName('home-sync-windows-amd64.exe',{kind:'go',cfg:{release:{goTargets:[{goos:'windows',goarch:'amd64'}],assetNames:{'go-windows-amd64':{'*-windows-amd64.exe':'*.exe'}}}}}),'home-sync.exe');
-  const plan=releasePlan({release:{toolchains:['go'],goTargets:[{goos:'linux',goarch:'amd64'},{goos:'windows',goarch:'amd64',buildmode:'c-shared'}]}});
+  const plan=releasePlan({release:{toolchains:['go']}},[{id:'cli',buildmode:'',targets:[{goos:'linux',goarch:'amd64'}]},{id:'lib',buildmode:'c-shared',targets:[{goos:'windows',goarch:'amd64'}]}]);
   assert.deepEqual(plan.matrix.include.map(p=>[p.id,p.runner]),[['go','ubuntu-latest'],['go-windows-amd64-c-shared','windows-latest']]);
 });
 test('joined checksum manifests cover external parts and preserve Spotify metadata field names',()=>{

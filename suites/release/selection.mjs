@@ -1,13 +1,9 @@
 import path from 'node:path';
 import {assetName} from './assets.mjs';
+import {goParts} from '../go/goreleaser.mjs';
 export function parts(kind,cfg) {
   if(kind==='rust')return (cfg.release?.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]).map(item=>({part:`rust-${item.target}`,target:item.target,aliases:[item.target]}));
-  if(kind==='go') {
-    const targets=cfg.release?.goTargets || [],result=[];
-    if(!targets.length || targets.some(t=>t.buildmode!=='c-shared'))result.push({part:'go',target:'',aliases:targets.filter(t=>t.buildmode!=='c-shared').map(t=>`${t.goos}-${t.goarch}`)});
-    for(const t of targets.filter(t=>t.buildmode==='c-shared'))result.push({part:`go-${t.goos}-${t.goarch}-c-shared`,target:`${t.goos}-${t.goarch}-c-shared`,aliases:[`${t.goos}-${t.goarch}-c-shared`]});
-    return result;
-  }
+  if(kind==='go')return goParts();
   return [{part:kind,target:'',aliases:[process.platform]}];
 }
 export function selected(item,kind,cfg,target=process.env.RELEASE_TARGET || '') {

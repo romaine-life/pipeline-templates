@@ -2,6 +2,7 @@ import child from 'node:child_process';
 import {syncBuiltinESMExports} from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import YAML from 'yaml';
 const log = value => fs.appendFileSync(process.env.PROBE_LOG, `${JSON.stringify(value)}\n`);
 child.spawnSync = (command, args, options) => {
   log({command, args, goos:options.env?.GOOS,goarch:options.env?.GOARCH,input: options.input ? '<stdin>' : undefined});
@@ -17,6 +18,18 @@ child.spawnSync = (command, args, options) => {
   if (command === 'git' && args[0] === 'rev-parse') stdout = 'a'.repeat(40);
   if (command === 'go' && args[0] === 'list') stdout = process.env.PROBE_GO_LIST ?? 'example.com/probe/cmd/probe';
   if (command === 'go' && args[0] === 'env' && args[1] === 'GOROOT') stdout = process.env.PROBE_GOROOT || '';
+  // GoReleaser writes each --id's artifacts (PROBE_GORELEASER, else one Linux program per id)
+  // into the dist its --config names, and lists them in artifacts.json as it does.
+  if (command === 'goreleaser' && args[0] === 'build') {
+    const dist = YAML.parse(fs.readFileSync(args[args.indexOf('--config') + 1], 'utf8')).dist;
+    const ids = args.flatMap((a, i) => a === '--id' ? [args[i + 1]] : []);
+    const artifacts = (process.env.PROBE_GORELEASER ? JSON.parse(process.env.PROBE_GORELEASER) : ids.map(id => ({name: id, type: 'Binary', goos: 'linux'})))
+      .map(a => ({...a, path: path.join(dist, a.name)}));
+    fs.mkdirSync(dist, {recursive: true});
+    for (const a of artifacts) fs.writeFileSync(a.path, 'binary');
+    fs.writeFileSync(path.join(dist, 'artifacts.json'), JSON.stringify([{name: 'metadata.json', path: path.join(dist, 'metadata.json'), type: 'Metadata'}, ...artifacts]));
+  }
+  if (command === 'objdump') stdout = '\tDLL Name: KERNEL32.dll\n';
   if (command === 'cargo' && args[0] === 'build') {
     fs.mkdirSync(path.join(process.env.CARGO_TARGET_DIR,'release'),{recursive:true});
     fs.writeFileSync(path.join(process.env.CARGO_TARGET_DIR,'release',`probe${process.platform === 'win32' ? '.exe' : ''}`), 'binary');

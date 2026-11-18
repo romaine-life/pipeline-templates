@@ -13,12 +13,24 @@ try {
   process.env.DEFAULT_BRANCH='main'; process.env.GITHUB_REF='refs/heads/main'; process.env.GITHUB_EVENT_NAME='push';
   process.env.VERSION='v0.1.1';
   write('.gitignore','dist/\n**/bin/\n**/obj/\n**/__pycache__/\n**/.pytest_cache/\n**/.venv/\n');
-  const goTargets=process.platform==='linux' ? [{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64'},{goos:'darwin',goarch:'arm64'}] : [{goos:'windows',goarch:'amd64'}];
-  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']}}));
+  const goTargets=process.platform==='linux' ? 'windows_amd64_v1, linux_arm64_v8.0, darwin_arm64_v8.0' : 'windows_amd64_v1';
+  const goReleaser=`version: 2
+project_name: fixture
+builds:
+  - id: fixture
+    main: ./cmd/fixture
+    binary: "fixture-{{ .Os }}-{{ .Arch }}"
+    targets: [${goTargets}]
+    no_unique_dist_dir: true
+    env: [CGO_ENABLED=0]
+    flags: [-p=4, -trimpath]
+    ldflags: '-s -w -X main.version={{ .Env.VERSION }}{{ if eq .Os "windows" }} -H windowsgui{{ end }}'
+`;
+  write('.goreleaser.yaml',goReleaser);
+  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],dotnetProjects:['dotnet-fixture/Fixture.csproj']}}));
   write('README.md','# Fixture\n');
   write('go.mod','module example.com/fixture\n\ngo 1.26.2\n');
   write('cmd/fixture/main.go','package main\n\nimport "fmt"\n\nvar version string\n\nfunc main() { fmt.Println(version) }\n');
-  write('cmd/fixture/fixture.manifest','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity version="1.0.0.0" processorArchitecture="*" name="Fixture" type="win32"/><application xmlns="urn:schemas-microsoft-com:asm.v3"><windowsSettings><consoleAllocationPolicy xmlns="http://schemas.microsoft.com/SMI/2024/WindowsSettings">detached</consoleAllocationPolicy></windowsSettings></application></assembly>');
   write('cmd/fixture/main_test.go','package main\n\nimport "testing"\n\nfunc TestFixture(t *testing.T) { if 2 + 2 != 4 { t.Fatal("arithmetic") } }\n');
   run('gofmt',['-w','cmd/fixture/main.go','cmd/fixture/main_test.go']);
   write('Cargo.toml','[package]\nname="rust-fixture"\nversion="0.1.0"\nedition="2021"\n[lib]\ncrate-type=["cdylib"]\n[[bin]]\nname="rust-fixture-cli"\npath="src/main.rs"\n');
@@ -59,7 +71,15 @@ try {
   if(process.platform==='win32') {
     write('cmd/ffi/main.go','package main\n\nimport \"C\"\n\n//export Answer\nfunc Answer() C.int { return 42 }\n\nfunc main() {}\n');
     run('gofmt',['-w','cmd/ffi/main.go']);
-    cfg.release.goTargets.push({goos:'windows',goarch:'amd64',buildmode:'c-shared',packages:['./cmd/ffi']});fleetEntry((cfg));
+    write('.goreleaser.yaml',`${goReleaser}  - id: ffi
+    main: ./cmd/ffi
+    binary: ffi-windows-amd64
+    targets: [windows_amd64_v1]
+    no_unique_dist_dir: true
+    buildmode: c-shared
+    env: [CGO_ENABLED=1]
+    flags: [-p=4, -trimpath]
+`);
     process.env.RELEASE_TOOLCHAIN='go';process.env.RELEASE_TARGET='windows-amd64-c-shared';process.env.RELEASE_PART='go-windows-amd64-c-shared';
     script('release/build.mjs');if(!fs.existsSync('dist/ffi-windows-amd64.dll'))throw new Error('native Go C-shared DLL was not staged');stage('c-shared');
   }

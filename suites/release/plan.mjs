@@ -1,6 +1,7 @@
 import {config} from '../config.mjs';
 import {output} from '../lib.mjs';
-export function releasePlan(cfg=config()) {
+import {goParts} from '../go/goreleaser.mjs';
+export function releasePlan(cfg=config(),goBuilds) {
   const release=cfg.release || {};
   // A Go library's release is its tag and source (release-module): nothing is built.
   if(release.module)return {matrix:{include:[]},local:false,external:[],metadata:{checksumFiles:[],checksumManifest:'',manifest:''},homeSync:false,image:''};
@@ -12,9 +13,7 @@ export function releasePlan(cfg=config()) {
     if (kind==='rust') {
       for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,features:(part.features || cfg.rust?.features || []).join(','),noDefault:part.noDefaultFeatures ?? cfg.rust?.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});
     } else if(kind==='go') {
-      const targets=release.goTargets || [];
-      if(!targets.length || targets.some(t=>t.buildmode!=='c-shared'))include.push({id:'go',toolchain:kind,target:'',features:'',noDefault:false,runner:'ubuntu-latest'});
-      for(const t of targets.filter(t=>t.buildmode==='c-shared'))include.push({id:`go-${t.goos}-${t.goarch}-c-shared`,toolchain:kind,target:`${t.goos}-${t.goarch}-c-shared`,features:'',noDefault:false,runner:'windows-latest'});
+      for(const part of goParts(goBuilds))include.push({id:part.part,toolchain:kind,target:part.target,features:'',noDefault:false,runner:part.runner});
     } else include.push({id:kind,toolchain:kind,target:'',features:'',noDefault:false,runner:cfg[kind]?.buildPlatform || 'ubuntu-latest'});
   }
   const local=include.length>0;

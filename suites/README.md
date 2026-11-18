@@ -65,7 +65,7 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 | `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
-| `release` | `goTargets`, `windowsGui`, `goStampPackages`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
+| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
 | `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk` |
 | `web` | `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds; being replaced by npm packages on Forgejo (below, PIPT-32) |
 
@@ -98,8 +98,11 @@ tag (v0.1 with none; a new series starts with its first tag made by hand, such a
 or with `version-from-manifest` on the root `Cargo.toml` (or a workspace's one default
 member), `CMakeLists.txt` or `package.json`. Some are the same everywhere: OpenTofu 1.11.0,
 with each repository's state at `<repo>.tfstate` in the `nelsontofu` account's `tfstate`
-container, and `README.md` the one document the docs suite requires. And a Windows `c-shared` Go build fails if it imports a MinGW runtime DLL (`lib*.dll`), which
-nothing ships beside it.
+container, and `README.md` the one document the docs suite requires. And a Go release builds what its `.goreleaser.yaml` lists, through `goreleaser build` (the
+suite keeps versions, upload and home-sync): one Linux job builds the programs, the Windows
+runner the `c-shared` DLLs, and each file GoReleaser builds publishes under the name its
+`binary` gives it. Every program under `cmd/` must be one of its builds, and a Windows
+DLL fails if it imports a MinGW runtime DLL (`lib*.dll`), which nothing ships beside it.
 
 ## An image joined to a release
 

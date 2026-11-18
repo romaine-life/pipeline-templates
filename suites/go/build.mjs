@@ -1,14 +1,12 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import {capture, kept, run} from '../lib.mjs';
-import {config} from '../config.mjs';
+import YAML from 'yaml';
+import {capture, run} from '../lib.mjs';
+import {tool} from '../tools.mjs';
 import {goEnvironment} from './environment.mjs';
+import {goParts, goReleaserBuilds, goReleaserConfig, unreleasedCommands} from './goreleaser.mjs';
 
-export function goBuilds(cfg) {
-  const targets=cfg.release?.goTargets || [{goos:process.env.GOOS || (process.platform==='win32' ? 'windows' : process.platform),goarch:process.env.GOARCH || 'amd64'}];
-  const selected=process.env.RELEASE_TARGET;
-  return selected ? targets.filter(t=>`${t.goos}-${t.goarch}-${t.buildmode || 'exe'}`===selected) : process.env.RELEASE_TOOLCHAIN==='go' ? targets.filter(t=>t.buildmode!=='c-shared') : targets;
-}
 // A DLL cgo builds links through MinGW's gcc, which can leave it importing a MinGW runtime
 // DLL (libwinpthread-1.dll, libgcc_s_seh-1.dll). Nothing ships that DLL beside it, so the
 // process loading it fails; fzt-picker's frontend DLL loads into every app that opens a
@@ -19,46 +17,36 @@ export function mingwRuntimeImports(objdump) {
   if (!names.length) throw new Error('objdump listed no imports');
   return names.filter(name=>/^lib.*\.dll$/i.test(name));
 }
-export function buildGo(cfg=config()) {
+// GoReleaser builds this job's builds from .goreleaser.yaml. It wants its output folder empty
+// and dist/ may already hold staged dependencies, so it writes to a folder of its own, and the
+// programs and DLLs it lists in artifacts.json move to dist/ (the DLLs' C headers stay behind).
+export async function buildGo(part=process.env.RELEASE_PART || 'go') {
   goEnvironment();
+  const builds=goReleaserBuilds(),missing=unreleasedCommands(builds);
+  if (missing.length) throw new Error(`${goReleaserConfig} builds no program from ${missing.join(', ')}`);
+  const selected=goParts(builds).find(p=>p.part===part);
+  if (!selected) throw new Error(`${goReleaserConfig} has no builds for the ${part} release job`);
   fs.mkdirSync('dist',{recursive:true});
-  const gui=new Set(cfg.release?.windowsGui || []);
-  for (const target of goBuilds(cfg)) {
-    const env={...process.env,GOOS:target.goos,GOARCH:target.goarch,CGO_ENABLED:target.buildmode==='c-shared'?'1':'0'};
-    const packages=capture('go',['list','-f','{{if eq .Name "main"}}{{.ImportPath}}{{end}}',...(target.packages || ['./cmd/...'])],{env}).split(/\r?\n/).filter(Boolean);
-    if (!packages.length) throw new Error('Go executables belong under cmd/<name>/');
-    for (const pkg of packages) {
-      const flags=['-s','-w'];
-      for (const stamp of cfg.release?.goStampPackages || ['main']) {
-        for (const [key,value] of Object.entries({version:process.env.VERSION,buildRepo:process.env.GITHUB_REPOSITORY,buildServer:process.env.GITHUB_SERVER_URL,buildTime:new Date().toISOString()})) if (value) flags.push('-X',`${stamp}.${key}=${value}`);
-      }
-      if (target.goos==='windows' && target.buildmode!=='c-shared' && (gui.has(pkg) || gui.has(`./cmd/${path.basename(pkg)}`))) flags.push('-H','windowsgui');
-      const asset=`${path.basename(pkg)}-${target.goos}-${target.goarch}${target.buildmode==='c-shared'?'.dll':target.goos==='windows'?'.exe':''}`;
+  const temp=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(),'goreleaser-'));
+  try {
+    const config=YAML.parseDocument(fs.readFileSync(goReleaserConfig,'utf8'),{merge:true});
+    config.set('dist',path.join(temp,'dist'));
+    fs.writeFileSync(path.join(temp,'goreleaser.yaml'),String(config));
+    run(await tool('goreleaser'),['build','--snapshot','--clean','--parallelism','1','--config',path.join(temp,'goreleaser.yaml'),...selected.ids.flatMap(id=>['--id',id])]);
+    for (const artifact of JSON.parse(fs.readFileSync(path.join(temp,'dist','artifacts.json'),'utf8'))) {
+      if (!['Binary','C Shared Library'].includes(artifact.type)) continue;
+      const asset=path.basename(artifact.path);
       if (fs.existsSync(`dist/${asset}`)) throw new Error(`duplicate Go release asset: ${asset}`);
-      const manifest=path.resolve('cmd',path.basename(pkg),`${path.basename(pkg)}.manifest`);
-      const resource=path.join(path.dirname(manifest),`zz_ci_resource_windows_${target.goarch}.syso`);
-      const embed=target.goos==='windows' && fs.existsSync(manifest);
-      if (embed && fs.existsSync(resource)) throw new Error(`remove the stale generated resource: ${resource}`);
-      try {
-        if (embed) {
-          const native={GOOS:process.platform==='win32' ? 'windows' : process.platform,GOARCH:process.arch==='x64' ? 'amd64' : process.arch};
-          const bin=kept(`go-tools/rsrc-0.10.2/${capture('go',['env','GOVERSION'])}`);
-          const rsrc=path.join(bin,`rsrc${process.platform==='win32' ? '.exe' : ''}`);
-          if (!fs.existsSync(rsrc)) run('go',['install','-p','4','github.com/akavel/rsrc@v0.10.2'],{env:{...native,GOBIN:bin}});
-          run(rsrc,['-manifest',manifest,'-arch',target.goarch,'-o',resource]);
-        }
-        run('go',['build','-p','4',...(target.buildmode?['-buildmode',target.buildmode]:[]),'-trimpath','-ldflags',flags.join(' '),'-o',`dist/${asset}`,pkg],{env});
-      if(target.buildmode==='c-shared'){const header=`dist/${asset.replace(/\.dll$/,'.h')}`;if(fs.existsSync(header))fs.unlinkSync(header);}
-      if(target.buildmode==='c-shared' && target.goos==='windows') {
+      fs.copyFileSync(artifact.path,`dist/${asset}`);
+      if (artifact.type==='C Shared Library') {
         const runtime=mingwRuntimeImports(capture('objdump',['-p',`dist/${asset}`],{maxBuffer:1<<28}));
         if (runtime.length) throw new Error(`${asset} needs ${runtime.join(', ')}, which nothing ships beside it`);
       }
-      } finally {if (embed && fs.existsSync(resource)) fs.unlinkSync(resource);}
+      // A js/wasm binary runs only beside the wasm_exec.js of the Go that built it.
+      if (artifact.goos==='js' && !fs.existsSync('dist/wasm_exec.js')) {
+        fs.copyFileSync(path.join(capture('go',['env','GOROOT']),'lib','wasm','wasm_exec.js'),'dist/wasm_exec.js');
+      }
     }
-    // A js/wasm binary runs only beside the wasm_exec.js of the Go that built it.
-    if (target.goos==='js' && target.goarch==='wasm' && !fs.existsSync('dist/wasm_exec.js')) {
-      fs.copyFileSync(path.join(capture('go',['env','GOROOT']),'lib','wasm','wasm_exec.js'),'dist/wasm_exec.js');
-    }
-  }
+  } finally { fs.rmSync(temp,{recursive:true,force:true}); }
 }
-if (process.argv[1]?.replaceAll('\\','/').endsWith('/go/build.mjs')) buildGo();
+if (process.argv[1]?.replaceAll('\\','/').endsWith('/go/build.mjs')) await buildGo();

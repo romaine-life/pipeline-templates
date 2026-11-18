@@ -27,7 +27,7 @@ export const inputs = {
   'powershell.files': ['**/*.json'],
   'release.build': everything,
   // On a PR the release builds only when what packages it changed; the tests cover the code.
-  'release.package': ['release/assets/**','ci/build/**','ci/package/**','scripts/build*','scripts/package*','packaging/**','installer/**','**/*.manifest','**/*.appxmanifest','**/*.syso','**/*.rc','**/*.ico','**/*.wxs','**/*.wxi','**/*.nsi','**/*.iss']
+  'release.package': ['.goreleaser.yaml','release/assets/**','ci/build/**','ci/package/**','scripts/build*','scripts/package*','packaging/**','installer/**','**/*.manifest','**/*.appxmanifest','**/*.syso','**/*.rc','**/*.ico','**/*.wxs','**/*.wxi','**/*.nsi','**/*.iss']
 };
 export const broad = Object.keys(inputs).filter(check => inputs[check] === everything);
 // Tests (and .gitignore) can't change a shipped binary, so a merge that changes only those

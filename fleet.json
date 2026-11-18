@@ -380,12 +380,6 @@
         ]
       },
       "release": {
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64"
-          }
-        ],
         "assets": [
           "dist/at-claude-windows-amd64.exe"
         ]
@@ -405,71 +399,6 @@
         "dependencies": [
           "github.com/romaine-life/agent-tools"
         ]
-      },
-      "release": {
-        "goStampPackages": [
-          "github.com/romaine-life/at-home-tools/internal/buildinfo"
-        ],
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/...",
-              "github.com/romaine-life/agent-tools/cmd/agent-guidance",
-              "github.com/romaine-life/agent-tools/cmd/claude-pane",
-              "github.com/romaine-life/agent-tools/cmd/pr-logs",
-              "github.com/romaine-life/agent-tools/cmd/pr-ready",
-              "github.com/romaine-life/agent-tools/cmd/pr-status",
-              "github.com/romaine-life/agent-tools/cmd/pr-watch",
-              "github.com/romaine-life/agent-tools/cmd/prompt-links",
-              "github.com/romaine-life/agent-tools/cmd/strip-owner",
-              "github.com/romaine-life/agent-tools/cmd/tmux-strip",
-              "github.com/romaine-life/agent-tools/cmd/wp"
-            ]
-          },
-          {
-            "goos": "linux",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/homesvc",
-              "github.com/romaine-life/agent-tools/cmd/agent-guidance"
-            ]
-          },
-          {
-            "goos": "linux",
-            "goarch": "arm64",
-            "packages": [
-              "./cmd/router-agent"
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "amd64",
-            "packages": [
-              "github.com/romaine-life/agent-tools/cmd/agent-guidance"
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "arm64",
-            "packages": [
-              "github.com/romaine-life/agent-tools/cmd/agent-guidance"
-            ]
-          }
-        ],
-        "windowsGui": [
-          "./cmd/claude-transcripts",
-          "./cmd/event-logs",
-          "./cmd/ics-to-gcal",
-          "./cmd/log-ship",
-          "./cmd/magnet-open"
-        ],
-        "assetNames": {
-          "go-windows-amd64": {
-            "*-windows-amd64.exe": "*.exe"
-          }
-        }
       }
     },
     "romaine-life/at-protocol": {
@@ -496,44 +425,7 @@
         "web-image"
       ],
       "release": {
-        "image": "web",
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/romaine-auth"
-            ]
-          },
-          {
-            "goos": "linux",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/romaine-auth"
-            ]
-          },
-          {
-            "goos": "linux",
-            "goarch": "arm64",
-            "packages": [
-              "./cmd/romaine-auth"
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/romaine-auth"
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "arm64",
-            "packages": [
-              "./cmd/romaine-auth"
-            ]
-          }
-        ]
+        "image": "web"
       }
     },
     "romaine-life/chess-tactics": {
@@ -599,30 +491,7 @@
         ]
       },
       "release": {
-        "mirror": true,
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "."
-            ]
-          },
-          {
-            "goos": "linux",
-            "goarch": "amd64",
-            "packages": [
-              "."
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "arm64",
-            "packages": [
-              "."
-            ]
-          }
-        ]
+        "mirror": true
       }
     },
     "romaine-life/fzt-browser": {
@@ -638,22 +507,6 @@
           "github.com/romaine-life/fzt",
           "github.com/romaine-life/fzt-terminal"
         ]
-      },
-      "release": {
-        "goTargets": [
-          {
-            "goos": "js",
-            "goarch": "wasm",
-            "packages": [
-              "."
-            ]
-          }
-        ],
-        "assetNames": {
-          "go-js-wasm": {
-            "fzt-browser-js-wasm": "fzt.wasm"
-          }
-        }
       }
     },
     "romaine-life/fzt-desktop": {
@@ -744,37 +597,7 @@
       },
       "release": {
         "mirror": true,
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/fzt-picker-frontend",
-              "./cmd/fzt-files"
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "arm64",
-            "packages": [
-              "./cmd/fzt-picker-frontend"
-            ]
-          },
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "buildmode": "c-shared",
-            "packages": [
-              "./cmd/frontend-dll"
-            ]
-          }
-        ],
         "assetNames": {
-          "go-windows-amd64": {
-            "fzt-picker-frontend-windows-amd64.exe": "fzt-picker-frontend.exe",
-            "fzt-files-windows-amd64.exe": "fzt-files.exe",
-            "frontend-dll-windows-amd64.dll": "fzt_picker_frontend.dll"
-          },
           "rust-x86_64-pc-windows-msvc": {
             "fzt-picker-windows-amd64.exe": "fzt-picker.exe",
             "test-trigger-windows-amd64.exe": "test-trigger.exe",
@@ -801,43 +624,7 @@
         ]
       },
       "release": {
-        "mirror": true,
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/fzt"
-            ]
-          },
-          {
-            "goos": "linux",
-            "goarch": "amd64",
-            "packages": [
-              "./cmd/fzt"
-            ]
-          },
-          {
-            "goos": "darwin",
-            "goarch": "arm64",
-            "packages": [
-              "./cmd/fzt"
-            ]
-          },
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "buildmode": "c-shared",
-            "packages": [
-              "./cmd/fztlib"
-            ]
-          }
-        ],
-        "assetNames": {
-          "go-windows-amd64": {
-            "fztlib-windows-amd64.dll": "fzt-windows-amd64.dll"
-          }
-        }
+        "mirror": true
       }
     },
     "romaine-life/guitar-tabs": {
@@ -850,18 +637,7 @@
         "go-test-windows",
         "home-sync",
         "release-go"
-      ],
-      "release": {
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "."
-            ]
-          }
-        ]
-      }
+      ]
     },
     "romaine-life/gvoice-tui": {
       "suites": [
@@ -876,17 +652,6 @@
       "go": {
         "dependencies": [
           "github.com/romaine-life/composer"
-        ]
-      },
-      "release": {
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "."
-            ]
-          }
         ]
       }
     },
@@ -1015,18 +780,7 @@
         "go-test-windows",
         "home-sync",
         "release-go"
-      ],
-      "release": {
-        "goTargets": [
-          {
-            "goos": "windows",
-            "goarch": "amd64",
-            "packages": [
-              "."
-            ]
-          }
-        ]
-      }
+      ]
     },
     "romaine-life/shell-config": {
       "suites": [

@@ -8,7 +8,7 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   go: ['dependencies'], rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  release: ['assets', 'dispatch', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
   web: ['dependencies'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
@@ -83,15 +83,8 @@ function settings(value) {
   }
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
-  if (value.release?.module && (['toolchains', 'external', 'goTargets', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
+  if (value.release?.module && (['toolchains', 'external', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
   const toolchains = value.release?.toolchains || [];
-  for (const target of value.release?.goTargets || []) {
-    if (!target || Object.keys(target).some(k=>!['goos','goarch','packages','buildmode'].includes(k)) || !['windows','linux','darwin','freebsd','js'].includes(target.goos) || !['amd64','arm64','386','arm','wasm'].includes(target.goarch)) throw new Error('release.goTargets need supported GOOS/GOARCH pairs');
-    if(target.buildmode && (target.buildmode!=='c-shared' || (target.goos!=='windows' || target.goarch!=='amd64')))throw new Error('c-shared releases need a native Windows Go target');
-    if((target.goos==='js')!==(target.goarch==='wasm'))throw new Error('js and wasm are one Go target pair');
-    if (target.packages && (!Array.isArray(target.packages) || !target.packages.length)) throw new Error('target.packages must be nonempty');
-  }
-  for (const name of value.release?.windowsGui || []) if (typeof name !== 'string' || !name) throw new Error('release.windowsGui names Go packages');
   if(value.release?.rustTargets && (!Array.isArray(value.release.rustTargets) || !value.release.rustTargets.length))throw new Error('release.rustTargets must be a nonempty array');
   for (const part of value.release?.rustTargets || []) {
     if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples; Apple targets belong in release.external');

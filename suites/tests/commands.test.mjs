@@ -8,7 +8,10 @@ import {pathToFileURL} from 'node:url';
 import {suites} from '../lib.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
-function probe(script, args = [], env = {}, cfg = {}, files = {}) {
+// A .goreleaser.yaml with one build per [id, main, targets, buildmode].
+const goReleaser = builds => 'version: 2\nbuilds:\n' + builds.map(([id, main, targets, buildmode]) =>
+  `  - id: ${id}\n    main: ${main}\n    targets: [${targets.join(', ')}]\n${buildmode ? `    buildmode: ${buildmode}\n` : ''}`).join('');
+function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () => {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(),'suite-command-'));
   try {
     for (const [file, text] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(root,file)),{recursive:true}); fs.writeFileSync(path.join(root,file),text); }
@@ -26,14 +29,15 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}) {
       CI_CACHE_ROOT:path.join(root,'cache'),CI_CARGO_LOCKED:'1',PROBE_LOG:log,BASE:'a'.repeat(40),GITHUB_EVENT_NAME:'push',DEFAULT_BRANCH:'main',GITHUB_REF:'refs/heads/main',
       GITHUB_REPOSITORY:'test/probe',GITHUB_SERVER_URL:'https://forgejo.romaine.life',GITHUB_SHA:'a'.repeat(40),GITHUB_RUN_ID:'1',VERSION:'v0.1.1',TOKEN:'test',PIN_TOKEN:'test',
       ACTIONS_ID_TOKEN_REQUEST_URL:'https://example.invalid/oidc?',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'test',
-      CI_TOOL_HELM:'helm',CI_TOOL_KUSTOMIZE:'kustomize',CI_TOOL_KUBECONFORM:'kubeconform',...env}});
+      CI_TOOL_HELM:'helm',CI_TOOL_GORELEASER:'goreleaser',CI_TOOL_KUSTOMIZE:'kustomize',CI_TOOL_KUBECONFORM:'kubeconform',...env}});
     const trace = fs.existsSync(log) ? fs.readFileSync(log,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
+    inspect(root);
     return {result,trace};
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
 }
 test('toolchain scripts execute standard commands and propagate failures', () => {
-  for (const [script,expected,cfg] of [
-    ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go','go'],{}],['go/build.mjs',['go','go'],{}],
+  for (const [script,expected,cfg,files] of [
+    ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go','go'],{}],['go/build.mjs',['goreleaser'],{},{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]])}],
     ['rust/format.mjs',['cargo'],{}],['rust/test.mjs',['rustc','cargo','cargo'],{}],['rust/build.mjs',['rustc','cargo','cargo'],{}],
     ['web-app/test.mjs',process.platform === 'win32' ? ['npm.cmd','npm.cmd','npm.cmd'] : ['npm','npm','npm'],{}],
     ['powershell/files.mjs',['git'],{}],['docs/validate.mjs',['git','git','git'],{}],
@@ -43,7 +47,7 @@ test('toolchain scripts execute standard commands and propagate failures', () =>
     ['python/build.mjs',['git','python','uv'],{}],
     ['dotnet/test.mjs',['dotnet','git','dotnet','dotnet','dotnet'],{}]
   ]) {
-    const {result,trace} = probe(script,[],{},cfg);
+    const {result,trace} = probe(script,[],{},cfg,files);
     assert.equal(result.status,0,`${script}: ${result.stderr}`);
     assert.deepEqual(trace.filter(t=>t.command).map(t=>t.command),expected,script);
   }
@@ -104,17 +108,28 @@ test('a pin is made on the default branch as it is now, and supersedes an older 
   assert.equal(newer.result.status,0,newer.result.stderr);
   assert.equal(newer.trace.some(t=>t.url?.endsWith('/pulls') || t.method==='PATCH'),false);
 });
-test('Go cross targets, per-target packages and Windows GUI link mode are data',()=>{
-  const cfg={release:{toolchains:['go'],goTargets:[{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64',packages:['./cmd/probe']}],windowsGui:['./cmd/probe']}};
-  const {result,trace}=probe('go/build.mjs',[],{},cfg);assert.equal(result.status,0,result.stderr);
-  const builds=trace.filter(t=>t.command==='go' && t.args[0]==='build');
-  assert.equal(builds.length,2);assert.equal(builds[0].goos,'windows');assert.equal(builds[1].goarch,'arm64');
-  assert.ok(builds[0].args.some(a=>a.includes('-H windowsgui')));assert.equal(builds[1].args.some(a=>a.includes('windowsgui')),false);
-  assert.ok(builds[1].args.includes('dist/probe-linux-arm64'));
+test('a Go release job builds its builds from .goreleaser.yaml, and every program under cmd/ is one',()=>{
+  const files={'.goreleaser.yaml':goReleaser([['probe','./cmd/probe',['windows_amd64_v1','linux_arm64_v8.0']],['dll','./cmd/dll',['windows_amd64_v1'],'c-shared']]),'cmd/probe/main.go':'package main\n','cmd/dll/main.go':'package main\n'};
+  const listed=root=>fs.readdirSync(path.join(root,'dist')).sort();
+  let dist;
+  const programs=probe('go/build.mjs',[],{PROBE_GORELEASER:JSON.stringify([{name:'probe.exe',type:'Binary',goos:'windows'},{name:'probe-linux-arm64',type:'Binary',goos:'linux'}])},{},files,root=>{dist=listed(root);});
+  assert.equal(programs.result.status,0,programs.result.stderr);
+  const run=programs.trace.find(t=>t.command==='goreleaser');
+  assert.deepEqual(run.args.filter((_,i)=>run.args[i-1]==='--id'),['probe'],'the Linux job builds the programs');
+  assert.deepEqual(dist,['probe-linux-arm64','probe.exe'],"GoReleaser's metadata stays out of the release");
+  const library=probe('go/build.mjs',[],{RELEASE_PART:'go-windows-amd64-c-shared',PROBE_GORELEASER:JSON.stringify([{name:'dll.dll',type:'C Shared Library',goos:'windows'},{name:'dll.h',type:'Header',goos:'windows'}])},{},files,root=>{dist=listed(root);});
+  assert.equal(library.result.status,0,library.result.stderr);
+  const dll=library.trace.find(t=>t.command==='goreleaser');
+  assert.deepEqual(dll.args.filter((_,i)=>dll.args[i-1]==='--id'),['dll'],'the Windows job builds the DLLs');
+  assert.deepEqual(dist,['dll.dll']);
+  assert.ok(library.trace.some(t=>t.command==='objdump'),"a DLL's imports are checked for MinGW runtime DLLs");
+  const unlisted=probe('go/build.mjs',[],{},{},{...files,'cmd/extra/main.go':'package main\n'});
+  assert.notEqual(unlisted.result.status,0);assert.match(unlisted.result.stderr,/builds no program from cmd\/extra/);
+  assert.notEqual(probe('go/build.mjs').result.status,0,'a Go release needs .goreleaser.yaml');
 });
 test('a release copies the files under release/assets/<toolchain> beside the built ones',()=>{
-  const cfg={release:{toolchains:['go'],goTargets:[{goos:'linux',goarch:'amd64'}]}};
-  const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
+  const cfg={release:{toolchains:['go']}};
+  const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]]),'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
   assert.equal(result.status,0,result.stderr);
 });
 test('go-race runs every package under the race detector, with cgo, on Linux',()=>{
@@ -125,16 +140,18 @@ test('go-race runs every package under the race detector, with cgo, on Linux',()
   else assert.equal(raced.length,0,'the race detector runs only on Linux');
 });
 test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',()=>{
-  const cfg={release:{toolchains:['go'],goTargets:[{goos:'js',goarch:'wasm',packages:['.']}]}};
-  const only=probe('go/test.mjs',[],{PROBE_GO_LIST:''},cfg);assert.equal(only.result.status,0,only.result.stderr);
+  const cfg={release:{toolchains:['go']}},files={'.goreleaser.yaml':goReleaser([['fzt','.',['js_wasm']]])};
+  const only=probe('go/test.mjs',[],{PROBE_GO_LIST:''},cfg,files);assert.equal(only.result.status,0,only.result.stderr);
   assert.deepEqual(only.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[['list',''],['vet','js']]);
-  const both=probe('go/test.mjs',[],{},cfg);
+  const both=probe('go/test.mjs',[],{},cfg,files);
   assert.deepEqual(both.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[['list',''],['vet',''],['test',''],['vet','js']]);
   assert.notEqual(probe('go/test.mjs',[],{PROBE_GO_LIST:''}).result.status,0,'no packages and no js/wasm target is an error');
   const goroot=fs.mkdtempSync(path.join(os.tmpdir(),'goroot-'));
   fs.mkdirSync(path.join(goroot,'lib','wasm'),{recursive:true});fs.writeFileSync(path.join(goroot,'lib','wasm','wasm_exec.js'),'// runtime');
-  const build=probe('go/build.mjs',[],{PROBE_GOROOT:goroot},cfg);assert.equal(build.result.status,0,build.result.stderr);
-  assert.ok(build.trace.some(t=>t.command==='go' && t.args[0]==='build' && t.goos==='js'));
+  let shipped;
+  const build=probe('go/build.mjs',[],{PROBE_GOROOT:goroot,PROBE_GORELEASER:JSON.stringify([{name:'fzt.wasm',type:'Binary',goos:'js'}])},cfg,files,root=>{shipped=fs.readdirSync(path.join(root,'dist')).sort();});
+  assert.equal(build.result.status,0,build.result.stderr);
+  assert.deepEqual(shipped,['fzt.wasm','wasm_exec.js']);
   fs.rmSync(goroot,{recursive:true,force:true});
 });
 test('Go dependency dispatch opens and queues one PR', () => {
