@@ -5,6 +5,7 @@ import {nodeVersion,pythonVersion,releaseManifest,tofuVersion} from './conventio
 import {inputs,relevant} from './input-patterns.mjs';
 import {found} from './fingerprints.mjs';
 import {ownPackage} from './packages.mjs';
+import {ownModule} from './go/modules.mjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 export {inputs,matches,relevant} from './input-patterns.mjs';
@@ -76,7 +77,7 @@ export async function scope(suite) {
   output('static-app', Boolean(cfg.web?.staticApp));
   output('has-image', Boolean(cfg.web?.image));
   output('test-history', cfg.web?.history === true);
-  output('has-dispatch', Boolean(cfg.release?.dispatch?.length || cfg.release?.mirror || ownPackage()));
+  output('has-dispatch', Boolean(cfg.release?.dispatch?.length || cfg.release?.mirror || ownPackage() || ownModule()));
   for (const name of ['postgres', 'manticore', 'greenmail']) output(name, cfg.service?.[name] || '');
 }
 if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) await scope(process.argv[2]);

@@ -9,6 +9,7 @@ import {imageInputs} from './dependencies.mjs';
 import {found} from './fingerprints.mjs';
 import {zipDirectory} from './release/zip.mjs';
 import {dispatchConsumers, publishPackage} from './packages.mjs';
+import {dispatchConsumers as dispatchModuleConsumers, ownModule} from './go/modules.mjs';
 const require = createRequire(import.meta.url);
 
 export async function stage({url = api(), tag = process.env.VERSION, sha = process.env.GITHUB_SHA, files, token = process.env.TOKEN}) {
@@ -99,6 +100,10 @@ export async function dispatch() {
   // repository that uses it (packages.mjs).
   const name = await publishPackage();
   if (name) await dispatchConsumers(name);
+  // The release's Go module, when go.mod names one, then a take-up to every repository whose
+  // go.mod requires it (go/modules.mjs).
+  const module = ownModule();
+  if (module) await dispatchModuleConsumers(module);
   if (config().release?.mirror) {
     if (!process.env.DISPATCH_TOKEN) throw new Error('mirror sync requires PIPELINE_DISPATCH_TOKEN');
     const options={token:process.env.DISPATCH_TOKEN};

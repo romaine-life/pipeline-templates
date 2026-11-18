@@ -60,8 +60,12 @@ test('source release, publication, pruning, dispatch and successful-input gating
   let release=null;const calls=[];
   try {
     process.chdir(dir);
-    fleetEntry(({version:1,docs:{release:true},release:{dispatch:[{repository:'romaine-life/consumer'}]}}),'test/source');
+    const fleetFile=fleetEntry(({version:1,docs:{release:true},release:{dispatch:[{repository:'romaine-life/consumer'}]}}),'test/source');
+    // A fleet repository whose go.mod requires this one's module gets its take-up too.
+    const listed=JSON.parse(fs.readFileSync(fleetFile,'utf8'));listed.repos['romaine-life/consumer']={suites:['go']};
+    fs.writeFileSync(fleetFile,JSON.stringify(listed));
     fs.writeFileSync('README.md','# Source\n');
+    fs.writeFileSync('go.mod','module github.com/romaine-life/source\n');
     run('git',['init','-b','main']);run('git',['add','.']);
     run('git',['-c','user.name=test','-c','user.email=test@example.invalid','commit','-m','source']);
     const sha=capture('git',['rev-parse','HEAD']);run('git',['tag','v0.1.1']);
@@ -78,6 +82,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
       if (u.includes('/releases?')) body=[release];
       else if (u.includes('/releases')) body=release;
       else if (u.endsWith('/romaine-life/consumer')) body={default_branch:'master'};
+      else if (u.endsWith('/romaine-life/consumer/raw/go.mod?ref=master')) return new Response('module x\n\nrequire github.com/romaine-life/source v0.1.0\n');
       else if (u.endsWith('/dispatches')) {
         assert.deepEqual(JSON.parse(options.body),{ref:'master'});
         return new Response(null,{status:204});
@@ -87,7 +92,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
     await sourceRelease();assert.equal(release.draft,true);
     assert.ok(fs.statSync('dist/source.zip').size>0);
     await publish();assert.equal(release.draft,false);
-    assert.ok(calls.some(([method,url])=>method==='POST' && url.endsWith('/actions/workflows/go%2Fdependencies.yml/dispatches')));
+    assert.equal(calls.filter(([method,url])=>method==='POST' && url.endsWith('/romaine-life/consumer/actions/workflows/go%2Fdependencies.yml/dispatches')).length,2);
     await releaseScope('docs');assert.match(fs.readFileSync('outputs','utf8'),/build=false/);
     fs.writeFileSync('README.md','# Changed source\n');run('git',['add','README.md']);
     run('git',['-c','user.name=test','-c','user.email=test@example.invalid','commit','-m','change']);

@@ -7,7 +7,7 @@ import {layout} from './layout.mjs';
 // doesn't decide yet.
 const fields = {
   suites: null, topics: null,
-  go: ['dependencies'], rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
+  rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
   release: ['assets', 'dispatch', 'rustTargets', 'external', 'dotnetProjects', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
   cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
@@ -77,7 +77,7 @@ export function validate(value, where = 'fleet entry') {
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch']]) {
+  for (const [section, field] of [['rust','features'],['release','assets'],['release','dispatch']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');

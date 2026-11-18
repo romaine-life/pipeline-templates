@@ -97,7 +97,8 @@ jobs:
       has-local: ${{ steps.plan.outputs.has-local }}
       module: ${{ steps.scope.outputs.module }}
   # A Go library (release-module): the next tag, released with its source, when its code
-  # changed since the last one. Its consumers take the tag up (go.dependencies).
+  # changed since the last one. Each repository whose go.mod requires it takes the tag up
+  # (go/modules.mjs).
   module:
     needs: scope
     if: github.event_name != 'pull_request' && !inputs.release-tag && needs.scope.outputs.module == 'true' && needs.scope.outputs.build == 'true'

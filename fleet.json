@@ -366,11 +366,6 @@
         "home-sync",
         "release-go"
       ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/composer"
-        ]
-      },
       "release": {
         "assets": [
           "dist/at-claude-windows-amd64.exe"
@@ -386,12 +381,7 @@
         "go-test-windows",
         "home-sync",
         "release-go"
-      ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/agent-tools"
-        ]
-      }
+      ]
     },
     "romaine-life/at-protocol": {
       "suites": [
@@ -476,12 +466,6 @@
         "home-sync",
         "release-go"
       ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/fzt",
-          "github.com/romaine-life/fzt-terminal"
-        ]
-      },
       "release": {
         "mirror": true
       }
@@ -493,13 +477,7 @@
       ],
       "topics": [
         "release-go"
-      ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/fzt",
-          "github.com/romaine-life/fzt-terminal"
-        ]
-      }
+      ]
     },
     "romaine-life/fzt-desktop": {
       "suites": [
@@ -534,11 +512,6 @@
         "go-test-windows",
         "release-module"
       ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/fzt"
-        ]
-      },
       "release": {
         "image": "cluster"
       }
@@ -557,12 +530,6 @@
         "rust-build-windows-amd64",
         "rust-test-windows"
       ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/fzt",
-          "github.com/romaine-life/fzt-terminal"
-        ]
-      },
       "release": {
         "mirror": true,
         "assetNames": {
@@ -585,12 +552,6 @@
         "home-sync",
         "release-go"
       ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/fzt",
-          "github.com/romaine-life/fzt-frontend"
-        ]
-      },
       "release": {
         "mirror": true
       }
@@ -616,12 +577,7 @@
         "go-test-windows",
         "home-sync",
         "release-go"
-      ],
-      "go": {
-        "dependencies": [
-          "github.com/romaine-life/composer"
-        ]
-      }
+      ]
     },
     "romaine-life/infra-bootstrap": {
       "suites": [

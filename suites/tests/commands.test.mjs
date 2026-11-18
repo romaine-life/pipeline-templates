@@ -11,6 +11,18 @@ import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 // A .goreleaser.yaml with one build per [id, main, targets, buildmode].
 const goReleaser = builds => 'version: 2\nbuilds:\n' + builds.map(([id, main, targets, buildmode]) =>
   `  - id: ${id}\n    main: ${main}\n    targets: [${targets.join(', ')}]\n${buildmode ? `    buildmode: ${buildmode}\n` : ''}`).join('');
+const goMod = `module forgejo.romaine.life/romaine-life/probe
+
+go 1.25
+
+require github.com/romaine-life/fzt v0.2.1 // the picker
+
+require (
+	github.com/gdamore/tcell/v2 v2.7.0
+	github.com/romaine-life/fzt-terminal v0.1.180
+	github.com/romaine-life/auth v0.1.9 // indirect
+)
+`;
 function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () => {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(),'suite-command-'));
   try {
@@ -19,7 +31,7 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () =
     fs.writeFileSync(path.join(root,'README.md'),'# A document\n');
     fs.writeFileSync(path.join(root,'config.json'),'{}');
     fs.writeFileSync(path.join(root,'main.go'),'package main\r\n');
-    fs.writeFileSync(path.join(root,'go.mod'),'module example.com/probe\n');
+    if (!('go.mod' in files)) fs.writeFileSync(path.join(root,'go.mod'),'module example.com/probe\n');
     fs.writeFileSync(path.join(root,'go.sum'),'dependency checksums\n');
     fs.writeFileSync(path.join(root,'.ci-image-pin'),`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}`);
     fs.mkdirSync(path.join(root,'k8s'),{recursive:true});
@@ -154,15 +166,19 @@ test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',
   assert.deepEqual(shipped,['fzt.wasm','wasm_exec.js']);
   fs.rmSync(goroot,{recursive:true,force:true});
 });
-test('Go dependency dispatch opens and queues one PR', () => {
-  const {result,trace} = probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod'},{go:{dependencies:['github.com/romaine-life/fzt']}});
+test('Go dependency dispatch takes every romaine-life module go.mod requires, and opens and queues one PR', () => {
+  const {result,trace} = probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod'},{},{'go.mod':goMod});
   assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(trace.find(t=>t.command==='go' && t.args[0]==='get').args,['get','-p','4','github.com/romaine-life/auth@latest','github.com/romaine-life/fzt@latest','github.com/romaine-life/fzt-terminal@latest']);
   assert.equal(trace.some(t=>t.url?.endsWith('/issues/7/labels')),true);
-  const same=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'identical'},{go:{dependencies:['github.com/romaine-life/fzt']}});
+  const none=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod'},{},{'go.mod':'module github.com/romaine-life/fzt\n\nrequire github.com/gdamore/tcell/v2 v2.7.0\n'});
+  assert.equal(none.result.status,0,none.result.stderr);
+  assert.equal(none.trace.some(t=>t.command==='go'),false);
+  const same=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'identical'},{},{'go.mod':goMod});
   assert.equal(same.result.status,0,same.result.stderr);
   assert.equal(same.trace.some(t=>t.method==='POST' && t.url?.endsWith('/pulls')),false);
   assert.ok(same.trace.some(t=>t.url?.endsWith('/issues/6/labels')));
-  const newer=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'superseded'},{go:{dependencies:['github.com/romaine-life/fzt']}});
+  const newer=probe('go/dependencies.mjs',[],{PROBE_DIFF:'go.mod',PROBE_OPEN:'superseded'},{},{'go.mod':goMod});
   assert.equal(newer.result.status,0,newer.result.stderr);
   assert.equal(newer.trace.some(t=>t.method==='PATCH' && t.url.endsWith('/pulls/6')),true);
   assert.equal(newer.trace.some(t=>t.method==='DELETE' && t.url.endsWith('/branches/deps%2F0')),true);
@@ -187,8 +203,8 @@ test('manifest script executes every renderer, strict schemas and digest check',
 
 test('bot PRs are queued for merge-queue by their queue label',()=>{
   const cfg={suites:['cluster-service']},tracked={PROBE_TRACKED:'k8s/deployment.yaml'};
-  for(const [script,args,settings,extra] of [['cluster-service/image.mjs',['publish'],cfg,tracked],['cluster-service/pin.mjs',[],cfg,tracked],['go/dependencies.mjs',[],{go:{dependencies:['github.com/romaine-life/fzt']}},{PROBE_DIFF:'go.mod'}]]) {
-    const result=probe(script,args,extra,settings);assert.equal(result.result.status,0,result.result.stderr);
+  for(const [script,args,settings,extra,files] of [['cluster-service/image.mjs',['publish'],cfg,tracked],['cluster-service/pin.mjs',[],cfg,tracked],['go/dependencies.mjs',[],{},{PROBE_DIFF:'go.mod'},{'go.mod':goMod}]]) {
+    const result=probe(script,args,extra,settings,files);assert.equal(result.result.status,0,result.result.stderr);
     assert.equal(result.trace.some(t=>t.url?.endsWith('/merge')),false);
     if(!script.endsWith('/image.mjs'))assert.equal(result.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
   }

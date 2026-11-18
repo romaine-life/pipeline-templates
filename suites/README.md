@@ -46,7 +46,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `web-static` | The web app deploys to its Static Web App |
 | `web-history` | The tests compare with the base branch, so the test job gets full history (`origin/<base>`) |
 | `release-source` | A documentation repository cuts a source release |
-| `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
+| `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
 | `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64` | The Rust release targets; with none, Linux x86_64 |
 | `version-from-manifest` | The version series comes from the root manifest's version |
@@ -61,7 +61,6 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 
 | Section | Fields |
 |---|---|
-| `go` | `dependencies`: modules taken up through `go/dependencies.yml` |
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 | `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
