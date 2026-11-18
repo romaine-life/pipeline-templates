@@ -653,7 +653,8 @@
           "./cmd/claude-transcripts",
           "./cmd/event-logs",
           "./cmd/ics-to-gcal",
-          "./cmd/log-ship"
+          "./cmd/log-ship",
+          "./cmd/magnet-open"
         ],
         "assetNames": {
           "go-windows-amd64": {
