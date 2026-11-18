@@ -7,14 +7,16 @@ description: >-
 inputs:
   prefix:
     description: >-
-      The series, such as v0.1 or v1.0. Give this or prefix-from.
+      The series, such as v0.1 or v1.0. Without this or prefix-from, the series is the
+      newest vX.Y.N tag's vX.Y, else v0.1; a new series starts with its first tag made by
+      hand (v0.2.0).
     default: ''
   prefix-from:
     description: >-
       A file holding the version the series is numbered on: Cargo.toml ([package] or
       [workspace.package] version), CMakeLists.txt (PACKAGE_VERSION or project VERSION) or
       package.json. A fork numbers on the upstream version it is built on: 0.25.1 gives
-      v0.25.1.N. Give this or prefix.
+      v0.25.1.N. Give this or prefix, not both.
     default: ''
   component:
     description: >-

@@ -5,6 +5,7 @@ import {capture,hash,suites} from './lib.mjs';
 import {inputs,input,ignoredBy,matches,renderInputs} from './input-patterns.mjs';
 import {embedded,imageInputs,docLinks} from './dependencies.mjs';
 import {packagingInputs,packagingMetadata,releaseInputs,settings} from './release/inputs.mjs';
+import {pythonProjects,requiredDocs,tofuVersion} from './conventions.mjs';
 
 export const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 export function tree(ref='HEAD') {
@@ -17,7 +18,7 @@ export function tree(ref='HEAD') {
 // same list decides whether the check runs (relevant) and what its fingerprint covers.
 export async function found(check,cfg,read) {
   if(check==='go.test' || check==='rust.test')return embedded()[check.split('.')[0]];
-  if(check==='docs.validate')return [...docLinks().flatMap(target=>[target,`${target.replace(/\/+$/,'')}/**`]),...(cfg.docs?.required || ['README.md'])];
+  if(check==='docs.validate')return [...docLinks().flatMap(target=>[target,`${target.replace(/\/+$/,'')}/**`]),...requiredDocs];
   if(check==='default.rules'){const {dependencies}=await import('./default/rules.mjs');return dependencies();}
   if(check==='cluster-service.manifests')return renderInputs(cfg.cluster);
   if(check.endsWith('.image'))return imageInputs((check==='cluster-service.image'?cfg.cluster:cfg.web) || {},read);
@@ -32,10 +33,10 @@ export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
   const os=variant==='windows-latest' || variant==='windows-legacy' ? 'win32' : 'linux';
   if(check==='rust.test')configuration={features:cfg.rust?.platformFeatures?.[os] || cfg.rust?.features || [],noDefaultFeatures:cfg.rust?.noDefaultFeatures || false};
   if(check==='dotnet.test')configuration={sdk:cfg.dotnet?.sdk || '9.0'};
-  if(check==='python.test')configuration={projects:cfg.python?.projects || ['.'],version:cfg.python?.version || '3.12'};
-  if(check==='web-app.test')configuration={packages:cfg.web?.packages || ['.'],node:cfg.web?.node || '24'};
-  if(check==='tofu.plan')configuration={version:cfg.tofu?.version || '1.11.0',backend:cfg.tofu?.backend || {}};
-  if(check==='docs.validate')configuration={required:cfg.docs?.required || ['README.md']};
+  // .python-version and .nvmrc are inputs to these checks, so their versions are in the fingerprint.
+  if(check==='python.test')configuration={projects:pythonProjects(entries.map(entry=>entry.path))};
+  if(check==='web-app.test')configuration={packages:cfg.web?.packages || ['.']};
+  if(check==='tofu.plan')configuration={version:tofuVersion};
   if(check==='cluster-service.manifests')configuration={renders:cfg.cluster?.renders || [{kind:'kustomize',path:'k8s'}]};
   if(check.endsWith('.image')) {
     const section=(check==='cluster-service.image'?cfg.cluster:cfg.web) || {};

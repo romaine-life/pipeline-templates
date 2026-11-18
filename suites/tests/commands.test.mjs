@@ -39,8 +39,8 @@ test('toolchain scripts execute standard commands and propagate failures', () =>
     ['powershell/files.mjs',['git'],{}],['docs/validate.mjs',['git','git','git'],{}],
     ['tofu/plan.mjs',['tofu','tofu','tofu','tofu'],{}],['tofu/apply.mjs',['tofu','tofu'],{}],
     ['default/fetches.mjs',[process.platform === 'win32' ? 'python' : 'python3'],{}],
-    ['python/test.mjs',['python','uv','uv','uv','uv'],{}],
-    ['python/build.mjs',['python','uv'],{}],
+    ['python/test.mjs',['git','python','uv','uv','uv','uv'],{}],
+    ['python/build.mjs',['git','python','uv'],{}],
     ['dotnet/test.mjs',['dotnet','git','dotnet','dotnet','dotnet'],{}]
   ]) {
     const {result,trace} = probe(script,[],{},cfg);

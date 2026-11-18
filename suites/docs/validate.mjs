@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {config} from '../config.mjs';
+import {requiredDocs} from '../conventions.mjs';
 import {tracked, run, capture} from '../lib.mjs';
 import {localLinks} from '../dependencies.mjs';
-for (const file of config().docs?.required || ['README.md']) {
+for (const file of requiredDocs) {
   if (!fs.readFileSync(file, 'utf8').trim()) throw new Error(`empty required document: ${file}`);
 }
 const decoder = new TextDecoder('utf-8', {fatal: true});

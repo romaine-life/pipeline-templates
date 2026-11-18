@@ -49,7 +49,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
 | `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64` | The Rust release targets; with none, Linux x86_64 |
-| `version-from-manifest` | The version series comes from the manifest `release.prefixFrom` names |
+| `version-from-manifest` | The version series comes from the root manifest's version |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
 | `release-archive`, `release-source-list`, `release-external` | The release's archives, source lists and external parts: `release.archives`, `release.sourceLists`, `release.external` |
@@ -65,16 +65,21 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 | `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
-| `release` | `prefix` or `prefixFrom`, `goTargets`, `windowsGui`, `goStampPackages`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
-| `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk`; `python` also `projects` and `version` |
+| `release` | `goTargets`, `windowsGui`, `goStampPackages`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
+| `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk` |
 | `cluster` | `renders`, `image`, `context`: the image's build context, where its `Dockerfile` is (the repository root by default), `baoRole`, `baoSecret`, `pinFile`, `pinFields`, `workPackage` |
-| `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `workPackage`, `containerApp`, `resourceGroup`, `staticApp`, `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
-| `tofu` | `version`, `backend` |
-| `docs` | `required` |
+| `web` | `packages`, `image`, `pinFile`, `pinFields`, `workPackage`, `containerApp`, `resourceGroup`, `staticApp`, `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
 
-A few things come from the repository rather than the list: its Rust toolchain is its
-`rust-toolchain.toml` (channel and components), as rustup reads it, else the pinned stable;
-and a Windows `c-shared` Go build fails if it imports a MinGW runtime DLL (`lib*.dll`), which
+A few things come from the repository rather than the list (`suites/conventions.mjs`): its
+Rust toolchain is its `rust-toolchain.toml` (channel and components), as rustup reads it, else
+the pinned stable; its Node major is its `.nvmrc` or `.node-version`, else 24; its Python is
+its `.python-version`, else 3.12, and its Python projects are the root's `pyproject.toml`,
+else each directory holding one. A release numbers on from the repository's newest `vX.Y.N`
+tag (v0.1 with none; a new series starts with its first tag made by hand, such as `v0.2.0`),
+or with `version-from-manifest` on the root `Cargo.toml` (or a workspace's one default
+member), `CMakeLists.txt` or `package.json`. Some are the same everywhere: OpenTofu 1.11.0,
+with each repository's state at `<repo>.tfstate` in the `nelsontofu` account's `tfstate`
+container, and `README.md` the one document the docs suite requires. And a Windows `c-shared` Go build fails if it imports a MinGW runtime DLL (`lib*.dll`), which
 nothing ships beside it.
 
 ## An image joined to a release

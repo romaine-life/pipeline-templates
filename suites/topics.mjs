@@ -22,7 +22,7 @@ const serviceNames = ['postgres', 'manticore', 'greenmail'];
 // files): the topic decides whether it applies, the value what it is.
 export const valueSelectors = {
   'cluster-image': ['cluster', 'image'], 'web-image': ['web', 'image'], 'web-static': ['web', 'staticApp'],
-  'version-from-manifest': ['release', 'prefixFrom'], 'release-archive': ['release', 'archives'],
+  'release-archive': ['release', 'archives'],
   'release-source-list': ['release', 'sourceLists'], 'release-external': ['release', 'external'],
   ...Object.fromEntries(serviceNames.map(name => [`service-${name}`, ['service', name]])),
 };
@@ -72,6 +72,7 @@ export function resolve(entry, topics) {
   if (on.has('release-module')) section('release').module = true;
   const toolchains = releaseToolchains.filter(kind => on.has(`release-${kind}`));
   if (toolchains.length) section('release').toolchains = toolchains;
+  if (on.has('version-from-manifest')) section('release').fromManifest = true;
   if (on.has('version-four-part')) section('release').suffix = '.0';
   if (on.has('home-sync')) section('release').homeSync = true;
   // release.rustTargets holds per-target values (features, a glibc floor); the topics

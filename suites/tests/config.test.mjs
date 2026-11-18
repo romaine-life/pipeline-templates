@@ -11,7 +11,7 @@ import {topicsFor} from '../fleet.mjs';
 test('unknown settings and unsafe paths fail visibly', () => {
   for (const bad of [{}, {suites: ['nope']}, {suites: ['default']}, {suites: ['go', 'go']}, {suites: [], go: {command: 'whatever'}},
     {suites: [], inputs: {'go.test': ['assets/**']}}, {suites: [], go: {platforms: ['windows-latest']}}, {suites: [], release: {homeSync: true}},
-    {suites: ['release'], topics: ['release-go', 'version-from-manifest'], release: {prefix: 'v0.1', prefixFrom: 'Cargo.toml'}},
+    {suites: ['release'], release: {prefix: 'v0.1'}}, {suites: ['tofu'], tofu: {version: '1.9.0'}}, {suites: ['docs'], docs: {required: ['INDEX.md']}}, {suites: ['web-app'], web: {node: '22'}},
     ...[[], {}, {'release.tag': 'command'}, {'__proto__.tag': 'tag'}].map(pinFields => ({suites: [], cluster: {pinFile: 'k8s/values.yaml', pinFields}})),
     {suites: [], web: {pinFields: {'release.tag': 'tag'}}}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));

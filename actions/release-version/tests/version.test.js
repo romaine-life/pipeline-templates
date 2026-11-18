@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {releaseVersion, prefixFrom} = require('../version.js');
+const {releaseVersion, prefixFrom, seriesFromTags} = require('../version.js');
 
 const A = 'a'.repeat(40);
 const B = 'b'.repeat(40);
@@ -103,4 +103,16 @@ test('a suffix keeps fixed parts after the count', async () => {
   const f = forgejo([tag('v1.25.24.0'), tag('v1.25.3.0'), tag('v1.25.9')]);
   assert.equal((await run(f, {series: 'v1.25', suffix: '.0', publish: true, sha: A})).version, 'v1.25.25.0');
   assert.equal((await run(forgejo([tag('v1.25.24.0')]), {series: 'v1.25', suffix: '.0', publish: false, pullRequest: '7'})).version, 'v1.25.25.0-pr7.871');
+});
+
+test('without a prefix the series is the newest tag\'s', async () => {
+  const f = forgejo([tag('v1.4.5'), tag('v1.5.1'), tag('v1.5.0'), tag('v0.9.20'), tag('v0.2.5-12-g3b2261b')]);
+  assert.equal((await run(f, {publish: true, sha: A})).version, 'v1.5.2');
+  assert.equal(seriesFromTags(['v1.25.37.0', 'v1.24.9.0', 'v1.26.0'], '.0'), 'v1.25');
+  assert.equal(seriesFromTags(['v0.1.7', 'coach-v0.3.2'], '', 'coach'), 'coach-v0.3');
+  assert.equal(seriesFromTags(['v0.1.10', 'v0.1.9', 'v0.2.0'], ''), 'v0.2');
+});
+
+test('a repo with no tags starts at v0.1.0', async () => {
+  assert.equal((await run(forgejo([]), {publish: true, sha: A})).version, 'v0.1.0');
 });

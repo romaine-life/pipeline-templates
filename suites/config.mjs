@@ -7,10 +7,10 @@ import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic, valueSel
 const fields = {
   suites: null, topics: null,
   go: ['dependencies'], rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['prefix', 'prefixFrom', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
-  cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['projects', 'version', 'buildPlatform'],
+  release: ['assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
   cluster: ['renders', 'image', 'context', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
-  web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies'], tofu: ['version', 'backend'], docs: ['required'],
+  web: ['packages', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
@@ -76,7 +76,7 @@ export function validate(value, where = 'fleet entry') {
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies'],['docs','required']]) {
+  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
@@ -113,7 +113,6 @@ function settings(value) {
     for (const asset of part.assets) {if (externalAssets.has(asset)) throw new Error('external release asset names must be unique across parts');externalAssets.add(asset);}
     externalIds.add(part.id);
   }
-  for (const dir of value.python?.projects || ['.']) if (dir !== '.') safePath(dir);
   for (const project of value.release?.dotnetProjects || []) safePath(project);
   for(const name of [...Object.values(value.release?.sourceLists || {}),...(value.release?.checksumFiles || []),...[value.release?.manifest,value.release?.checksumManifest].filter(Boolean)])if(typeof name!=='string' || !/^[\w.*+{}-]+$/.test(name))throw new Error('release metadata names must be plain file names');
   if(value.release?.assetNames && (Array.isArray(value.release.assetNames) || typeof value.release.assetNames!=='object'))throw new Error('release.assetNames must be an object');
@@ -157,9 +156,6 @@ function settings(value) {
     for(const [source,target] of Object.entries(archive.entries || {})){safePath(source);if(!/^[\w.+-]+$/.test(target))throw new Error('archive entries must name plain files');}
   }
   for (const p of value.web?.packages || ['.']) if (p !== '.') safePath(p);
-  for (const p of value.docs?.required || []) safePath(p);
-  if (value.release?.prefix && value.release?.prefixFrom) throw new Error('choose release.prefix or prefixFrom');
-  if (value.release?.prefixFrom) safePath(value.release.prefixFrom);
   for (const p of value.release?.assets || []) safePath(p);
   for (const target of value.release?.dispatch || []) {
     if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(target.repository || '') || Object.keys(target).some(k=>!['repository','workflow'].includes(k))) throw new Error('release.dispatch must name an owned repository and optional workflow');

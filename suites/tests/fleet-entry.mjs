@@ -44,12 +44,13 @@ export function entryFor(settings) {
   flag('release', 'homeSync', 'home-sync');
   for (const kind of take('release', 'toolchains') || []) topics.push(`release-${kind}`);
   const suffix = take('release', 'suffix');
+  if (take('release', 'fromManifest')) topics.push('version-from-manifest');
   if (suffix) { if (suffix !== '.0') throw new Error('version-four-part adds .0'); topics.push('version-four-part'); }
   const build = take('cluster', 'build'), smoke = take('cluster', 'smoke');
   if (build !== smoke) throw new Error('cluster-image builds and smoke-tests the image together');
   if (entry.suites.includes('cluster-service')) { if (build !== false) topics.push('cluster-image'); }
   else if (build !== undefined) throw new Error('cluster.build belongs to the cluster-service suite');
-  for (const [name, field, topic] of [['web', 'image', 'web-image'], ['web', 'staticApp', 'web-static'], ['release', 'prefixFrom', 'version-from-manifest'],
+  for (const [name, field, topic] of [['web', 'image', 'web-image'], ['web', 'staticApp', 'web-static'],
     ['release', 'archives', 'release-archive'], ['release', 'sourceLists', 'release-source-list'], ['release', 'external', 'release-external'],
     ['service', 'postgres', 'service-postgres'], ['service', 'manticore', 'service-manticore'], ['service', 'greenmail', 'service-greenmail']]) {
     if (entry[name]?.[field] !== undefined) topics.push(topic);

@@ -30,9 +30,24 @@ function prefixFrom(file, text) {
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-async function releaseVersion({api, token, series, suffix = '', publish, sha, pullRequest, run, fetch = globalThis.fetch, log = console.log}) {
+// The series a repo is on when no prefix names one: its newest vX.Y.N tag's vX.Y (v1.25 from
+// v1.25.37.0, with suffix .0), else v0.1. A new series starts with its first tag made by hand,
+// such as v0.2.0 on the commit it starts at.
+function seriesFromTags(names, suffix = '', component = '') {
+  const lead = component ? `${component}-` : '';
+  const pattern = new RegExp(`^${escape(lead)}v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)${escape(suffix)}$`);
+  const newer = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  let best;
+  for (const name of names) {
+    const m = name.match(pattern);
+    const version = m && m.slice(1).map(Number);
+    if (version && (!best || newer(version, best) > 0)) best = version;
+  }
+  return `${lead}v${best ? `${best[0]}.${best[1]}` : '0.1'}`;
+}
+
+async function releaseVersion({api, token, series, component = '', suffix = '', publish, sha, pullRequest, run, fetch = globalThis.fetch, log = console.log}) {
   if (!token) throw new Error('missing token');
-  if (!series) throw new Error('give prefix or prefix-from');
   const headers = {Authorization: `token ${token}`, 'Content-Type': 'application/json'};
   const call = (method, route, body) =>
     fetch(`${api}${route}`, {method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(30000)});
@@ -42,9 +57,7 @@ async function releaseVersion({api, token, series, suffix = '', publish, sha, pu
     return response;
   };
 
-  // Every tag in the series, by number, and the commit each is on.
-  const pattern = new RegExp(`^${escape(series)}\\.(0|[1-9][0-9]*)${escape(suffix)}$`);
-  const numbered = async () => {
+  const all = async () => {
     const found = [];
     for (let page = 1, seen = 0, total = Infinity; seen < total; page++) {
       const response = await ok('GET', `/tags?limit=50&page=${page}`);
@@ -52,10 +65,22 @@ async function releaseVersion({api, token, series, suffix = '', publish, sha, pu
       const batch = await response.json();
       if (!batch.length) break;
       seen += batch.length;
-      for (const tag of batch) {
-        const m = tag.name.match(pattern);
-        if (m) found.push({name: tag.name, number: Number(m[1]), sha: tag.commit && tag.commit.sha});
-      }
+      found.push(...batch);
+    }
+    return found;
+  };
+  if (!series) {
+    series = seriesFromTags((await all()).map(tag => tag.name), suffix, component);
+    log(`Series ${series}, from the newest tag`);
+  } else if (component) series = `${component}-${series}`;
+
+  // Every tag in the series, by number, and the commit each is on.
+  const pattern = new RegExp(`^${escape(series)}\\.(0|[1-9][0-9]*)${escape(suffix)}$`);
+  const numbered = async () => {
+    const found = [];
+    for (const tag of await all()) {
+      const m = tag.name.match(pattern);
+      if (m) found.push({name: tag.name, number: Number(m[1]), sha: tag.commit && tag.commit.sha});
     }
     return found.sort((a, b) => b.number - a.number);
   };
@@ -90,29 +115,29 @@ async function releaseVersion({api, token, series, suffix = '', publish, sha, pu
   return {version, tag: '', reserved: false};
 }
 
-module.exports = {releaseVersion, prefixFrom};
+module.exports = {releaseVersion, prefixFrom, seriesFromTags};
 
 if (require.main === module) {
   const input = name => (process.env[`INPUT_${name.toUpperCase()}`] || '').trim();
   (async () => {
     const prefix = input('prefix');
     const file = input('prefix-from');
-    if (!!prefix === !!file) throw new Error('give exactly one of prefix and prefix-from');
+    if (prefix && file) throw new Error('give prefix or prefix-from, not both');
     const component = input('component');
     let series = prefix;
     if (file) {
       const full = path.resolve(process.env.GITHUB_WORKSPACE || '.', file);
       series = prefixFrom(full, fs.readFileSync(full, 'utf8'));
     }
-    if (!/^v[0-9][0-9A-Za-z.]*$/.test(series)) throw new Error(`prefix ${series} is not v followed by a version, such as v0.1`);
+    if (series && !/^v[0-9][0-9A-Za-z.]*$/.test(series)) throw new Error(`prefix ${series} is not v followed by a version, such as v0.1`);
     if (component && !/^[a-z][a-z0-9-]*$/.test(component)) throw new Error(`component ${component} is not a lowercase name`);
-    if (component) series = `${component}-${series}`;
     const suffix = input('suffix');
     if (!/^(\.[0-9]+)*$/.test(suffix)) throw new Error(`suffix ${suffix} is not fixed numeric parts, such as .0`);
     const result = await releaseVersion({
       api: `${process.env.GITHUB_SERVER_URL}/api/v1/repos/${input('repository')}`,
       token: input('token'),
       series,
+      component,
       suffix,
       publish: input('publish') === 'true',
       sha: input('sha'),

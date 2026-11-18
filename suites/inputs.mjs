@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import {capture, output} from './lib.mjs';
 import {config} from './config.mjs';
+import {nodeVersion,pythonVersion,releaseManifest,tofuVersion} from './conventions.mjs';
 import {inputs,relevant} from './input-patterns.mjs';
 import {found} from './fingerprints.mjs';
 import path from 'node:path';
@@ -63,13 +64,14 @@ export async function scope(suite) {
   // The cluster suite checks the image on a PR unless a joined release's package check does;
   // a module's release has no package to check, so its joined image is checked here.
   output('cluster-image-check', !cfg.release?.image || cfg.release?.module === true);
-  output('prefix', cfg.release?.prefix || (cfg.release?.prefixFrom ? '' : 'v0.1'));
-  output('prefix-from', cfg.release?.prefixFrom || '');
+  // A release numbers on from its newest tag (actions/release-version), or on its manifest's version.
+  output('prefix', '');
+  output('prefix-from', cfg.release?.fromManifest ? releaseManifest() : '');
   output('suffix', cfg.release?.suffix || '');
-  output('node', cfg.web?.node || '24');
-  output('tofu', cfg.tofu?.version || '1.11.0');
+  output('node', nodeVersion());
+  output('tofu', tofuVersion);
   output('dotnet', cfg.dotnet?.sdk || '9.0');
-  output('python', cfg.python?.version || '3.12');
+  output('python', pythonVersion());
   output('static-app', Boolean(cfg.web?.staticApp));
   output('has-image', Boolean(cfg.web?.image));
   output('test-history', cfg.web?.history === true);

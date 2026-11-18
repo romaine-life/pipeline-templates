@@ -14,7 +14,7 @@ try {
   process.env.VERSION='v0.1.1';
   write('.gitignore','dist/\n**/bin/\n**/obj/\n**/__pycache__/\n**/.pytest_cache/\n**/.venv/\n');
   const goTargets=process.platform==='linux' ? [{goos:'windows',goarch:'amd64'},{goos:'linux',goarch:'arm64'},{goos:'darwin',goarch:'arm64'}] : [{goos:'windows',goarch:'amd64'}];
-  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']},web:{packages:['frontend']},python:{projects:['python-fixture']},docs:{required:['README.md']}}));
+  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],goTargets,windowsGui:['./cmd/fixture'],dotnetProjects:['dotnet-fixture/Fixture.csproj']},web:{packages:['frontend']}}));
   write('README.md','# Fixture\n');
   write('go.mod','module example.com/fixture\n\ngo 1.26.2\n');
   write('cmd/fixture/main.go','package main\n\nimport "fmt"\n\nvar version string\n\nfunc main() { fmt.Println(version) }\n');

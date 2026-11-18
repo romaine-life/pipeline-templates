@@ -24,7 +24,6 @@
         "version-four-part"
       ],
       "release": {
-        "prefix": "v1.25",
         "external": [
           {
             "id": "msix",
@@ -55,7 +54,6 @@
         "buildPlatform": "windows-latest"
       },
       "release": {
-        "prefixFrom": "CMakeLists.txt",
         "assetNames": {
           "cmake": {
             "cmake/bin": "tmux-windows-{tag}.zip",
@@ -105,10 +103,7 @@
         "release-rust",
         "rust-build-windows-amd64",
         "rust-test-windows"
-      ],
-      "release": {
-        "prefix": "v0.1"
-      }
+      ]
     },
     "nelsong6/forgejo": {
       "suites": [
@@ -171,14 +166,7 @@
     "nelsong6/journal-biking": {
       "suites": [
         "docs"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-career": {
       "suites": [
@@ -186,26 +174,12 @@
       ],
       "topics": [
         "release-source"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-dreams": {
       "suites": [
         "docs"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-llm-philosophy": {
       "suites": [
@@ -213,28 +187,12 @@
       ],
       "topics": [
         "release-source"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-music": {
       "suites": [
         "docs"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md",
-          "gear.md",
-          "accounts.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-politics": {
       "suites": [
@@ -242,14 +200,7 @@
       ],
       "topics": [
         "release-source"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-psychology-philosophy": {
       "suites": [
@@ -257,26 +208,12 @@
       ],
       "topics": [
         "release-source"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/journal-technology-philosophy": {
       "suites": [
         "docs"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "nelsong6/looper": {
       "suites": [
@@ -367,10 +304,7 @@
     "nelsong6/sf6-nelson-lab": {
       "suites": [
         "python"
-      ],
-      "python": {
-        "version": "3.13"
-      }
+      ]
     },
     "nelsong6/shows": {
       "suites": [
@@ -385,7 +319,6 @@
         "rust-test-windows"
       ],
       "release": {
-        "prefix": "v0.1",
         "dependencies": [
           {
             "url": "https://artifacts.home.romaine.life/general/sourceforge/project/mpv-player-windows/libmpv/mpv-dev-x86_64-20250420-git-3600c71.7z",
@@ -419,10 +352,7 @@
         "rust-build-windows-amd64",
         "rust-test-linux",
         "rust-test-windows"
-      ],
-      "release": {
-        "prefix": "v0.1"
-      }
+      ]
     },
     "nelsong6/spotify-player": {
       "suites": [
@@ -443,7 +373,6 @@
         "version-from-manifest"
       ],
       "release": {
-        "prefixFrom": "spotify_player/Cargo.toml",
         "image": "cluster",
         "assets": [
           "dist/spotify_player",
@@ -519,14 +448,7 @@
       "suites": [
         "docs",
         "python"
-      ],
-      "docs": {
-        "required": [
-          "README.md",
-          "INDEX.md",
-          "CLAUDE.md"
-        ]
-      }
+      ]
     },
     "romaine-life/ambience": {
       "suites": [
@@ -541,19 +463,9 @@
         "packages": [
           "."
         ],
-        "node": "24",
         "image": "romainecr.azurecr.io/ambience",
         "pinFile": "chart/ambience/values.yaml",
         "workPackage": "https://openproject.home.romaine.life/wp/PIPT-12"
-      },
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "ambience.tfstate"
-        }
       }
     },
     "romaine-life/at": {
@@ -565,10 +477,7 @@
         "home-sync",
         "release-powershell",
         "windows-powershell"
-      ],
-      "release": {
-        "prefix": "v0.1"
-      }
+      ]
     },
     "romaine-life/at-claude": {
       "suites": [
@@ -585,7 +494,6 @@
         ]
       },
       "release": {
-        "prefix": "v0.1",
         "goTargets": [
           {
             "goos": "windows",
@@ -613,7 +521,6 @@
         ]
       },
       "release": {
-        "prefix": "v1.0",
         "goStampPackages": [
           "github.com/romaine-life/at-home-tools/internal/buildinfo"
         ],
@@ -706,13 +613,11 @@
         "packages": [
           "."
         ],
-        "node": "22",
         "image": "romainecr.azurecr.io/auth",
         "pinFile": "k8s/values.yaml",
         "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
       },
       "release": {
-        "prefix": "v0.1",
         "image": "web",
         "goTargets": [
           {
@@ -751,15 +656,6 @@
             ]
           }
         ]
-      },
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "auth.tfstate"
-        }
       }
     },
     "romaine-life/chess-tactics": {
@@ -787,7 +683,6 @@
           "backend",
           "frontend"
         ],
-        "node": "22",
         "image": "romainecr.azurecr.io/chess-tactics",
         "pinFile": "k8s/values.yaml",
         "pinFields": {
@@ -800,18 +695,6 @@
       },
       "service": {
         "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9"
-      },
-      "release": {
-        "prefix": "v0.1"
-      },
-      "tofu": {
-        "version": "1.9.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "chess-tactics.tfstate"
-        }
       }
     },
     "romaine-life/composer": {
@@ -823,10 +706,7 @@
         "go-test-linux",
         "go-test-windows",
         "release-module"
-      ],
-      "release": {
-        "prefix": "v0.1"
-      }
+      ]
     },
     "romaine-life/eight-queens": {
       "suites": [
@@ -840,18 +720,8 @@
         "packages": [
           "frontend"
         ],
-        "node": "22",
         "staticApp": "eight-queens-app",
         "resourceGroup": "eight-queens-rg"
-      },
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "eight-queens.tfstate"
-        }
       }
     },
     "romaine-life/fzt": {
@@ -862,10 +732,7 @@
       "topics": [
         "go-test-windows",
         "release-module"
-      ],
-      "release": {
-        "prefix": "v0.2"
-      }
+      ]
     },
     "romaine-life/fzt-automate": {
       "suites": [
@@ -885,7 +752,6 @@
         ]
       },
       "release": {
-        "prefix": "v0.1",
         "mirror": true,
         "goTargets": [
           {
@@ -927,7 +793,6 @@
         ]
       },
       "release": {
-        "prefix": "v0.1",
         "goTargets": [
           {
             "goos": "js",
@@ -969,7 +834,6 @@
         "rust-test-windows"
       ],
       "release": {
-        "prefix": "v0.1",
         "rustTargets": [
           {
             "target": "x86_64-pc-windows-msvc",
@@ -1024,8 +888,7 @@
       "web": {
         "packages": [
           "backend"
-        ],
-        "node": "20"
+        ]
       },
       "cluster": {
         "image": "forgejo.romaine.life/romaine-life/fzt-frontend",
@@ -1035,8 +898,7 @@
         "workPackage": "https://openproject.home.romaine.life/wp/HOMEINFRA-1"
       },
       "release": {
-        "image": "cluster",
-        "prefix": "v0.1"
+        "image": "cluster"
       }
     },
     "romaine-life/fzt-picker": {
@@ -1060,7 +922,6 @@
         ]
       },
       "release": {
-        "prefix": "v0.1",
         "mirror": true,
         "goTargets": [
           {
@@ -1119,7 +980,6 @@
         ]
       },
       "release": {
-        "prefix": "v0.1",
         "mirror": true,
         "goTargets": [
           {
@@ -1171,7 +1031,6 @@
         "release-go"
       ],
       "release": {
-        "prefix": "v0.1",
         "goTargets": [
           {
             "goos": "windows",
@@ -1199,7 +1058,6 @@
         ]
       },
       "release": {
-        "prefix": "v0.1",
         "goTargets": [
           {
             "goos": "windows",
@@ -1214,16 +1072,7 @@
     "romaine-life/infra-bootstrap": {
       "suites": [
         "tofu"
-      ],
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "infra-bootstrap.tfstate"
-        }
-      }
+      ]
     },
     "romaine-life/kill-me": {
       "suites": [
@@ -1248,7 +1097,6 @@
           "backend",
           "frontend"
         ],
-        "node": "20",
         "image": "romainecr.azurecr.io/kill-me",
         "pinFile": "k8s/values.yaml",
         "pinFields": {
@@ -1256,18 +1104,6 @@
           "release.deployedAt": "date"
         },
         "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3"
-      },
-      "release": {
-        "prefix": "v1.5"
-      },
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "kill-me.tfstate"
-        }
       }
     },
     "romaine-life/landing-page": {
@@ -1291,7 +1127,6 @@
         "packages": [
           "backend"
         ],
-        "node": "22",
         "image": "romainecr.azurecr.io/landing-page",
         "pinFile": "k8s/values.yaml",
         "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
@@ -1322,9 +1157,6 @@
             "destination": "string-box/public/string-box.glb"
           }
         ]
-      },
-      "release": {
-        "prefix": "v1.0"
       }
     },
     "romaine-life/lights": {
@@ -1339,18 +1171,8 @@
         "packages": [
           "frontend"
         ],
-        "node": "22",
         "staticApp": "lights-app",
         "resourceGroup": "lights-rg"
-      },
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "lights.tfstate"
-        }
       }
     },
     "romaine-life/macrocraft": {
@@ -1397,7 +1219,6 @@
         "packages": [
           "backend"
         ],
-        "node": "20",
         "image": "romainecr.azurecr.io/my-homepage",
         "pinFile": "k8s/values.yaml",
         "workPackage": "https://openproject.home.romaine.life/wp/FORGEJO-3",
@@ -1423,18 +1244,6 @@
             "destination": "frontend/fzt-web.js"
           }
         ]
-      },
-      "release": {
-        "prefix": "v1.0"
-      },
-      "tofu": {
-        "version": "1.11.0",
-        "backend": {
-          "resource_group_name": "infra",
-          "storage_account_name": "nelsontofu",
-          "container_name": "tfstate",
-          "key": "my-homepage.tfstate"
-        }
       }
     },
     "romaine-life/power-lines-gba": {
@@ -1453,7 +1262,6 @@
         "release-go"
       ],
       "release": {
-        "prefix": "v0.1",
         "goTargets": [
           {
             "goos": "windows",
@@ -1524,7 +1332,6 @@
         "buildPlatform": "windows-latest"
       },
       "release": {
-        "prefix": "v0.5",
         "dotnetProjects": [
           "SpireLens.csproj"
         ],
@@ -1545,12 +1352,7 @@
       "suites": [
         "docs",
         "python"
-      ],
-      "python": {
-        "projects": [
-          "mcp"
-        ]
-      }
+      ]
     },
     "romaine-life/string-box": {
       "suites": [
@@ -1579,10 +1381,7 @@
         "release-rust",
         "rust-build-windows-amd64",
         "rust-test-windows"
-      ],
-      "release": {
-        "prefix": "v0.1"
-      }
+      ]
     },
     "romaine-life/tuimail": {
       "suites": [
@@ -1613,7 +1412,6 @@
         ]
       },
       "release": {
-        "prefixFrom": "Cargo.toml",
         "archives": [
           {
             "toolchain": "rust",
