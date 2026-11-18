@@ -152,6 +152,70 @@ jobs:
           })().catch(error => { console.error(error); process.exitCode = 1; });
           JS
 
+      - name: Check each PC gets one SSH attempt and a silent PC is left to its resume
+        run: |
+          node <<'JS'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const {EventEmitter} = require('node:events');
+          const yaml = fs.readFileSync('.forgejo/workflows/home-sync.yml', 'utf8').replaceAll('\r', '');
+          const section = yaml.slice(yaml.indexOf('- name: Start the awake PCs; wake the treadmill'));
+          const inventory = section.match(/MACHINES: >-\n([\s\S]*?)\n\s+run: \|/);
+          assert.ok(inventory, 'test must read the real inventory');
+          const pcs = JSON.parse(inventory[1]);
+          const match = section.match(/node <<'JS'\n([\s\S]*?)\n\s+JS/);
+          assert.ok(match, 'test must run the real PC step');
+          const code = match[1].replace(/^ {10}/gm, '');
+          const silent = [255, 'ssh: connect to host pc port 22: Connection timed out'];
+          const cases = [
+            {name: 'every PC awake', answers: {}, exit: undefined, wakes: 0},
+            {name: 'every PC silent', answers: {all: silent}, exit: undefined, wakes: 1,
+              logs: [/treadmill: asleep, so it was sent a wake packet/, /nelsonlaptop: not reachable, so it runs home-sync itself/]},
+            {name: 'a refused key', answers: {'nelson@nelsonpc': [255, 'Permission denied (publickey).']}, exit: 1, wakes: 0},
+            {name: 'the treadmill refuses its host key and is not woken', answers: {'nelsontreadmill@treadmill': [255, 'Host key verification failed.']}, exit: 1, wakes: 0},
+            {name: 'a forced command that fails', answers: {'upstairspc@upstairspc': [1, 'ERROR: The system cannot find the file specified.']}, exit: 1, wakes: 0},
+            {name: 'a failed wake', answers: {'nelsontreadmill@treadmill': [255, 'No route to host'], 'Nelson@nas': [1, 'synonet failed']}, exit: 1, wakes: 1}
+          ];
+          (async () => {
+            for (const current of cases) {
+              const calls = [], logs = [];
+              const proc = {env: {MACHINES: inventory[1]}, exitCode: undefined};
+              const spawn = (command, args) => {
+                assert.equal(command, 'ssh');
+                const destination = args.at(-1);
+                calls.push(args);
+                const child = new EventEmitter();
+                child.stdout = new EventEmitter();
+                child.stderr = new EventEmitter();
+                const [status, text] = current.answers[destination] ?? (destination === 'Nelson@nas' ? undefined : current.answers.all) ?? [0, ''];
+                setImmediate(() => { if (text) child.stderr.emit('data', Buffer.from(text)); child.emit('close', status); });
+                return child;
+              };
+              await vm.runInNewContext(code, {
+                process: proc,
+                console: {log: line => logs.push(line), error: line => logs.push(line)},
+                require(name) {
+                  if (name === 'node:child_process') return {spawn};
+                  assert.equal(name, 'node:fs');
+                  return {accessSync() {}, constants: fs.constants};
+                }
+              });
+              const wakes = calls.filter(args => args.at(-1) === 'Nelson@nas');
+              assert.equal(wakes.length, current.wakes, `${current.name}: wake packets`);
+              assert.equal(calls.length - wakes.length, pcs.length, `${current.name}: one SSH attempt per PC`);
+              for (const pc of pcs) assert.equal(calls.filter(args => args.at(-1) === `${pc.user}@${pc.name}`).length, 1, `${current.name}: ${pc.name}`);
+              if (wakes.length) assert.ok(calls.indexOf(wakes[0]) > calls.findIndex(args => args.at(-1) === 'nelsontreadmill@treadmill'), 'a wake follows the silent attempt');
+              for (const args of calls) {
+                for (const option of ['ConnectionAttempts=1', 'ConnectTimeout=5', 'StrictHostKeyChecking=yes', 'BatchMode=yes']) assert.ok(args.includes(option), `${current.name}: ${option}`);
+              }
+              assert.equal(proc.exitCode, current.exit, `${current.name}: ${logs.join('\n')}`);
+              for (const pattern of current.logs || []) assert.match(logs.join('\n'), pattern, current.name);
+              console.log(`passed: ${current.name}`);
+            }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
+
   # The release cleanup step (actions/prune-releases) that home-sync.yml and release jobs run.
   prune-releases:
     needs: changes

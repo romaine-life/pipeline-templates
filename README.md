@@ -135,6 +135,14 @@ catches up on whatever it left.
 Forgejo injects top-level workflows by repo topic, and `CI_SUITES_REF` selects a
 branch for pilots. GitHub workflows are unchanged.
 
-The reusable `.forgejo/workflows/home-sync.yml` remains unchanged while Nelson decides
-its delivery model. Every repository automatically gets `default`; additional topics
-select the twelve shared suites, including joined releases across toolchains.
+Every repository automatically gets `default`; additional topics select the twelve
+shared suites, including joined releases across toolchains.
+
+## Home sync
+
+The reusable `.forgejo/workflows/home-sync.yml` publishes a release's draft, then makes one
+SSH attempt at each home PC and waits on none. An awake PC's forced command starts its
+home-sync task. A PC that doesn't answer is asleep, off or away, which isn't a failure:
+at-home-tools' home-sync task runs on every resume from sleep and at sign-in, so it takes
+the release then. The treadmill, the one PC with a wake address, is sent a wake packet
+through the NAS when it doesn't answer, and its resume starts the run.

@@ -39,6 +39,13 @@ on:
         type: boolean
         default: false
 
+# Forgejo applies a workflow's own concurrency only to a run that workflow starts: here a
+# dispatch, which queues behind a running one. A caller's run keeps the caller's setting.
+# home-sync never runs on a pull request, so nothing here is ever cancelled.
+concurrency:
+  group: home-sync-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pcs:
     # Forgejo reports workflow_call here, not the caller's push/dispatch event.
@@ -99,7 +106,7 @@ jobs:
           })().catch(error => { console.error(error.message); process.exitCode = 1; });
           JS
 
-      - name: Wake and start all PCs concurrently
+      - name: Start the awake PCs; wake the treadmill
         # machine/state.json's sshUser and wakeMac in shell-config-profile-home.
         # Update this inventory when a PC changes.
         env:
@@ -107,9 +114,14 @@ jobs:
             [{"name":"nelsonpc","user":"nelson"},
              {"name":"upstairspc","user":"upstairspc"},
              {"name":"treadmill","user":"nelsontreadmill","mac":"E8:FF:1E:D8:9B:FB"},
-             {"name":"nelsonlaptop","user":"nelsonlaptopuser","away":true}]
+             {"name":"nelsonlaptop","user":"nelsonlaptopuser"}]
         run: |
           node <<'JS'
+          // One SSH attempt per PC and no waiting on any (PIPT-12). An awake PC's forced
+          // command starts its home-sync task and returns at once. A PC that doesn't answer
+          // is asleep, off or away: its home-sync task runs on every resume from sleep and at
+          // sign-in (at-home-tools), so it takes the release then and this run doesn't fail.
+          // A PC with a wake address is woken, and its resume starts that run.
           const {spawn} = require('node:child_process');
           const fs = require('node:fs');
           const key = '/certs/client/home-sync/id_ed25519';
@@ -117,13 +129,13 @@ jobs:
           fs.accessSync(key, fs.constants.R_OK);
           fs.accessSync(hosts, fs.constants.R_OK);
           const start = Date.now();
-          function ssh(name, destination, connectionAttempts = 24) {
+          function ssh(name, destination) {
             return new Promise((resolve, reject) => {
               // No remote command: sshd forces the one authorized command.
               const child = spawn('ssh', ['-T', '-i', key, '-o', 'IdentitiesOnly=yes',
                 '-o', 'BatchMode=yes', '-o', `UserKnownHostsFile=${hosts}`,
                 '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5',
-                '-o', `ConnectionAttempts=${connectionAttempts}`, destination]);
+                '-o', 'ConnectionAttempts=1', destination]);
               let output = '';
               child.stdout.on('data', b => output += b);
               child.stderr.on('data', b => output += b);
@@ -138,26 +150,22 @@ jobs:
             });
           }
           async function trigger(pc) {
-            // Docker's bridge drops LAN broadcasts. The NAS key entry forces
-            // only sudo /usr/syno/sbin/synonet --wake E8:FF:1E:D8:9B:FB eth0.
-            // A missed wake should get another packet within the same SSH budget.
-            const attempts = pc.mac ? 3 : 1;
-            for (let attempt = 1; attempt <= attempts; attempt++) {
-              if (pc.mac) await ssh(`${pc.name} wake ${pc.mac}`, 'Nelson@nas');
-              try {
-                await ssh(pc.name, `${pc.user}@${pc.name}`, pc.mac ? 8 : 24);
-                return;
-              } catch (error) {
-                // A PC marked away (the Wi-Fi laptop) can't be woken and is often
-                // asleep or out; it catches up at its next sign-in.
-                if (pc.away && error.unreachable) {
-                  console.log(`${pc.name}: not reachable, so it updates at its next sign-in`);
-                  return;
-                }
-                if (attempt === attempts) throw error;
-                console.log(`${pc.name}: retrying wake after SSH attempt ${attempt}/${attempts}`);
-              }
+            try {
+              await ssh(pc.name, `${pc.user}@${pc.name}`);
+              return;
+            } catch (error) {
+              // A refused key or a failed command is a real failure; only silence is sleep.
+              if (!error.unreachable) throw error;
             }
+            if (!pc.mac) {
+              console.log(`${pc.name}: not reachable, so it runs home-sync itself when it next resumes or signs in`);
+              return;
+            }
+            // Asked only of a PC that didn't answer, so a woken PC runs home-sync once, from
+            // its resume. Docker's bridge drops LAN broadcasts; the NAS key entry forces only
+            // sudo /usr/syno/sbin/synonet --wake E8:FF:1E:D8:9B:FB eth0.
+            await ssh(`${pc.name} wake ${pc.mac}`, 'Nelson@nas');
+            console.log(`${pc.name}: asleep, so it was sent a wake packet and runs home-sync itself as it resumes`);
           }
           Promise.allSettled(JSON.parse(process.env.MACHINES).map(trigger)).then(results => {
             for (const result of results) if (result.status === 'rejected') {
