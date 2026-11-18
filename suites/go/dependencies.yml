@@ -23,6 +23,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
     - run: node _ci/suites/go/dependencies.mjs

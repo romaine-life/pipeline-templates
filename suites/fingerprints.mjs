@@ -49,7 +49,8 @@ export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
   const read=file=>{const entry=entries.find(entry=>entry.path===file);return entry?capture('git',['show',entry.oid]):null;};
   const patterns=[...new Set(await found(check,cfg,read))].sort();
   const files=entries.filter(entry=>input(entry.path,check,patterns)).sort((a,b)=>a.path.localeCompare(b.path));
-  return hash(canonical({version:1,repository:process.env.GITHUB_REPOSITORY,check,variant,suite,ignored:ignoredBy(check),patterns:[...inputs[check],...patterns],configuration,metadata,files}));
+  // The repository's setting topics are its configuration too: a topic change never reuses a pass.
+  return hash(canonical({version:1,repository:process.env.GITHUB_REPOSITORY,check,variant,suite,ignored:ignoredBy(check),patterns:[...inputs[check],...patterns],configuration,topics:cfg.topics || [],metadata,files}));
 }
 export function checkVariants(suite,cfg) {
   const result=[];

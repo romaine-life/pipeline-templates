@@ -1,21 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validate} from '../config.mjs';
+import {resolve} from '../topics.mjs';
 import {checkVariants} from '../fingerprints.mjs';
 import {matrixOutput, releasePlan} from '../release/plan.mjs';
 
-// A Go library releases its tag and source (release.module): nothing is built, so the
+// A Go library releases its tag and source (release-module): nothing is built, so the
 // asset protocol's matrix is empty and its build settings are refused.
-test('release.module plans no build and refuses build settings', () => {
-  const entry = {suites: ['go', 'release'], release: {module: true, prefix: 'v0.2'}};
+test('release-module plans no build and refuses build settings', () => {
+  const entry = {suites: ['go', 'release'], topics: ['release-module'], release: {prefix: 'v0.2'}};
   validate(entry, 'test/lib');
-  const plan = releasePlan(entry);
+  const plan = releasePlan(resolve(entry, entry.topics));
   assert.deepEqual(plan.matrix.include, []);
   assert.equal(plan.local, false);
-  for (const extra of [{toolchains: ['go']}, {goTargets: [{goos: 'linux', goarch: 'amd64'}]}, {assets: ['dist/x']}]) {
-    assert.throws(() => validate({...entry, release: {...entry.release, ...extra}}, 'test/lib'), /builds nothing/);
+  for (const [topics, extra] of [[['release-go'], {}], [[], {goTargets: [{goos: 'linux', goarch: 'amd64'}]}], [[], {assets: ['dist/x']}]]) {
+    assert.throws(() => validate({...entry, topics: [...entry.topics, ...topics], release: {...entry.release, ...extra}}, 'test/lib'), /builds nothing/);
   }
-  assert.throws(() => validate({suites: ['release'], release: {module: 'yes'}}, 'test/lib'), /boolean/);
 });
 
 test('an empty plan reaches the workflow as one placeholder entry, so its jobs exist and skip', () => {
@@ -26,9 +26,9 @@ test('an empty plan reaches the workflow as one placeholder entry, so its jobs e
 });
 
 test('a module may join its cluster image, and nothing else', () => {
-  const entry = {suites: ['cluster-service', 'go', 'release'], cluster: {image: 'forgejo.romaine.life/romaine-life/lib', pinFile: 'k8s/deployment.yaml', workPackage: 'https://openproject.home.romaine.life/wp/X-1'}, release: {module: true, image: 'cluster'}};
+  const entry = {suites: ['cluster-service', 'go', 'release'], topics: ['cluster-image', 'release-module'], cluster: {image: 'forgejo.romaine.life/romaine-life/lib', pinFile: 'k8s/deployment.yaml', workPackage: 'https://openproject.home.romaine.life/wp/X-1'}, release: {image: 'cluster'}};
   validate(entry, 'test/lib');
-  assert.throws(() => validate({...entry, web: {image: 'x.azurecr.io/lib'}, release: {module: true, image: 'web'}}, 'test/lib'), /at most its cluster image/);
+  assert.throws(() => validate({...entry, topics: [...entry.topics, 'web-image'], web: {image: 'x.azurecr.io/lib'}, release: {image: 'web'}}, 'test/lib'), /at most its cluster image/);
 });
 
 test("a module's joined cluster image is a PR check, reuse included", () => {

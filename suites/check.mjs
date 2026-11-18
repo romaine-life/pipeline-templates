@@ -10,7 +10,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import YAML from 'yaml';
 import {capture, run, suites, templates} from './lib.mjs';
-import {config, currentRepository} from './config.mjs';
+import {config, currentRepository, fleet} from './config.mjs';
+import {localToken, readTopics} from './topics.mjs';
 import {changed, scope} from './inputs.mjs';
 import {runOwn} from './own-workflows.mjs';
 
@@ -95,6 +96,10 @@ async function outputs(suite) {
 export async function check({platform = process.platform, branch, from} = {}) {
   if (!from) from = base(branch ??= defaultBranch());
   process.env.BASE = from;
+  // The repository's topics, read from Forgejo with this PC's sign-in, as the suite action
+  // reads them with the job's token in CI; the scripts below inherit them.
+  const repository = currentRepository();
+  if (process.env.CI_TOPICS === undefined && fleet()[repository]) process.env.CI_TOPICS = JSON.stringify(await readTopics(repository, {token: localToken()}));
   const cfg = config();
   const failed = [], skipped = [];
   let ran = 0;
@@ -111,7 +116,7 @@ export async function check({platform = process.platform, branch, from} = {}) {
       if (error) failed.push(`${job.name}: ${error.message}`);
     }
   }
-  const own = runOwn({root: capture('git', ['rev-parse', '--show-toplevel']), repository: currentRepository(), base: from,
+  const own = runOwn({root: capture('git', ['rev-parse', '--show-toplevel']), repository, base: from,
     branch: branch ?? 'main', files: changed(from), platform});
   ran += own.ran; failed.push(...own.failed); skipped.push(...own.skipped);
   console.log(`\nci-check: ${ran} check job(s) ran${failed.length ? `, ${failed.length} failed` : ', all passed'}.`);

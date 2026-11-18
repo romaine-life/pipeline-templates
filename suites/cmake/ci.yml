@@ -27,6 +27,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs cmake
       id: scope
       env:
@@ -69,6 +71,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - run: node _ci/suites/cmake/test.mjs
       env:
@@ -88,6 +92,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - run: node _ci/suites/cmake/test.mjs
       env:
@@ -115,6 +121,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

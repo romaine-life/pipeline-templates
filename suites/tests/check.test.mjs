@@ -54,7 +54,7 @@ test('ci-check runs the docs suite on the commits since the default branch and f
   const from = git('rev-parse', 'HEAD');
   const fleet = path.join(root, 'fleet.json');
   fs.writeFileSync(fleet, JSON.stringify({repos: {'test/check': {suites: ['docs']}}}));
-  const env = {...process.env, CI_FLEET: fleet, CI_REPOSITORY: 'test/check'};
+  const env = {...process.env, CI_FLEET: fleet, CI_TOPICS: '[]', CI_REPOSITORY: 'test/check'};
   for (const name of ['GITHUB_ACTIONS', 'GITHUB_EVENT_NAME', 'GITHUB_REPOSITORY', 'GITHUB_OUTPUT', 'BASE']) delete env[name];
   const script = `import {check} from ${JSON.stringify(new URL('../check.mjs', import.meta.url).href)}; await check({from: ${JSON.stringify(from)}, platform: 'linux'});`;
   const runCheck = () => spawnSync(process.execPath, ['--input-type=module', '-e', script], {cwd: repo, env, encoding: 'utf8'});

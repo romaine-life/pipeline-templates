@@ -59,6 +59,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs release
       id: scope
       env:
@@ -94,7 +96,7 @@ jobs:
       has-services: ${{ steps.scope.outputs.has-services }}
       has-local: ${{ steps.plan.outputs.has-local }}
       module: ${{ steps.scope.outputs.module }}
-  # A Go library (release.module): the next tag, released with its source, when its code
+  # A Go library (release-module): the next tag, released with its source, when its code
   # changed since the last one. Its consumers take the tag up (go.dependencies).
   module:
     needs: scope
@@ -111,6 +113,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/release-version
       with:
         prefix: ${{ needs.scope.outputs.prefix }}
@@ -155,6 +159,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/release-version
       with:
         prefix: ${{ needs.scope.outputs.prefix }}
@@ -198,6 +204,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       if: matrix.toolchain == 'go'
@@ -256,6 +264,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/azure-cli
       if: needs.scope.outputs.joined-image == 'web' && !inputs.release-tag
     - uses: azure/login@v3
@@ -326,6 +336,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/release.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -350,6 +362,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/release.mjs dispatch
       env:
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
@@ -376,6 +390,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
       if: matrix.toolchain == 'go'
@@ -432,6 +448,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true' && needs.scope.outputs.joined-image != ''
     - uses: forgejo/download-artifact@v4
@@ -474,6 +492,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/azure-cli
       if: needs.finalize.outputs.image == 'web'
     - uses: azure/login@v3
@@ -507,6 +527,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

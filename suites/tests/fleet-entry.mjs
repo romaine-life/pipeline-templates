@@ -4,21 +4,24 @@ import path from 'node:path';
 import {rustBuilds} from '../topics.mjs';
 
 // Tests give their repository settings the way production does: as its entry in a fleet
-// list, here a temporary one CI_FLEET names, outside the repository under test.
+// list, here a temporary one CI_FLEET names, outside the repository under test, and the
+// topics Fleet would set on it, in CI_TOPICS as the suite action reads them.
 let current = {};
 export function fleetEntry(settings = {}, repo = process.env.GITHUB_REPOSITORY || 'test/probe') {
   const {version, ...rest} = settings;
   current = {suites: [], ...rest};
+  const {entry, topics} = entryFor(current);
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'fleet-')), 'fleet.json');
-  fs.writeFileSync(file, JSON.stringify({repos: {[repo]: current}}));
+  fs.writeFileSync(file, JSON.stringify({repos: {[repo]: {...entry, topics}}}));
   process.env.CI_FLEET = file;
+  process.env.CI_TOPICS = JSON.stringify(topics);
   process.env.GITHUB_REPOSITORY ??= repo;
   return file;
 }
 export const currentEntry = () => structuredClone(current);
 
 // Settings as the suites read them (config.mjs), split into a fleet entry and the setting
-// topics that select them.
+// topics that select them (topics.mjs resolve is its inverse).
 export function entryFor(settings) {
   const entry = structuredClone(settings), topics = [];
   const take = (name, field) => {

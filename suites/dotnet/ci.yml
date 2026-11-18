@@ -27,6 +27,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs dotnet
       id: scope
       env:
@@ -69,6 +71,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-dotnet
       with:
@@ -89,6 +93,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-dotnet
       with:
@@ -117,6 +123,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

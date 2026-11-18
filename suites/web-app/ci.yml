@@ -32,6 +32,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs web-app
       id: scope
       env:
@@ -72,7 +74,7 @@ jobs:
   check-test:
     runs-on: ubuntu-latest
     steps:
-    # A repo whose tests compare with the base branch (web.history) gets full history, which
+    # A repo whose tests compare with the base branch (web-history) gets full history, which
     # brings origin/<base>: the checkout drops its credentials, so nothing can fetch it later.
     - uses: actions/checkout@v4
       with:
@@ -85,6 +87,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
     - uses: ./_ci/actions/home-cache
@@ -110,6 +114,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
     - run: node _ci/suites/web-app/dependencies.mjs stage
@@ -135,6 +141,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/azure-cli
     - uses: azure/login@v3
       with:
@@ -182,6 +190,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-node
       with:
@@ -233,6 +243,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

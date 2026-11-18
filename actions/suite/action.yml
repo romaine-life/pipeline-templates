@@ -1,5 +1,9 @@
 name: Suite scripts
-description: Install the suite scripts' locked dependencies and keep compiler caches outside the checkout.
+description: Install the suite scripts' locked dependencies, keep compiler caches outside the checkout, and read the repository's topics.
+inputs:
+  token:
+    description: The job's token, to read the repository's topics into CI_TOPICS. The suites pass it; a job that runs no suite needs no topics.
+    default: ''
 runs:
   using: composite
   steps:
@@ -29,3 +33,18 @@ runs:
         npm ci --prefix $env:SCRIPTS --cache (Join-Path $root 'npm') --prefer-offline --no-audit --no-fund
         if ($LASTEXITCODE) { throw 'npm ci failed' }
         @("GOCACHE=$root\go-build", "GOMODCACHE=$root\go-mod", "npm_config_cache=$root\npm", 'GOMAXPROCS=4', 'CARGO_BUILD_JOBS=4') | Add-Content $env:GITHUB_ENV
+    # The running repository's topics, its CI selections (suites/topics.mjs), read from
+    # Forgejo's API into CI_TOPICS: never from the checkout, so a change can't alter its
+    # own gate.
+    - shell: bash
+      if: inputs.token != '' && runner.os != 'Windows'
+      env:
+        SCRIPTS: ${{ github.action_path }}/../../suites
+        TOKEN: ${{ inputs.token }}
+      run: node "$SCRIPTS/topics.mjs"
+    - shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+      if: inputs.token != '' && runner.os == 'Windows'
+      env:
+        SCRIPTS: ${{ github.action_path }}/../../suites
+        TOKEN: ${{ inputs.token }}
+      run: node (Join-Path $env:SCRIPTS 'topics.mjs')

@@ -27,6 +27,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs go
       id: scope
       env:
@@ -68,6 +70,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
     - run: node _ci/suites/go/format.mjs
@@ -86,6 +90,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
     - run: node _ci/suites/go/test.mjs
@@ -106,6 +112,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
     - run: node _ci/suites/go/test.mjs
@@ -129,6 +137,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
     - uses: ./_ci/actions/home-cache
@@ -162,6 +172,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

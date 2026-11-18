@@ -61,15 +61,15 @@ test("the newest lock takes each source's latest release once", async () => {
 });
 
 test('web dependencies are validated', () => {
-  validate({suites: ['web-app'], web}, 'test/site');
+  validate({suites: ['web-app'], topics: ['web-image'], web}, 'test/site');
   for (const [bad, message] of [
     [{...wasm, path: 'x'}, /not both/],
     [{...wasm, repository: 'someone/else'}, /owned repository/],
     [{...wasm, destination: '../out'}, /repository-relative/],
     [{...wasm, extra: 1}, /unknown web dependency field/],
-  ]) assert.throws(() => validate({suites: ['web-app'], web: {...web, dependencies: [bad]}}, 'test/site'), message);
-  assert.throws(() => validate({suites: ['web-app'], web: {...web, dependencies: [wasm, {...model, destination: wasm.destination}]}}, 'test/site'), /two web dependencies/);
+  ]) assert.throws(() => validate({suites: ['web-app'], topics: ['web-image'], web: {...web, dependencies: [bad]}}, 'test/site'), message);
+  assert.throws(() => validate({suites: ['web-app'], topics: ['web-image'], web: {...web, dependencies: [wasm, {...model, destination: wasm.destination}]}}, 'test/site'), /two web dependencies/);
   assert.throws(() => validate({suites: ['web-app'], web: {dependencies: [wasm]}}, 'test/site'), /inputs to the web image or a release build/);
   // A release build can embed them too (fzt-desktop's frontend), with no image.
-  validate({suites: ['release', 'rust'], release: {toolchains: ['rust']}, web: {dependencies: [wasm]}}, 'test/desktop');
+  validate({suites: ['release', 'rust'], topics: ['release-rust'], web: {dependencies: [wasm]}}, 'test/desktop');
 });

@@ -27,6 +27,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs default
       id: scope
       env:
@@ -66,6 +68,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/default/fetches.mjs
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.fetches == 'true'
@@ -82,6 +86,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/default/rules.mjs
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.rules == 'true'
@@ -104,6 +110,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}

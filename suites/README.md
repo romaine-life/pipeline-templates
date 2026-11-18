@@ -9,10 +9,10 @@ job no suite covers.
 ## The fleet list
 
 `fleet.json` at this repository's root names every repository on the suites, the suites
-it takes, and the few settings a convention can't decide for it. It is the only place a
-repository's CI is configured: changing the fleet, or any repository in it, is one PR
-here. The `Fleet` workflow aligns every owned repository to it: on a PR it prints what the
-merge would change, and the merge changes it.
+it takes, its setting topics, and the few values a convention can't decide for it yet. It
+is the only place a repository's CI is configured: changing the fleet, or any repository in
+it, is one PR here. The `Fleet` workflow aligns every owned repository to it: on a PR it
+prints what the merge would change, and the merge changes it.
 
 - A listed repository's `ci-` topics become exactly `ci-<suite>` for each suite listed,
   and its setting topics exactly the entry's `topics`.
@@ -21,25 +21,56 @@ merge would change, and the merge changes it.
 - A repository the list doesn't name carries no `ci-` or setting topics.
 - Any other topic, one set by hand, is left as it is.
 
-An entry is `{"suites": [...], "topics": [...]}` plus any of the settings below.
-`config.mjs` validates it; an unknown field or topic fails. Setting topics (`topics.mjs`)
-are the repository's CI selections; the suites don't read them yet, so each entry's are the
-ones its settings make (`config.test.mjs` holds them to that).
+An entry is `{"suites": [...], "topics": [...]}` plus any of the values below. `config.mjs`
+validates it; an unknown field or topic fails.
+
+### Setting topics
+
+A CI selection is a property of the repository: one of its Forgejo topics. A suite reads the
+running repository's topics from Forgejo's API when it runs, never from the pull request's
+checkout, so a change can't alter its own gate: the suite action reads them with the job's
+token into `CI_TOPICS` (the suites pass it `token: ${{ github.token }}`), and `ci-check`
+reads them with the PC's Forgejo sign-in (`FORGEJO_TOKEN`, else git's credential helper).
+A check's fingerprint includes them, so a topic change never reuses an earlier pass.
+Without its topic a setting is off. `topics.mjs` lists them.
+
+| Topic | Selects |
+|---|---|
+| `go-test-linux`, `go-test-windows`, and the same for `rust`, `cmake`, `dotnet`, `python` | The platforms the toolchain's tests run on: Linux with neither, Windows with `-test-windows` alone, both with both |
+| `go-race` | Every package's tests run again under the race detector, in the Linux test job |
+| `rust-typos`, `rust-machete`, `rust-audit` | Rust lints; `audit` checks RustSec's advisories, read fresh through Artifact Keeper, when `Cargo.lock` changes |
+| `windows-powershell` | The PowerShell parse check runs in Windows PowerShell too |
+| `service-postgres`, `service-manticore`, `service-greenmail` | The tests' services, each the image `service.<name>` names. The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
+| `cluster-image` | A cluster service builds and smoke-tests its own image, `cluster.image`; without it the service renders and pins what upstream publishes |
+| `web-image` | The web app builds the image `web.image` |
+| `web-static` | The web app deploys to the Static Web App `web.staticApp` in `web.resourceGroup` |
+| `web-history` | The tests compare with the base branch, so the test job gets full history (`origin/<base>`) |
+| `release-source` | A documentation repository cuts a source release |
+| `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
+| `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
+| `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64` | The Rust release targets; with none, Linux x86_64 |
+| `version-from-manifest` | The version series comes from the manifest `release.prefixFrom` names |
+| `version-four-part` | Versions take a fourth part, `.0` |
+| `home-sync` | A release starts home-sync on every PC |
+| `release-archive`, `release-source-list`, `release-external` | The release's archives, source lists and external parts: `release.archives`, `release.sourceLists`, `release.external` |
+
+A value a topic selects is in the entry exactly when the topic is. The values are still in
+the list until each becomes a convention or the repository's own file (PIPT-12).
+
+### Values
 
 | Section | Fields |
 |---|---|
-| `go`, `rust`, `cmake`, `dotnet`, `python` | `platforms`: the platforms tests run on (default `ubuntu-latest`; list it beside `windows-latest` to keep Linux) |
-| `go` | `dependencies`: modules taken up through `go/dependencies.yml`; `race`: packages whose tests also run under the race detector, in the Linux test job (so `platforms` must include `ubuntu-latest`) |
-| `rust` | `features`, `noDefaultFeatures`, `platformFeatures`, `lints`: any of `typos`, `machete` and `audit` (RustSec's advisories, read fresh through Artifact Keeper, when `Cargo.lock` changes) |
-| `service` | `postgres`, `manticore`, `greenmail`: digest-pinned images the tests need. The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
+| `go` | `dependencies`: modules taken up through `go/dependencies.yml` |
+| `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
+| `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
-| `release` | `toolchains`, `prefix` or `prefixFrom`, `homeSync`, `goTargets`, `windowsGui`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`: `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image` |
-| `release` (a Go library) | `module: true`: a merge that changes the code takes the next tag and publishes it with its source, building nothing; consumers take it up through their `go.dependencies` |
-| `cluster` | `renders`, `build`, `image`, `context`: the image's build context, where its `Dockerfile` is (the repository root by default), `baoRole`, `baoSecret`, `pinFile`, `pinFields` |
-| `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `containerApp`, `resourceGroup`, `staticApp`, `history`: the tests compare with the base branch, so the test job gets full history (`origin/<base>`), `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each `release.toolchains` target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
+| `release` | `prefix` or `prefixFrom`, `goTargets`, `windowsGui`, `goStampPackages`, `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `dependencies` (each `{url, sha256 or lock, destination}`; `extract` takes one file out of a downloaded archive, a 7z included on a Windows build), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
+| `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk`; `python` also `projects` and `version` |
+| `cluster` | `renders`, `image`, `context`: the image's build context, where its `Dockerfile` is (the repository root by default), `baoRole`, `baoSecret`, `pinFile`, `pinFields`, `workPackage` |
+| `web` | `packages`, `node`, `image`, `pinFile`, `pinFields`, `workPackage`, `containerApp`, `resourceGroup`, `staticApp`, `dependencies`: inputs from other repositories, each `{repository, asset or path, destination}`, pinned in `dependencies.lock` and staged before the image builds, and before each release toolchain's target builds (fzt-desktop embeds them in its executable); the source's `release.dispatch` to `web-app/dependencies.yml`, or `release/dependencies.yml` for a release, proposes its newest release as a take-up PR |
 | `tofu` | `version`, `backend` |
-| `docs` | `required`, `release` |
-| `powershell` | `windowsPowerShell` |
+| `docs` | `required` |
 
 A few things come from the repository rather than the list: its Rust toolchain is its
 `rust-toolchain.toml` (channel and components), as rustup reads it, else the pinned stable;

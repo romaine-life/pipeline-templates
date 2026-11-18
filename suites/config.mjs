@@ -1,15 +1,17 @@
 import path from 'node:path';
 import {capture, readJSON, safePath, templates} from './lib.mjs';
-import {isSettingTopic, validTopic} from './topics.mjs';
+import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic, valueSelectors} from './topics.mjs';
 
+// A fleet entry: its suites, its setting topics (topics.mjs), and the values a convention
+// doesn't decide yet.
 const fields = {
   suites: null, topics: null,
-  go: ['platforms', 'dependencies', 'race'], rust: ['platforms', 'features', 'noDefaultFeatures', 'platformFeatures','lints'],
-  release: ['module', 'toolchains', 'prefix', 'prefixFrom', 'suffix', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'homeSync', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
-  cmake: ['platforms', 'buildPlatform'], dotnet: ['platforms', 'sdk', 'buildPlatform'], python: ['projects', 'version', 'platforms', 'buildPlatform'],
-  cluster: ['renders', 'build', 'smoke', 'image', 'context', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
-  web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies', 'history'], tofu: ['version', 'backend'], docs: ['required', 'release'],
-  powershell: ['windowsPowerShell'], service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
+  go: ['dependencies'], rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
+  release: ['prefix', 'prefixFrom', 'assets', 'dispatch', 'goTargets', 'windowsGui', 'goStampPackages', 'rustTargets', 'external', 'dotnetProjects', 'dependencies', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['projects', 'version', 'buildPlatform'],
+  cluster: ['renders', 'image', 'context', 'baoRole', 'baoSecret', 'pinFile', 'pinFields', 'workPackage'],
+  web: ['packages', 'node', 'image', 'pinFile', 'pinFields', 'workPackage', 'containerApp', 'resourceGroup', 'staticApp', 'dependencies'], tofu: ['version', 'backend'], docs: ['required'],
+  service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
@@ -30,11 +32,15 @@ export function fleet(file = process.env.CI_FLEET || path.join(templates, 'fleet
   return value.repos;
 }
 
-// A repository's settings are its entry in the fleet list; one with none has none.
-export function config(repo = currentRepository(), repos = fleet()) {
-  return repos[repo] || {suites: []};
+// A repository's settings are its entry in the fleet list, with the selections its topics
+// make (read from Forgejo when it runs, topics.mjs); one the list leaves out has none.
+export function config(repo = currentRepository(), repos = fleet(), topics) {
+  const entry = repos[repo];
+  if (!entry) return {suites: []};
+  return settings(resolve(entry, topics ?? currentTopics()));
 }
 
+// A fleet entry, as the list holds it; the settings its topics give it must hold too.
 export function validate(value, where = 'fleet entry') {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error(`${where} must be an object`);
   if (!Array.isArray(value.suites) || value.suites.some(s => !suiteNames.includes(s) || s === 'default') || new Set(value.suites).size !== value.suites.length) {
@@ -47,31 +53,38 @@ export function validate(value, where = 'fleet entry') {
       for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`${where}: unknown field ${key}.${field}`);
     }
   }
-  // The setting topics Fleet sets on the repository (topics.mjs); the suites don't read them yet.
   const topics = value.topics ?? [];
   if (!Array.isArray(topics) || new Set(topics).size !== topics.length || topics.some(topic => !validTopic(topic) || !isSettingTopic(topic))) {
     throw new Error(`${where}: topics must name each setting topic once (suites are ci- topics, from suites)`);
   }
   // Forgejo keeps at most 25 topics on a repository.
   if (value.suites.length + topics.length > 25) throw new Error(`${where}: more than 25 topics`);
-  for (const [section, field] of [['go','dependencies'],['go','race'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies'],['docs','required']]) {
+  // A value a topic selects is there exactly when the topic is.
+  for (const [topic, [name, field]] of Object.entries(valueSelectors)) {
+    if ((value[name]?.[field] !== undefined) !== topics.includes(topic)) throw new Error(`${where}: ${name}.${field} goes with topic ${topic}`);
+  }
+  if (value.release?.rustTargets !== undefined && !Array.isArray(value.release.rustTargets)) throw new Error(`${where}: release.rustTargets must be an array`);
+  for (const part of value.release?.rustTargets || []) {
+    const platform = Object.keys(rustBuilds).find(p => rustBuilds[p] === part?.target);
+    if (!platform || !topics.includes(`rust-build-${platform}`)) throw new Error(`${where}: release.rustTargets ${part?.target} needs its rust-build- topic`);
+    if (Object.keys(part).length < 2) throw new Error(`${where}: release.rustTargets holds a target's values; its topic alone builds it`);
+  }
+  if (new Set((value.release?.rustTargets || []).map(part => part.target)).size !== (value.release?.rustTargets || []).length) throw new Error(`${where}: release.rustTargets names a target twice`);
+  settings(resolve(value, topics));
+  return value;
+}
+
+// The settings a repository runs with: its entry, resolved with its topics.
+function settings(value) {
+  for (const [section, field] of [['go','dependencies'],['rust','features'],['release','assets'],['release','dispatch'],['cluster','renders'],['web','packages'],['web','dependencies'],['docs','required']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
-  for (const [section, field] of [['release','module'],['rust','noDefaultFeatures'],['cluster','build'],['cluster','smoke'],['docs','release'],['powershell','windowsPowerShell'],['web','history']]) {
-    if (value[section]?.[field] !== undefined && typeof value[section][field] !== 'boolean') throw new Error(`${section}.${field} must be boolean`);
-  }
+  if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
   if (value.cluster?.renders && !value.cluster.renders.length) throw new Error('cluster.renders must be nonempty');
   if (value.web?.packages && !value.web.packages.length) throw new Error('web.packages must be nonempty');
-  for (const tool of ['go', 'rust', 'cmake', 'dotnet', 'python']) {
-    const platforms = value[tool]?.platforms || ['ubuntu-latest'];
-    if (!Array.isArray(platforms) || !platforms.length || platforms.some(p => !['ubuntu-latest', 'windows-latest'].includes(p)) || new Set(platforms).size !== platforms.length) {
-      throw new Error(`${tool}.platforms must be a nonempty unique Linux/Windows runner list`);
-    }
-  }
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
   if (value.release?.module && (['toolchains', 'external', 'goTargets', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
   const toolchains = value.release?.toolchains || [];
-  if (!Array.isArray(toolchains) || new Set(toolchains).size !== toolchains.length || toolchains.some(t=>!['go','rust','npm','python','dotnet','cmake','powershell'].includes(t))) throw new Error('invalid release.toolchains');
   for (const target of value.release?.goTargets || []) {
     if (!target || Object.keys(target).some(k=>!['goos','goarch','packages','buildmode'].includes(k)) || !['windows','linux','darwin','freebsd','js'].includes(target.goos) || !['amd64','arm64','386','arm','wasm'].includes(target.goarch)) throw new Error('release.goTargets need supported GOOS/GOARCH pairs');
     if(target.buildmode && (target.buildmode!=='c-shared' || (target.goos!=='windows' || target.goarch!=='amd64')))throw new Error('c-shared releases need a native Windows Go target');
@@ -175,8 +188,6 @@ export function validate(value, where = 'fleet entry') {
   if (users !== undefined && (!Array.isArray(users) || !users.length || users.some(user => typeof user !== 'string' || !/^[\w.+-]+:[^\s,@:]+@[\w.-]+$/.test(user)))) {
     throw new Error('greenmail.users are login:password@domain, as GreenMail takes them');
   }
-  if (value.cluster?.smoke === false && value.cluster?.build !== false) throw new Error('only render-only/upstream services may omit the standard smoke job');
-  if (value.cluster?.build === false && value.cluster?.smoke !== false && !/@sha256:[0-9a-f]{64}$/.test(value.cluster.image || '')) throw new Error('upstream cluster.image requires a digest');
   if (value.web?.image && !/^[a-z0-9]+\.azurecr\.io\/[\w./-]+$/.test(value.web.image)) throw new Error('web.image must name an ACR image without a tag');
   if (value.web?.staticApp && (value.web.image || value.web.containerApp || value.web.pinFile || !value.web.resourceGroup || (value.web.packages || ['.']).length!==1)) throw new Error('staticApp needs one package and resourceGroup without an image');
   if (value.web?.containerApp && (value.web.pinFile || !value.web.resourceGroup)) throw new Error('choose a pin PR or a containerApp and resourceGroup');

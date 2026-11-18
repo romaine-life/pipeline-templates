@@ -23,6 +23,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/web-app/dependencies.mjs bump
       env:
         TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}

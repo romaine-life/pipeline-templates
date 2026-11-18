@@ -67,7 +67,7 @@ test('PRs cannot apply infrastructure or propose pins', () => {
   }
 });
 test('image checks smoke once, publication skips smoke and queues the pin without polling', () => {
-  const cfg = {cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
+  const cfg = {suites:['cluster-service'],cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
   let check = probe('cluster-service/image.mjs',['check'],{},cfg);
   assert.equal(check.result.status,0,check.result.stderr);
   assert.deepEqual(check.trace.filter(t=>t.command).map(t=>t.args[0]),['build','run','image']);
@@ -85,7 +85,7 @@ test('image checks smoke once, publication skips smoke and queues the pin withou
   assert.equal(pin.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
 });
 test('a pin is made on the default branch as it is now, and supersedes an older open pin, never a newer one',()=>{
-  const cfg = {cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-14'}};
+  const cfg = {suites:['cluster-service'],cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe-build',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-14'}};
   const older = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.9'},cfg);
   assert.equal(older.result.status,0,older.result.stderr);
   const git = older.trace.filter(t=>t.command==='git').map(t=>t.args.slice(0,2).join(' '));
@@ -111,11 +111,11 @@ test('a release copies the files under release/assets/<toolchain> beside the bui
   const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
   assert.equal(result.status,0,result.stderr);
 });
-test('go.race runs the named packages under the race detector, with cgo, on Linux',()=>{
-  const {result,trace}=probe('go/test.mjs',[],{},{go:{race:['./internal/move','./internal/alerts']}});
+test('go-race runs every package under the race detector, with cgo, on Linux',()=>{
+  const {result,trace}=probe('go/test.mjs',[],{},{go:{race:['./...']}});
   assert.equal(result.status,0,result.stderr);
   const raced=trace.filter(t=>t.command==='go' && t.args.includes('-race'));
-  if (process.platform==='linux') assert.deepEqual(raced.map(t=>t.args.slice(-2)),[['./internal/move','./internal/alerts']]);
+  if (process.platform==='linux') assert.deepEqual(raced.map(t=>t.args.slice(-1)),[['./...']]);
   else assert.equal(raced.length,0,'the race detector runs only on Linux');
 });
 test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',()=>{
@@ -162,7 +162,7 @@ test('manifest script executes every renderer, strict schemas and digest check',
 
 
 test('bot PRs are queued for merge-queue by their queue label',()=>{
-  const cfg={cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
+  const cfg={suites:['cluster-service'],cluster:{image:'forgejo.romaine.life/test/probe',baoRole:'probe-publish',baoSecret:'services/probe',pinFile:'k8s/deployment.yaml',workPackage:'https://openproject.home.romaine.life/wp/PIPT-12'}};
   for(const [script,args,settings,extra] of [['cluster-service/image.mjs',['publish'],cfg,{}],['cluster-service/pin.mjs',[],cfg,{}],['go/dependencies.mjs',[],{go:{dependencies:['github.com/romaine-life/fzt']}},{PROBE_DIFF:'go.mod'}]]) {
     const result=probe(script,args,extra,settings);assert.equal(result.result.status,0,result.result.stderr);
     assert.equal(result.trace.some(t=>t.url?.endsWith('/merge')),false);

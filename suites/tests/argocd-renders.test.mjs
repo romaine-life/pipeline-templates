@@ -45,6 +45,6 @@ test("an app of apps renders each of this repository's apps as Argo CD would", (
 });
 
 test('an argocd render names only its root Application', () => {
-  validate({suites: ['cluster-service'], cluster: {renders: [{kind: 'argocd', path: 'k8s/root-app.yaml'}], build: false, smoke: false}}, 'test/cluster');
-  assert.throws(() => validate({suites: ['cluster-service'], cluster: {renders: [{kind: 'argocd', path: 'k8s/root-app.yaml', values: 'v.yaml'}], build: false, smoke: false}}, 'test/cluster'), /root Application/);
+  validate({suites: ['cluster-service'], cluster: {renders: [{kind: 'argocd', path: 'k8s/root-app.yaml'}]}}, 'test/cluster');
+  assert.throws(() => validate({suites: ['cluster-service'], cluster: {renders: [{kind: 'argocd', path: 'k8s/root-app.yaml', values: 'v.yaml'}]}}, 'test/cluster'), /root Application/);
 });

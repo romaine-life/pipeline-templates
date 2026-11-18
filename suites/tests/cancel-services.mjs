@@ -63,6 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI_FLEET: /fixture/fleet.json
+      CI_TOPICS: '${process.env.CI_TOPICS}'
       CI_REPOSITORY: test/cancel
     defaults:
       run:

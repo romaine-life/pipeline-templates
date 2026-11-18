@@ -95,6 +95,8 @@ try {
       const cfg=currentEntry();
       cfg.release={toolchains:['go'],image:'cluster'};
       cfg.cluster.image='forgejo.romaine.life/test/fixture';
+      // A cluster image is a cluster service's, selected by its cluster-image topic.
+      cfg.suites=[...new Set([...(cfg.suites || []),'cluster-service'])];
       fleetEntry((cfg));
       script('release/image.mjs',['check']);
     }

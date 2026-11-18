@@ -29,6 +29,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/inputs.mjs cluster-service
       id: scope
       env:
@@ -77,6 +79,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/cluster-service/manifests.mjs
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.manifests == 'true'
@@ -93,6 +97,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
     - run: node _ci/suites/cluster-service/image.mjs check
@@ -114,6 +120,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - uses: ./_ci/actions/release-version
       with:
         prefix: ${{ needs.scope.outputs.prefix }}
@@ -158,6 +166,8 @@ jobs:
         path: _ci
         persist-credentials: false
     - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
     - run: node _ci/suites/reuse.mjs publish
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
