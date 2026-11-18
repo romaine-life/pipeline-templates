@@ -124,14 +124,6 @@
         ]
       }
     },
-    "nelsong6/guitar-looper-cli": {
-      "suites": [
-        "rust"
-      ],
-      "topics": [
-        "rust-test-windows"
-      ]
-    },
     "nelsong6/home-cluster": {
       "suites": [
         "cluster-service",
@@ -285,6 +277,14 @@
           "CLAUDE.md"
         ]
       }
+    },
+    "nelsong6/looper": {
+      "suites": [
+        "rust"
+      ],
+      "topics": [
+        "rust-test-windows"
+      ]
     },
     "nelsong6/nas-backup": {
       "suites": [
