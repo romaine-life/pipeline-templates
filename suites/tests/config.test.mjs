@@ -40,9 +40,11 @@ test('GreenMail users and Rust glibc floors are checked where they are declared'
     {suites: ['rust'], service: {greenmail: image}, greenmail: {users: ['alice']}},
     {suites: ['rust'], service: {greenmail: image}, greenmail: {users: []}},
     rust([{target: 'aarch64-unknown-linux-gnu'}]), rust([{target: 'x86_64-pc-windows-msvc', glibc: '2.35'}]),
-    rust([{target: 'x86_64-unknown-linux-gnu', glibc: 'latest'}]), rust([{target: 'x86_64-unknown-linux-gnu', strip: true}])]) {
+    rust([{target: 'x86_64-unknown-linux-gnu', glibc: 'latest'}]), rust([{target: 'x86_64-unknown-linux-gnu', strip: true}]),
+    rust([{target: 'x86_64-unknown-linux-gnu', package: ''}]), rust([{target: 'x86_64-unknown-linux-gnu', package: 'a b'}])]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
   }
   validate({suites: ['rust'], service: {greenmail: image}, greenmail: {users: ['alice:secret@example.com', 'bob:secret@example.com']}});
   validate(rust([{target: 'aarch64-unknown-linux-gnu', glibc: '2.35'}, {target: 'x86_64-unknown-linux-gnu'}, {target: 'aarch64-pc-windows-msvc'}]));
+  validate(rust([{target: 'x86_64-unknown-linux-gnu', package: 'spotify_player_session'}, {target: 'x86_64-pc-windows-msvc', package: 'spotify_player'}]));
 });

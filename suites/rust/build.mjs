@@ -27,13 +27,13 @@ if(target==='aarch64-pc-windows-msvc' && !process.env.CC_aarch64_pc_windows_msvc
   if(!fs.existsSync(clang))throw new Error(`Windows ARM64 needs LLVM's clang on the runner, at ${clang}`);
   process.env.CC_aarch64_pc_windows_msvc=clang;
 }
-run('cargo', [build, '-j', '4', '--locked', '--release', '--workspace', ...(target ? ['--target',buildTarget] : []),
+run('cargo', [build, '-j', '4', '--locked', '--release', ...(part?.package ? ['-p', part.package] : ['--workspace']), ...(target ? ['--target',buildTarget] : []),
   ...(noDefault ? ['--no-default-features'] : []), ...(features?.length ? ['--features', features.join(',')] : [])]);
 const metadata = JSON.parse(capture('cargo', ['metadata', '--no-deps', '--format-version', '1']));
 fs.mkdirSync('dist', {recursive: true});
 const list=config().release?.sourceLists?.[process.env.RELEASE_PART || `rust-${target}`];
 const dependencies=new Set(),owned=new Set(list?tracked():[]);
-for (const pkg of metadata.packages.filter(p => metadata.workspace_members.includes(p.id))) {
+for (const pkg of metadata.packages.filter(p => metadata.workspace_members.includes(p.id) && (!part?.package || p.name === part.package))) {
   for (const output of pkg.targets.filter(t => t.kind.includes('bin') || t.kind.includes('cdylib'))) {
     const platformTarget=process.env.RELEASE_TARGET,windows=platformTarget?platformTarget.includes('windows'):process.platform==='win32';
     const library=output.kind.includes('cdylib'),stem=library?output.name.replaceAll('-','_'):output.name;

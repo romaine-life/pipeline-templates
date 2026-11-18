@@ -75,7 +75,10 @@ export function validate(value, where = 'fleet entry') {
   if(value.release?.rustTargets && (!Array.isArray(value.release.rustTargets) || !value.release.rustTargets.length))throw new Error('release.rustTargets must be a nonempty array');
   for (const part of value.release?.rustTargets || []) {
     if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples; Apple targets belong in release.external');
-    if (Object.keys(part).some(key => !['target', 'features', 'noDefaultFeatures', 'glibc'].includes(key))) throw new Error('release.rustTargets take target, features, noDefaultFeatures and glibc');
+    if (Object.keys(part).some(key => !['target', 'package', 'features', 'noDefaultFeatures', 'glibc'].includes(key))) throw new Error('release.rustTargets take target, package, features, noDefaultFeatures and glibc');
+    // A workspace that ships a different program per platform names its package: Cargo builds it
+    // alone, with that package's own default features, instead of unifying every member's.
+    if (part.package !== undefined && (typeof part.package !== 'string' || !/^[A-Za-z0-9_-]+$/.test(part.package))) throw new Error('release.rustTargets package is a Cargo package name');
     if (part.glibc !== undefined && (!part.target.endsWith('-unknown-linux-gnu') || !/^2\.\d+$/.test(part.glibc))) throw new Error('release.rustTargets glibc is a 2.N floor for a -unknown-linux-gnu target');
     // The Linux runner is x86_64: another architecture links through zig, which a glibc floor selects.
     if (part.target.endsWith('-unknown-linux-gnu') && !part.target.startsWith('x86_64-') && part.glibc === undefined) throw new Error(`${part.target} builds through zig: give it a glibc floor`);

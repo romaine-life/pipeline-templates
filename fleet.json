@@ -487,24 +487,8 @@
       ],
       "rust": {
         "platforms": [
-          "ubuntu-latest",
           "windows-latest"
         ],
-        "noDefaultFeatures": true,
-        "platformFeatures": {
-          "linux": [
-            "rustls-tls",
-            "streaming"
-          ],
-          "win32": [
-            "streaming",
-            "cast",
-            "media-control",
-            "image",
-            "notify",
-            "fzf"
-          ]
-        },
         "lints": [
           "typos",
           "machete"
@@ -520,37 +504,21 @@
         "rustTargets": [
           {
             "target": "x86_64-unknown-linux-gnu",
-            "noDefaultFeatures": true,
-            "features": [
-              "rustls-tls",
-              "streaming"
-            ]
+            "package": "spotify_player_session"
           },
           {
             "target": "x86_64-pc-windows-msvc",
-            "noDefaultFeatures": false
-          }
-        ],
-        "dependencies": [
-          {
-            "url": "https://forgejo.romaine.life/romaine-life/fzt-terminal/releases/download/{tag}/fzt-windows-amd64.dll",
-            "destination": "dist/fzt.dll",
-            "lock": "fzt.lock",
-            "toolchain": "rust",
-            "targets": [
-              "x86_64-pc-windows-msvc"
-            ]
+            "package": "spotify_player"
           }
         ],
         "assets": [
           "dist/spotify_player",
           "dist/spotify_player.exe",
-          "dist/fzt.dll",
           "dist/session-sources.txt"
         ],
         "assetNames": {
           "rust-x86_64-unknown-linux-gnu": {
-            "spotify_player-x86_64-unknown-linux-gnu": "spotify_player"
+            "spotify_player_session-x86_64-unknown-linux-gnu": "spotify_player"
           },
           "rust-x86_64-pc-windows-msvc": {
             "spotify_player-x86_64-pc-windows-msvc.exe": "spotify_player.exe"
