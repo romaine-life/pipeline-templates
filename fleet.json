@@ -286,6 +286,14 @@
         "rust-test-windows"
       ]
     },
+    "nelsong6/music-core": {
+      "suites": [
+        "rust"
+      ],
+      "topics": [
+        "rust-test-windows"
+      ]
+    },
     "nelsong6/nas-backup": {
       "suites": [
         "python"
@@ -489,6 +497,14 @@
     "nelsong6/torrent": {
       "suites": [
         "cluster-service"
+      ]
+    },
+    "nelsong6/tuner": {
+      "suites": [
+        "rust"
+      ],
+      "topics": [
+        "rust-test-windows"
       ]
     },
     "nelsong6/ux-journal": {
