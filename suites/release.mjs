@@ -51,6 +51,10 @@ export async function releaseScope(suite) {
   const cfg = config();
   if (suite === 'cluster-service' && cfg.cluster?.build === false) { output('build', false); return; }
   if (suite === 'web-app' && !cfg.web?.image && !cfg.web?.staticApp || suite === 'docs' && !cfg.docs?.release) { output('build', false); return; }
+  // A release started by hand (strip-owner, with no callback inputs) releases the branch's
+  // head whatever changed: it replaces a published release that is unusable, as at's
+  // v0.1.10 and v0.1.11 were, signed without their tag (PIPT-37).
+  if (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch') { output('build', true); return; }
   const latest = await request(`${api()}/releases/latest`, {allow404: true});
   if (!latest) { output('build', true); return; }
   const base = capture('git', ['rev-parse', '--verify', `refs/tags/${latest.tag_name}^{commit}`]);

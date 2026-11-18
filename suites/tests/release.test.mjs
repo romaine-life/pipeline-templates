@@ -94,6 +94,11 @@ test('source release, publication, pruning, dispatch and successful-input gating
     await publish();assert.equal(release.draft,false);
     assert.equal(calls.filter(([method,url])=>method==='POST' && url.endsWith('/romaine-life/consumer/actions/workflows/go%2Fdependencies.yml/dispatches')).length,2);
     await releaseScope('docs');assert.match(fs.readFileSync('outputs','utf8'),/build=false/);
+    // Started by hand, the same unchanged head releases (PIPT-37).
+    process.env.GITHUB_EVENT_NAME='workflow_dispatch';fs.writeFileSync('outputs','');
+    await releaseScope('docs');assert.equal(fs.readFileSync('outputs','utf8'),'build=true\n');
+    process.env.GITHUB_EVENT_NAME='push';fs.writeFileSync('outputs','');
+    await releaseScope('docs');assert.equal(fs.readFileSync('outputs','utf8'),'build=false\n');
     fs.writeFileSync('README.md','# Changed source\n');run('git',['add','README.md']);
     run('git',['-c','user.name=test','-c','user.email=test@example.invalid','commit','-m','change']);
     await releaseScope('docs');assert.match(fs.readFileSync('outputs','utf8'),/build=true/);
