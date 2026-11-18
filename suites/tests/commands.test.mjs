@@ -144,6 +144,13 @@ test('a release copies the files under release/assets/<toolchain> beside the bui
   const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]]),'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
   assert.equal(result.status,0,result.stderr);
 });
+test("a pull request's Go tests fail on a program under cmd/ that .goreleaser.yaml doesn't build",()=>{
+  const files={'.goreleaser.yaml':goReleaser([['probe','./cmd/probe',['windows_amd64_v1']]]),'cmd/probe/main.go':'package main\n'};
+  const listed=probe('go/test.mjs',[],{},{},files);assert.equal(listed.result.status,0,listed.result.stderr);
+  const unlisted=probe('go/test.mjs',[],{},{},{...files,'cmd/extra/main.go':'package main\n'});
+  assert.notEqual(unlisted.result.status,0);assert.match(unlisted.result.stderr,/builds no program from cmd\/extra/);
+  assert.equal(probe('go/test.mjs',[],{},{},{'cmd/tool/main.go':'package main\n'}).result.status,0,'a repository releasing no Go program has nothing to list');
+});
 test('go-race runs every package under the race detector, with cgo, on Linux',()=>{
   const {result,trace}=probe('go/test.mjs',[],{},{go:{race:['./...']}});
   assert.equal(result.status,0,result.stderr);
