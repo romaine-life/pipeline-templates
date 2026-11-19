@@ -542,6 +542,14 @@
         ]
       }
     },
+    "romaine-life/fzt-emoji": {
+      "suites": [
+        "go"
+      ],
+      "topics": [
+        "go-test-windows"
+      ]
+    },
     "romaine-life/fzt-frontend": {
       "suites": [
         "cluster-service",
