@@ -114,15 +114,17 @@ export async function dispatch() {
     const mirrors=await request(`${api()}/push_mirrors`,options);
     if (mirrors.length) await post(`${api()}/push_mirrors-sync`,{},options);
   }
-  for (const target of config().release?.dispatch || []) {
+  // The repository's own released.yml, when it has one, runs on its default branch once the
+  // release is out (spirelens uploads it to Steam Workshop). The release's own event can't start
+  // it: Forgejo starts no workflow for what a job's automatic token does.
+  if (fs.existsSync(released)) {
     const token=process.env.DISPATCH_TOKEN;
-    if (!token) throw new Error('downstream dispatch requires PIPELINE_DISPATCH_TOKEN');
-    const url=`${process.env.GITHUB_SERVER_URL}/api/v1/repos/${target.repository}`;
-    const repo=await request(url,{token});
-    await post(`${url}/actions/workflows/${encodeURIComponent(target.workflow || 'go/dependencies.yml')}/dispatches`,
-      {ref:repo.default_branch},{token});
+    if (!token) throw new Error(`${released} runs through PIPELINE_DISPATCH_TOKEN`);
+    const repo=await request(api(),{token});
+    await post(`${api()}/actions/workflows/${path.basename(released)}/dispatches`,{ref:repo.default_branch},{token});
   }
 }
+export const released = '.forgejo/workflows/released.yml';
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const mode = process.argv[2];
   if (mode === 'scope') await releaseScope(process.argv[3]);

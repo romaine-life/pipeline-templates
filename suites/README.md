@@ -64,7 +64,7 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 | `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
-| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `external`, `dispatch` |
+| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `external` |
 
 ### What the repository's name and files decide
 
@@ -113,7 +113,9 @@ DLL fails if it imports a MinGW runtime DLL (`lib*.dll`), which nothing ships be
 A repository that releases and builds an image (its `cluster-image` or `web-image` topic)
 releases them together under one version. A CMake, .NET or Python release builds on Windows
 when that toolchain's tests run on Windows alone, else on Linux, and a release syncs the
-repository's Forgejo push mirrors, when it has any. A cluster image's release publishes the
+repository's Forgejo push mirrors, when it has any. Once a release is published, the
+repository's own `.forgejo/workflows/released.yml`, when it has one, runs on its default
+branch (spirelens' Steam Workshop upload). A cluster image's release publishes the
 image and proposes its pin.
 The image is built again only when its inputs (its `Dockerfile`, `.dockerignore` and what it
 copies in) changed since the release that built the image the pin file runs; otherwise the

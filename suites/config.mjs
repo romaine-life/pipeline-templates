@@ -1,5 +1,5 @@
 import path from 'node:path';
-import {capture, readJSON, safePath, templates} from './lib.mjs';
+import {capture, readJSON, templates} from './lib.mjs';
 import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic, valueSelectors} from './topics.mjs';
 import {layout} from './layout.mjs';
 
@@ -8,7 +8,7 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['dispatch', 'rustTargets', 'external'],
+  release: ['rustTargets', 'external'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
@@ -76,9 +76,7 @@ export function validate(value, where = 'fleet entry') {
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  for (const [section, field] of [['rust','features'],['release','dispatch']]) {
-    if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
-  }
+  if (value.rust?.features !== undefined && !Array.isArray(value.rust.features)) throw new Error('rust.features must be an array');
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
   if (value.release?.module && (['toolchains', 'external', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
@@ -103,10 +101,6 @@ function settings(value) {
     for (const asset of part.assets) if (!/^[\w.+-]+$/.test(asset.replaceAll('{tag}','tag').replaceAll('{version}','version'))) throw new Error('external assets must be plain file names');
     for (const asset of part.assets) {if (externalAssets.has(asset)) throw new Error('external release asset names must be unique across parts');externalAssets.add(asset);}
     externalIds.add(part.id);
-  }
-  for (const target of value.release?.dispatch || []) {
-    if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(target.repository || '') || Object.keys(target).some(k=>!['repository','workflow'].includes(k))) throw new Error('release.dispatch must name an owned repository and optional workflow');
-    if (target.workflow) safePath(target.workflow);
   }
   for (const [name, image] of Object.entries(value.service || {})) {
     if (typeof image !== 'string' || !/^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/.test(image)) throw new Error(`service.${name} must be a digest-pinned Artifact Keeper image`);

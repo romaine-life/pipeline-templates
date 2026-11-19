@@ -60,7 +60,9 @@ test('source release, publication, pruning, dispatch and successful-input gating
   let release=null;const calls=[];
   try {
     process.chdir(dir);
-    const fleetFile=fleetEntry(({version:1,docs:{release:true},release:{dispatch:[{repository:'romaine-life/consumer'}]}}),'test/source');
+    const fleetFile=fleetEntry(({version:1,docs:{release:true}}),'test/source');
+    // The repository's own released.yml runs once the release is out.
+    fs.mkdirSync('.forgejo/workflows',{recursive:true});fs.writeFileSync('.forgejo/workflows/released.yml','on: workflow_dispatch\n');
     // A fleet repository whose go.mod requires this one's module gets its take-up too.
     const listed=JSON.parse(fs.readFileSync(fleetFile,'utf8'));listed.repos['romaine-life/consumer']={suites:['go']};
     fs.writeFileSync(fleetFile,JSON.stringify(listed));
@@ -73,7 +75,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
       VERSION:'v0.1.1',TOKEN:'repo-token',DISPATCH_TOKEN:'dispatch-token',GITHUB_OUTPUT:path.join(dir,'outputs')});
     globalThis.fetch=async (url,options={}) => {
       const u=String(url),method=options.method || 'GET';calls.push([method,u]);
-      assert.equal(options.headers.Authorization,u.includes('/romaine-life/consumer') || u.includes('/push_mirrors') ? 'token dispatch-token' : 'token repo-token');
+      assert.equal(options.headers.Authorization,u.includes('/romaine-life/consumer') || u.includes('/push_mirrors') || u.endsWith('/test/source') || u.includes('/test/source/actions/') ? 'token dispatch-token' : 'token repo-token');
       let body={};
       if (u.endsWith('/releases/tags/v0.1.1') && !release) return new Response('{}',{status:404});
       if (u.endsWith('/releases') && method==='POST') release={...JSON.parse(options.body),id:1,assets:[]};
@@ -82,7 +84,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
       if (u.includes('/releases?')) body=[release];
       else if (u.includes('/releases')) body=release;
       else if (u.endsWith('/push_mirrors')) body=[];
-      else if (u.endsWith('/romaine-life/consumer')) body={default_branch:'master'};
+      else if (u.endsWith('/romaine-life/consumer') || u.endsWith('/test/source')) body={default_branch:'master'};
       else if (u.endsWith('/romaine-life/consumer/raw/go.mod?ref=master')) return new Response('module x\n\nrequire github.com/romaine-life/source v0.1.0\n');
       else if (u.endsWith('/dispatches')) {
         assert.deepEqual(JSON.parse(options.body),{ref:'master'});
@@ -94,7 +96,8 @@ test('source release, publication, pruning, dispatch and successful-input gating
     assert.ok(fs.statSync('dist/source.zip').size>0);
     await publish();assert.equal(release.draft,false);
     assert.ok(calls.some(([method,url])=>method==='GET' && url.endsWith('/test/source/push_mirrors')) && !calls.some(([,url])=>url.endsWith('/push_mirrors-sync')),'a repository without push mirrors syncs none');
-    assert.equal(calls.filter(([method,url])=>method==='POST' && url.endsWith('/romaine-life/consumer/actions/workflows/go%2Fdependencies.yml/dispatches')).length,2);
+    assert.equal(calls.filter(([method,url])=>method==='POST' && url.endsWith('/romaine-life/consumer/actions/workflows/go%2Fdependencies.yml/dispatches')).length,1);
+    assert.equal(calls.filter(([method,url])=>method==='POST' && url.endsWith('/test/source/actions/workflows/released.yml/dispatches')).length,1);
     await releaseScope('docs');assert.match(fs.readFileSync('outputs','utf8'),/build=false/);
     // Started by hand, the same unchanged head releases (PIPT-37).
     process.env.GITHUB_EVENT_NAME='workflow_dispatch';fs.writeFileSync('outputs','');

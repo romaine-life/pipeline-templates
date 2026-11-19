@@ -655,15 +655,7 @@
         "go-test-linux",
         "go-test-windows",
         "release-dotnet"
-      ],
-      "release": {
-        "dispatch": [
-          {
-            "repository": "romaine-life/spirelens",
-            "workflow": "workshop.yml"
-          }
-        ]
-      }
+      ]
     },
     "romaine-life/spirelens-mcp": {
       "suites": [
