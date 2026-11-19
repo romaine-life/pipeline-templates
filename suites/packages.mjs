@@ -158,6 +158,18 @@ export function forgejoDependencies(dir, base = server()) {
   return [...names].filter(name => lock.packages?.[`node_modules/${name}`]?.resolved?.startsWith(`${base}/api/packages/`)).sort();
 }
 
+// The packages whose pinned version a take-up moved, as `name old -> new`, from each
+// package.json's dependencies before and after.
+export function moved(before, after) {
+  const pins = manifest => Object.assign({}, manifest.optionalDependencies, manifest.devDependencies, manifest.dependencies);
+  const result = new Set();
+  for (const [file, old] of Object.entries(before)) {
+    const was = pins(old), now = pins(after[file]);
+    for (const name of Object.keys(now)) if (name in was && was[name] !== now[name]) result.add(`${name} ${was[name]} -> ${now[name]}`);
+  }
+  return [...result].sort();
+}
+
 // Takes the newest version of every package the repository gets from Forgejo, each pinned
 // exactly, and proposes it as one take-up PR (web-app/dependencies.yml, release/dependencies.yml).
 export async function takeUp() {
@@ -165,18 +177,18 @@ export async function takeUp() {
   const token = process.env.TOKEN;
   if (!token) throw new Error('missing PIPELINE_DISPATCH_TOKEN');
   process.env.FORGEJO_PACKAGES_TOKEN ??= await readToken();
-  const files = [], taken = new Set();
+  const files = [], before = {};
   for (const file of tracked().filter(f => path.posix.basename(f) === 'package.json' && !f.split('/').includes('node_modules'))) {
     const dir = path.posix.dirname(file), names = forgejoDependencies(dir);
     if (!names.length) continue;
+    before[file] = JSON.parse(fs.readFileSync(file, 'utf8'));
     run(npm, ['install', '--package-lock-only', '--ignore-scripts', '--save-exact', '--no-audit', '--no-fund', ...names.map(name => `${name}@latest`)], {cwd: dir, shell});
     files.push(file, path.posix.join(dir, 'package-lock.json'));
-    for (const name of names) taken.add(name);
   }
-  if (!taken.size) throw new Error('no package.json here takes a package from Forgejo');
+  if (!files.length) throw new Error('no package.json here takes a package from Forgejo');
   const changed = capture('git', ['status', '--porcelain', '--', ...files]);
   if (!changed) { console.log('Every package from Forgejo is current'); return; }
-  const names = [...taken].sort().join(', ');
+  const names = moved(before, Object.fromEntries(Object.keys(before).map(file => [file, JSON.parse(fs.readFileSync(file, 'utf8'))]))).join(', ') || 'the packages from Forgejo';
   await proposeDependencies({files, title: 'Take newer packages', message: `Take the newest ${names}`,
     summary: `Takes the newest ${names}.`, token, env: pushEnv(token)});
 }

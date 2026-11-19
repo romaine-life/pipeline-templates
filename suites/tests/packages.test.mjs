@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {consumers, forgejoDependencies, jobToken, ownPackage, packageVersion, registry, usesPackages} from '../packages.mjs';
+import {consumers, forgejoDependencies, jobToken, moved, ownPackage, packageVersion, registry, usesPackages} from '../packages.mjs';
 
 function inDir(fn) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'packages-'));
@@ -90,4 +90,11 @@ test("a package's take-up goes to each fleet repository whose package.json uses 
     manifests['romaine-life/lights/web/package.json'] = {dependencies: {'@romaine-life/fzt-browser': '0.1.1'}};
     await assert.rejects(consumers('@romaine-life/fzt-browser', {token: 't', repos, base: 'https://f.example'}), /neither the web-app nor the release suite/);
   } finally { globalThis.fetch = saved; }
+});
+
+test('a take-up names only the packages it moved, with their versions', () => {
+  const before = {'backend/package.json': {dependencies: {'@romaine-life/fzt-browser': '0.1.118', express: '4'}}, 'string-box/package.json': {dependencies: {'@romaine-life/string-box': '0.1.3'}}};
+  const after = {'backend/package.json': {dependencies: {'@romaine-life/fzt-browser': '0.1.118', express: '4'}}, 'string-box/package.json': {dependencies: {'@romaine-life/string-box': '0.1.4'}}};
+  assert.deepEqual(moved(before, after), ['@romaine-life/string-box 0.1.3 -> 0.1.4']);
+  assert.deepEqual(moved(before, before), []);
 });
