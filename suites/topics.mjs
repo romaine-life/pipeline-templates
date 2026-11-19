@@ -8,6 +8,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {request} from './lib.mjs';
+import {serviceImages} from './conventions.mjs';
 
 const testTools = ['go', 'rust', 'cmake', 'dotnet', 'python'];
 export const releaseToolchains = ['go', 'rust', 'npm', 'python', 'dotnet', 'cmake', 'powershell'];
@@ -16,7 +17,7 @@ export const rustBuilds = {
   'linux-amd64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu',
 };
 const lints = ['typos', 'machete', 'audit'];
-export const serviceNames = ['postgres', 'manticore', 'greenmail'];
+export const serviceNames = Object.keys(serviceImages);
 
 // Every topic the suites read, and so every topic Fleet owns besides `ci-`.
 export const settingTopics = [
@@ -59,6 +60,8 @@ export function resolve(entry, topics, repo = 'owner/repo') {
   if (cfg.suites?.includes('cluster-service') && !on.has('cluster-image')) Object.assign(section('cluster'), {build: false, smoke: false});
   if (on.has('cluster-image')) Object.assign(section('cluster'), {image: `forgejo.romaine.life/${repo}`, baoRole: `${name}-publish`, baoSecret: `services/${name}-build`});
   if (on.has('web-image')) section('web').image = `romainecr.azurecr.io/${name}`;
+  // A service- topic starts that service for the tests, from the image every repository uses.
+  for (const service of serviceNames) if (on.has(`service-${service}`)) section('service')[service] = serviceImages[service];
   // A repository that releases and builds an image releases them together, under one version.
   if (cfg.suites?.includes('release') && (on.has('cluster-image') || on.has('web-image'))) section('release').image = on.has('cluster-image') ? 'cluster' : 'web';
   if (on.has('web-static')) Object.assign(section('web'), {staticApp: `${name}-app`, resourceGroup: `${name}-rg`});

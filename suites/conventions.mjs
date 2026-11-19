@@ -8,6 +8,14 @@ import {tracked} from './lib.mjs';
 export const tofuVersion = '1.11.0';
 export const requiredDocs = ['README.md'];
 
+// The services a repository's tests start, each the one image every repository's tests use,
+// pinned by digest through Artifact Keeper (PIPT-40); its service- topic selects it.
+export const serviceImages = {
+  postgres: 'artifacts.home.romaine.life/dockerhub/library/postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42',
+  manticore: 'artifacts.home.romaine.life/dockerhub/manticoresearch/manticore:29.9.0@sha256:6e32ad69a4a1bf5e596b8b2abd00b7625fc2a146c3877b365a4d4840f5cffd12',
+  greenmail: 'artifacts.home.romaine.life/dockerhub/greenmail/standalone:2.1.3@sha256:d6db42a4fc258fec0948b1ae7b579fd06947cc92087c162ec0597972a6c36850',
+};
+
 // Every repository's OpenTofu state is <repo>.tfstate in the one state container.
 export const tofuBackend = repo => ({
   resource_group_name: 'infra', storage_account_name: 'nelsontofu', container_name: 'tfstate',

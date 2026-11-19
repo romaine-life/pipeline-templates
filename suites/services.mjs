@@ -9,6 +9,7 @@ import {capture,run} from './lib.mjs';
 import {config} from './config.mjs';
 import {dockerEvents} from './docker-events.mjs';
 export const ownerLabel='life.romaine.ci.services';
+export const greenmailUsers=['alice:secret@example.com','bob:secret@example.com'];
 export const stateFile=()=>path.resolve(process.env.CI_SERVICE_STATE || '.ci-services.json');
 const list=text=>text.split(/\r?\n/).filter(Boolean);
 function readState() {
@@ -112,7 +113,7 @@ export async function watchHealth(id,names,{subscribe=dockerEvents,timeout=18000
     return {ready,close};
   } catch(error){const failure=controller.signal.aborted ? controller.signal.reason : error;close();throw failure;}
 }
-export async function startServices(services=config().service || {},{users=[],read=capture,execute=run,probe=probeService,certificate=peerCertificate,subscribe=dockerEvents,timeout=180000}={}) {
+export async function startServices(services=config().service || {},{read=capture,execute=run,probe=probeService,certificate=peerCertificate,subscribe=dockerEvents,timeout=180000}={}) {
   if(fs.existsSync(stateFile()))throw new Error('service state already exists; run services.mjs stop first');
   if(!Object.keys(services).length)return {};
   const state={id:`ci-services-${randomUUID()}`,addresses:{},volumes:[]};
@@ -124,8 +125,9 @@ export async function startServices(services=config().service || {},{users=[],re
   execute('docker',['network','create','--label',`${ownerLabel}=${state.id}`,state.id],remaining());
   for(const [name,image]of Object.entries(services)) {
     if(!['postgres','manticore','greenmail'].includes(name) || !/@sha256:[0-9a-f]{64}$/.test(image))throw new Error('services require known names and digest-pinned images');
-    // GreenMail's users sign in with their whole address (greenmail.users.login=email).
-    const mail=['-Dgreenmail.setup.test.all','-Dgreenmail.hostname=0.0.0.0',...(users.length?[`-Dgreenmail.users=${users.join(',')}`,'-Dgreenmail.users.login=email']:[])];
+    // GreenMail has two accounts, as Postgres signs in postgres on trust: alice@example.com and
+    // bob@example.com, password secret, each signing in with its whole address.
+    const mail=['-Dgreenmail.setup.test.all','-Dgreenmail.hostname=0.0.0.0',`-Dgreenmail.users=${greenmailUsers.join(',')}`,'-Dgreenmail.users.login=email'];
     const env=name==='postgres' ? ['-e','POSTGRES_HOST_AUTH_METHOD=trust'] : name==='greenmail' ? ['-e',`GREENMAIL_OPTS=${mail.join(' ')}`] : [];
     execute('docker',['run','-d','--name',`${state.id}-${name}`,'--label',`${ownerLabel}=${state.id}`,'--network',state.id,'--network-alias',name,'--health-cmd',healthChecks[name],'--health-interval','1s','--health-timeout','5s','--health-retries','180',...env,image],remaining());
     const info=JSON.parse(read('docker',['inspect',`${state.id}-${name}`],remaining()))[0];
@@ -165,7 +167,7 @@ export function stopServices({read=capture,execute=run}={}) {
   fs.unlinkSync(stateFile());
 }
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  if(process.argv[2]==='start'){const cfg=config();await startServices(cfg.service || {},{users:cfg.greenmail?.users || []});}
+  if(process.argv[2]==='start')await startServices();
   else if(process.argv[2]==='stop')stopServices();
   else throw new Error('services.mjs start|stop');
 }

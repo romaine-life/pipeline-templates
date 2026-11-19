@@ -6,7 +6,8 @@ import {randomUUID} from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 import {capture,run,suites} from '../lib.mjs';
 import {ownerLabel} from '../services.mjs';
-import {fleetEntry, currentEntry, servicesFile} from './fleet-entry.mjs';
+import {fleetEntry, currentEntry} from './fleet-entry.mjs';
+import {serviceImages} from '../conventions.mjs';
 
 const runnerImage='forgejo.romaine.life/nelsong6/linux-runner:v13.2.0.0@sha256:c44ab0713fa906e309651f00be9af908998bc001dec20f270dcb30717e5cc7bc';
 const jobImage='artifacts.home.romaine.life/ghcr/catthehacker/ubuntu:act-24.04@sha256:19619a010b204f44c5340bff7d39b68551109fe6a56a53f75201ea91e05d4270';
@@ -51,11 +52,10 @@ try {
     }
     dockerEnv.push('DOCKER_CERT_PATH=/fixture/docker-certs');
   }
-  for(const file of ['services.mjs','docker-events.mjs','config.mjs','topics.mjs','layout.mjs','lib.mjs'])fs.copyFileSync(path.join(suites,file),path.join(dir,'suites',file));
+  for(const file of ['services.mjs','docker-events.mjs','config.mjs','topics.mjs','conventions.mjs','layout.mjs','lib.mjs'])fs.copyFileSync(path.join(suites,file),path.join(dir,'suites',file));
   // layout.mjs reads Cargo.toml with @iarna/toml, which needs nothing else.
   fs.cpSync(path.join(suites,'node_modules','@iarna','toml'),path.join(dir,'suites','node_modules','@iarna','toml'),{recursive:true});
-  const services={service:JSON.parse(fs.readFileSync(new URL('./service-images.json',import.meta.url),'utf8'))};
-  fs.copyFileSync(fleetEntry(services,'test/cancel'),path.join(dir,'fleet.json'));servicesFile(services,dir);
+  fs.copyFileSync(fleetEntry({service:serviceImages},'test/cancel'),path.join(dir,'fleet.json'));
   fs.writeFileSync(path.join(dir,'hold.mjs'),`import fs from 'node:fs';import net from 'node:net';console.log('CI_CANCEL_READY:'+JSON.parse(fs.readFileSync('.ci-services.json')).id);net.createServer().listen(0,'127.0.0.1');`);
   fs.writeFileSync(path.join(dir,'result.mjs'),`import fs from 'node:fs';console.log('CI_CANCELLED_CONFIRMED');fs.writeFileSync('cancelled-proof','cancelled');`);
   fs.writeFileSync(path.join(dir,'ordinary.mjs'),`throw new Error('ordinary step ran after cancellation');`);

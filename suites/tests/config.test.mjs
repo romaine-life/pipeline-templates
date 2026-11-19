@@ -6,6 +6,7 @@ import path from 'node:path';
 import {config, fleet, validate} from '../config.mjs';
 import {currentTopics, resolve, settingTopics, validTopic} from '../topics.mjs';
 import {checkVariants} from '../fingerprints.mjs';
+import {serviceImages} from '../conventions.mjs';
 import {rustTargets} from '../layout.mjs';
 import {topicsFor} from '../fleet.mjs';
 
@@ -91,24 +92,12 @@ test('the real fleet list is valid', () => {
   assert.ok(Object.keys(fleet()).length > 0);
 });
 
-// A repository's services are its own ci/services.json, named exactly as its topics select them.
-test("the tests' services come from the repository's ci/services.json", () => {
-  const image = name => `artifacts.home.romaine.life/dockerhub/${name}:1@sha256:${'a'.repeat(64)}`;
-  const run = (files, topics) => config('o/app', {'o/app': {suites: ['go']}}, topics, {files: Object.keys(files), read: file => files[file] ?? null});
-  assert.equal(run({}, []).service, undefined);
-  const mail = {image: image('greenmail'), users: ['alice:secret@example.com', 'bob:secret@example.com']};
-  const cfg = run({'ci/services.json': JSON.stringify({postgres: {image: image('postgres')}, greenmail: mail})}, ['service-postgres', 'service-greenmail']);
-  assert.deepEqual(cfg.service, {postgres: image('postgres'), greenmail: image('greenmail')});
-  assert.deepEqual(cfg.greenmail, {users: mail.users});
-  for (const [services, topics] of [[undefined, ['service-postgres']], [{postgres: {image: image('postgres')}}, []],
-    [{postgres: {image: image('postgres')}}, ['service-postgres', 'service-manticore']], [{redis: {image: image('redis')}}, []],
-    [{postgres: {image: 'postgres:17'}}, ['service-postgres']], [{postgres: image('postgres')}, ['service-postgres']],
-    [{postgres: {image: image('postgres'), users: mail.users}}, ['service-postgres']],
-    [{greenmail: {...mail, users: ['alice']}}, ['service-greenmail']], [{greenmail: {...mail, users: []}}, ['service-greenmail']], [[], []]]) {
-    assert.throws(() => run(services === undefined ? {} : {'ci/services.json': JSON.stringify(services)}, topics), JSON.stringify([services, topics]));
-  }
-  // The list holds no service settings any more.
-  assert.throws(() => validate({suites: ['go'], topics: ['service-postgres'], service: {postgres: image('postgres')}}), /unknown field service/);
+// A service- topic starts its service from the one image every repository's tests use.
+test("the tests' services are the convention's images, as the topics select them", () => {
+  assert.equal(resolve({suites: ['go']}, []).service, undefined);
+  assert.deepEqual(resolve({suites: ['go']}, ['service-postgres', 'service-greenmail']).service, {postgres: serviceImages.postgres, greenmail: serviceImages.greenmail});
+  for (const image of Object.values(serviceImages)) assert.match(image, /^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/);
+  assert.throws(() => validate({suites: ['go'], topics: ['service-postgres'], service: {postgres: serviceImages.postgres}}), /unknown field service/);
 });
 
 test("a Rust release target's values are the repository's Cargo.toml's", () => {

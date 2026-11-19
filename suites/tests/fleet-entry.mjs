@@ -63,9 +63,9 @@ export function entryFor(settings) {
     if (JSON.stringify(external) !== '[{"id":"build","workflow":"build.yml"}]') throw new Error("release-external is the repository's build.yml");
     topics.push('release-external');
   }
-  // A service's image is the repository's (ci/services.json, servicesFile below); the topic selects it.
+  // A service's image is the convention's (conventions.mjs); the topic selects it.
   for (const name of Object.keys(entry.service || {})) topics.push(`service-${name}`);
-  delete entry.service; delete entry.greenmail;
+  delete entry.service;
   const parts = take('release', 'rustTargets');
   for (const part of parts || []) {
     const platform = Object.keys(rustBuilds).find(p => rustBuilds[p] === part.target);
@@ -74,12 +74,4 @@ export function entryFor(settings) {
     topics.push(`rust-build-${platform}`);
   }
   return {entry, topics: [...new Set(topics)].sort()};
-}
-
-// The repository's ci/services.json for settings' services (layout.mjs), written under root.
-export function servicesFile(settings, root = '.') {
-  const value = Object.fromEntries(Object.entries(settings.service || {}).map(([name, image]) => [name, {image}]));
-  if (settings.greenmail?.users) value.greenmail.users = settings.greenmail.users;
-  fs.mkdirSync(path.join(root, 'ci'), {recursive: true});
-  fs.writeFileSync(path.join(root, 'ci', 'services.json'), JSON.stringify(value));
 }

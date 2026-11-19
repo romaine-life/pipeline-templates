@@ -40,7 +40,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `go-race` | Every package's tests run again under the race detector, in the Linux test job |
 | `rust-typos`, `rust-machete`, `rust-audit` | Rust lints; `audit` checks RustSec's advisories, read fresh through Artifact Keeper, when `Cargo.lock` changes |
 | `windows-powershell` | The PowerShell parse check runs in Windows PowerShell too |
-| `service-postgres`, `service-manticore`, `service-greenmail` | The tests' services, each the image the repository's `ci/services.json` names (below). The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
+| `service-postgres`, `service-manticore`, `service-greenmail` | The tests' services, each the one image every repository's tests use (`suites/conventions.mjs`). GreenMail has two accounts, `alice@example.com` and `bob@example.com`, password `secret`, each signing in with its whole address. The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
 | `cluster-image` | A cluster service builds and smoke-tests its own image; without it the service renders and pins what upstream publishes |
 | `web-image` | The web app builds its image |
 | `web-static` | The web app deploys to its Static Web App |
@@ -82,12 +82,6 @@ default features, for a workspace that ships a different program per platform; `
 through zig, which another architecture than the runner's x86_64 needs. Windows ARM64 builds
 with the Windows runner's LLVM clang.
 
-The services its tests start (PIPT-40) are its `ci/services.json`: each service a `service-`
-topic selects, and no other, maps to `{"image": ...}`, the image pinned by digest through
-Artifact Keeper; GreenMail's also takes `users`, its accounts, each `login:password@domain`,
-signing in with the whole address. A change to it runs the tests (and the image's smoke test)
-and cuts no release.
-
 A release publishes what its build leaves at the top of `dist/` under its own names (CMake
 installs there, `release/assets/<part>/` adds files beside them), a Rust binary under its
 platform (`tuimail-x86_64-pc-windows-msvc.exe` as `tuimail-windows-amd64.exe`) and a folder as
@@ -104,7 +98,8 @@ tag (v0.1 with none; a new series starts with its first tag made by hand, such a
 or with `version-from-manifest` on the root `Cargo.toml` (or a workspace's one default
 member), `CMakeLists.txt` or `package.json`. Some are the same everywhere: OpenTofu 1.11.0,
 with each repository's state at `<repo>.tfstate` in the `nelsontofu` account's `tfstate`
-container, and `README.md` the one document the docs suite requires. And a Go release builds what its `.goreleaser.yaml` lists, through `goreleaser build` (the
+container, `README.md` the one document the docs suite requires, and each test service's
+image (Postgres 18.6, Manticore 29.9.0, GreenMail 2.1.3). And a Go release builds what its `.goreleaser.yaml` lists, through `goreleaser build` (the
 suite keeps versions, upload and home-sync): one Linux job builds the programs, the Windows
 runner the `c-shared` DLLs, and each file GoReleaser builds publishes under the name its
 `binary` gives it. Every program under `cmd/` must be one of its builds, and a Windows

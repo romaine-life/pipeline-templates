@@ -73,13 +73,12 @@ test('health events handle early/out-of-order health, exit, stream failure and o
   }
 });
 
-test('GreenMail takes the declared users and hands the tests its TLS ports and one certificate file',async()=>{
+test('GreenMail starts with its two accounts and hands the tests its TLS ports and one certificate file',async()=>{
   const cwd=process.cwd(),oldEnv={...process.env},dir=fs.mkdtempSync(path.join(os.tmpdir(),'services-'));
   try {
     process.chdir(dir);delete process.env.CI_SERVICE_STATE;delete process.env.GITHUB_ENV;process.env.RUNNER_TEMP=dir;
     let run,onEvent;
     const deps={
-      users:['alice:secret@example.com','bob:secret@example.com'],
       subscribe:async(filters,observe)=>{onEvent=observe;return {close(){}};},
       read:(cmd,args)=>{const state=JSON.parse(fs.readFileSync(stateFile(),'utf8'));return args[0]==='inspect' ? JSON.stringify([{NetworkSettings:{Networks:{[state.id]:{IPAddress:'172.18.0.3'}}}}]) : '';},
       execute:(cmd,args)=>{if(args[0]==='run'){run=args;onEvent({Action:'health_status: healthy',Actor:{Attributes:{name:args[args.indexOf('--name')+1]}}});}},
