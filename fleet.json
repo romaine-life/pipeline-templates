@@ -642,6 +642,17 @@
         "rust-test-windows"
       ]
     },
+    "romaine-life/terminal-share": {
+      "suites": [
+        "cluster-service",
+        "go",
+        "tofu",
+        "web-app"
+      ],
+      "topics": [
+        "web-image"
+      ]
+    },
     "romaine-life/tuimail": {
       "suites": [
         "release",
