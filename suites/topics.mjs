@@ -21,8 +21,7 @@ const serviceNames = ['postgres', 'manticore', 'greenmail'];
 // Selectors that pick a value fleet.json still holds (to become conventions or repository
 // files): the topic decides whether it applies, the value what it is.
 export const valueSelectors = {
-  'release-archive': ['release', 'archives'],
-  'release-source-list': ['release', 'sourceLists'], 'release-external': ['release', 'external'],
+  'release-external': ['release', 'external'],
   ...Object.fromEntries(serviceNames.map(name => [`service-${name}`, ['service', name]])),
 };
 
@@ -35,7 +34,7 @@ export const settingTopics = [
   'release-source', 'release-module', ...releaseToolchains.map(kind => `release-${kind}`),
   'version-from-manifest', 'version-four-part', 'home-sync',
   ...Object.keys(rustBuilds).map(platform => `rust-build-${platform}`),
-  'release-archive', 'release-source-list', 'release-external',
+  'release-external',
 ];
 const known = new Set(settingTopics);
 export const isSettingTopic = topic => known.has(topic);

@@ -54,7 +54,7 @@ export function entryFor(settings) {
   flag('web', 'image', 'web-image');
   flag('web', 'static', 'web-static');
   for (const [name, field, topic] of [
-    ['release', 'archives', 'release-archive'], ['release', 'sourceLists', 'release-source-list'], ['release', 'external', 'release-external'],
+    ['release', 'external', 'release-external'],
     ['service', 'postgres', 'service-postgres'], ['service', 'manticore', 'service-manticore'], ['service', 'greenmail', 'service-greenmail']]) {
     if (entry[name]?.[field] !== undefined) topics.push(topic);
   }

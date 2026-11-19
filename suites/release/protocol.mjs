@@ -131,7 +131,7 @@ export async function finalize(completedPart='',completion='success',receipt) {
   }
   const ready=!missing.length;
   if(ready) {
-    const records=Object.values(value.receipts).flatMap(part=>part.files),generated=metadataFiles(records,plan.metadata || {},{tag:plan.tag,sha:plan.sha});
+    const records=Object.values(value.receipts).flatMap(part=>part.files),generated=metadataFiles(records);
     const manifest=[];
     for(const [name,bytes] of Object.entries(generated)) {
       const previous=value.generated?.files.find(file=>file.name===name),asset=rel.assets.find(asset=>asset.id===previous?.id);

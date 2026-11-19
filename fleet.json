@@ -43,14 +43,6 @@
       ],
       "cmake": {
         "buildPlatform": "windows-latest"
-      },
-      "release": {
-        "assetNames": {
-          "cmake": {
-            "cmake/bin": "tmux-windows-{tag}.zip",
-            "cmake/at-protocol.txt": "at-protocol.txt"
-          }
-        }
       }
     },
     "nelsong6/avatars": {
@@ -227,25 +219,10 @@
         "rust"
       ],
       "topics": [
-        "release-archive",
         "release-rust",
         "rust-build-windows-amd64",
         "rust-test-windows"
-      ],
-      "release": {
-        "archives": [
-          {
-            "name": "shows-desktop-windows-amd64.zip",
-            "sources": [
-              "dist/shows-desktop-x86_64-pc-windows-msvc.exe",
-              "dist/libmpv-2.dll"
-            ],
-            "entries": {
-              "shows-desktop-x86_64-pc-windows-msvc.exe": "shows-desktop.exe"
-            }
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/shows-remote": {
       "suites": [
@@ -270,7 +247,6 @@
         "cluster-image",
         "home-sync",
         "release-rust",
-        "release-source-list",
         "rust-build-linux-amd64",
         "rust-build-windows-amd64",
         "rust-machete",
@@ -280,23 +256,6 @@
       ],
       "release": {
         "image": "cluster",
-        "assets": [
-          "dist/spotify_player",
-          "dist/spotify_player.exe",
-          "dist/session-sources.txt"
-        ],
-        "assetNames": {
-          "rust-x86_64-unknown-linux-gnu": {
-            "spotify_player_session-x86_64-unknown-linux-gnu": "spotify_player"
-          },
-          "rust-x86_64-pc-windows-msvc": {
-            "spotify_player-x86_64-pc-windows-msvc.exe": "spotify_player.exe"
-          }
-        },
-        "sourceLists": {
-          "rust-x86_64-unknown-linux-gnu": "session-sources.txt"
-        },
-        "manifest": "session-release.json",
         "rustTargets": [
           {
             "target": "x86_64-unknown-linux-gnu",
@@ -365,12 +324,7 @@
       "topics": [
         "home-sync",
         "release-go"
-      ],
-      "release": {
-        "assets": [
-          "dist/at-claude-windows-amd64.exe"
-        ]
-      }
+      ]
     },
     "romaine-life/at-home-tools": {
       "suites": [
@@ -399,7 +353,6 @@
       ],
       "topics": [
         "home-sync",
-        "release-archive",
         "release-rust",
         "rust-build-windows-amd64",
         "rust-test-linux",
@@ -410,26 +363,6 @@
           {
             "target": "x86_64-pc-windows-msvc",
             "package": "rioterm"
-          }
-        ],
-        "archives": [
-          {
-            "toolchain": "rust",
-            "targets": [
-              "x86_64-pc-windows-msvc"
-            ],
-            "name": "at-terminal-windows-amd64.zip",
-            "sources": [
-              "dist/rio-x86_64-pc-windows-msvc.exe",
-              "dist/conpty.dll",
-              "dist/OpenConsole.exe",
-              "misc/windows/conhost/LICENSE",
-              "release/assets/rust-x86_64-pc-windows-msvc/at-protocol.txt"
-            ],
-            "entries": {
-              "rio-x86_64-pc-windows-msvc.exe": "at-terminal-rio.exe",
-              "LICENSE": "LICENSE-ConPTY.txt"
-            }
           }
         ]
       }
@@ -581,15 +514,7 @@
         "rust-test-windows"
       ],
       "release": {
-        "mirror": true,
-        "assetNames": {
-          "rust-x86_64-pc-windows-msvc": {
-            "fzt-picker-windows-amd64.exe": "fzt-picker.exe",
-            "test-trigger-windows-amd64.exe": "test-trigger.exe",
-            "fzt_picker_hook-windows-amd64.dll": "fzt_picker_hook.dll",
-            "fzt_picker_shim-windows-amd64.dll": "fzt_picker_shim.dll"
-          }
-        }
+        "mirror": true
       }
     },
     "romaine-life/fzt-terminal": {
@@ -754,14 +679,6 @@
         "buildPlatform": "windows-latest"
       },
       "release": {
-        "dotnetProjects": [
-          "SpireLens.csproj"
-        ],
-        "assetNames": {
-          "dotnet": {
-            "SpireLens": "SpireLens.zip"
-          }
-        },
         "dispatch": [
           {
             "repository": "romaine-life/spirelens",
@@ -804,7 +721,6 @@
       ],
       "topics": [
         "home-sync",
-        "release-archive",
         "release-rust",
         "rust-audit",
         "rust-build-linux-amd64",
@@ -826,73 +742,6 @@
         ]
       },
       "release": {
-        "archives": [
-          {
-            "toolchain": "rust",
-            "targets": [
-              "x86_64-pc-windows-msvc"
-            ],
-            "name": "tuimail-x86_64-pc-windows-msvc.zip",
-            "sources": [
-              "dist/tuimail-x86_64-pc-windows-msvc.exe",
-              "README.md",
-              "LICENSE",
-              "SECURITY.md"
-            ],
-            "entries": {
-              "tuimail-x86_64-pc-windows-msvc.exe": "tuimail.exe"
-            }
-          },
-          {
-            "toolchain": "rust",
-            "targets": [
-              "aarch64-pc-windows-msvc"
-            ],
-            "name": "tuimail-aarch64-pc-windows-msvc.zip",
-            "sources": [
-              "dist/tuimail-aarch64-pc-windows-msvc.exe",
-              "README.md",
-              "LICENSE",
-              "SECURITY.md"
-            ],
-            "entries": {
-              "tuimail-aarch64-pc-windows-msvc.exe": "tuimail.exe"
-            }
-          },
-          {
-            "toolchain": "rust",
-            "targets": [
-              "x86_64-unknown-linux-gnu"
-            ],
-            "name": "tuimail-x86_64-unknown-linux-gnu.tar.gz",
-            "sources": [
-              "dist/tuimail-x86_64-unknown-linux-gnu",
-              "README.md",
-              "LICENSE",
-              "SECURITY.md"
-            ],
-            "entries": {
-              "tuimail-x86_64-unknown-linux-gnu": "tuimail"
-            }
-          },
-          {
-            "toolchain": "rust",
-            "targets": [
-              "aarch64-unknown-linux-gnu"
-            ],
-            "name": "tuimail-aarch64-unknown-linux-gnu.tar.gz",
-            "sources": [
-              "dist/tuimail-aarch64-unknown-linux-gnu",
-              "README.md",
-              "LICENSE",
-              "SECURITY.md"
-            ],
-            "entries": {
-              "tuimail-aarch64-unknown-linux-gnu": "tuimail"
-            }
-          }
-        ],
-        "checksumManifest": "SHA256SUMS",
         "rustTargets": [
           {
             "target": "x86_64-unknown-linux-gnu",

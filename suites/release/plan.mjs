@@ -4,7 +4,7 @@ import {goParts} from '../go/goreleaser.mjs';
 export function releasePlan(cfg=config(),goBuilds) {
   const release=cfg.release || {};
   // A Go library's release is its tag and source (release-module): nothing is built.
-  if(release.module)return {matrix:{include:[]},local:false,external:[],metadata:{checksumFiles:[],checksumManifest:'',manifest:''},homeSync:false,image:''};
+  if(release.module)return {matrix:{include:[]},local:false,external:[],homeSync:false,image:''};
   const kinds=release.toolchains || [];
   if(kinds.includes('rust') && release.rustTargets?.length===0)throw new Error('release.rustTargets must be nonempty when Rust is declared');
   if ((!kinds.length && !release.external?.length) || kinds.includes('assets')) throw new Error('release.toolchains must declare the builders, not a cross-workflow assets placeholder');
@@ -18,7 +18,7 @@ export function releasePlan(cfg=config(),goBuilds) {
   }
   const local=include.length>0;
   if(!local)for(const part of release.external)include.push({id:part.id,toolchain:'external',target:part.id,features:'',noDefault:false,runner:'ubuntu-latest'});
-  return {matrix:{include},local,external:(release.external || []).map(part=>({...part,assets:[...new Set(part.assets.flatMap(name=>{const value=process.env.VERSION?name.replaceAll('{tag}',process.env.VERSION).replaceAll('{version}',process.env.VERSION.replace(/^v/,'')):name;return value.endsWith('.zip')?[value,`${value}.signature.json`]:[value];}))]})),metadata:{checksumFiles:release.checksumFiles || [],checksumManifest:release.checksumManifest || '',manifest:release.manifest || ''},homeSync:release.homeSync === true,image:release.image || ''};
+  return {matrix:{include},local,external:(release.external || []).map(part=>({...part,assets:[...new Set(part.assets.flatMap(name=>{const value=process.env.VERSION?name.replaceAll('{tag}',process.env.VERSION).replaceAll('{version}',process.env.VERSION.replace(/^v/,'')):name;return value.endsWith('.zip')?[value,`${value}.signature.json`]:[value];}))]})),homeSync:release.homeSync === true,image:release.image || ''};
 }
 // Forgejo never creates a job whose matrix has no entries, and the jobs that need it then
 // wait forever (fzt's first module PR). An empty plan is sent as one placeholder entry, so

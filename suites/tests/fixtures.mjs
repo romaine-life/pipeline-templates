@@ -27,7 +27,7 @@ builds:
     ldflags: '-s -w -X main.version={{ .Env.VERSION }}{{ if eq .Os "windows" }} -H windowsgui{{ end }}'
 `;
   write('.goreleaser.yaml',goReleaser);
-  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell'],dotnetProjects:['dotnet-fixture/Fixture.csproj']}}));
+  fleetEntry(({version:1,release:{toolchains:['go','rust','npm','python','dotnet','cmake','powershell']}}));
   write('README.md','# Fixture\n');
   write('go.mod','module example.com/fixture\n\ngo 1.26.2\n');
   write('cmd/fixture/main.go','package main\n\nimport "fmt"\n\nvar version string\n\nfunc main() { fmt.Println(version) }\n');
@@ -45,7 +45,6 @@ builds:
   write('CMakePresets.json',JSON.stringify({version:3,configurePresets:[{name:'ci',generator:'Ninja',binaryDir:'${sourceDir}/out',cacheVariables:{CMAKE_BUILD_TYPE:'Release',CMAKE_MSVC_DEBUG_INFORMATION_FORMAT:'Embedded'}}]}));
   run('dotnet',['new','xunit','--no-restore','-n','Fixture','-o','dotnet-fixture']);
   run('dotnet',['new','console','--no-restore','-n','App','-o','dotnet-app']);
-  const cfg=currentEntry();cfg.release.dotnetProjects=['dotnet-app/App.csproj'];fleetEntry((cfg));
   run('dotnet',['new','sln','-n','Fixture']);run('dotnet',['sln','Fixture.sln','add','dotnet-fixture/Fixture.csproj','dotnet-app/App.csproj']);
   run('dotnet',['restore','--use-lock-file','--disable-parallel'],{env:{NUGET_PACKAGES:kept('nuget-packages'),VERSION:'0.1.1'}});
   write('python-fixture/pyproject.toml','[project]\nname="fixture-python"\nversion="0.1.0"\nrequires-python=">=3.12"\n[dependency-groups]\ndev=["ruff==0.14.5", "pytest==8.3.5"]\n[build-system]\nrequires=["hatchling==1.27.0"]\nbuild-backend="hatchling.build"\n');
@@ -62,10 +61,9 @@ builds:
   process.env.RELEASE_TOOLCHAIN='go';
   for (const name of ['go/format.mjs','go/test.mjs','release/build.mjs','rust/format.mjs','rust/test.mjs','rust/build.mjs','web-app/test.mjs','docs/validate.mjs','powershell/files.mjs','powershell/parse.mjs','tofu/plan.mjs','tofu/apply.mjs','cmake/test.mjs','cmake/build.mjs','dotnet/test.mjs','dotnet/build.mjs','python/test.mjs','python/build.mjs','web-app/build.mjs','powershell/build.mjs']) {script(name);if(name==='release/build.mjs')stage('go');}
   const triple=process.platform==='win32'?'x86_64-pc-windows-msvc':'x86_64-unknown-linux-gnu';
-  cfg.release.rustTargets=[{target:triple}];cfg.release.sourceLists={[`rust-${triple}`]:'rust-inputs.txt'};fleetEntry((cfg));
+  const cfg=currentEntry();cfg.release.rustTargets=[{target:triple}];fleetEntry((cfg));
   process.env.RELEASE_TOOLCHAIN='rust';process.env.RELEASE_PART=`rust-${triple}`;process.env.RELEASE_TARGET=triple;
   script('release/build.mjs');
-  if(!fs.readFileSync('dist/rust-inputs.txt','utf8').includes('src/main.rs'))throw new Error('Cargo source receipt omitted tracked source');
   if(!fs.existsSync(`dist/${process.platform==='win32'?'rust_fixture-windows-amd64.dll':'librust_fixture-linux-amd64.so'}`))throw new Error('Rust cdylib was not staged');
   stage('rust');
   if(process.platform==='win32') {

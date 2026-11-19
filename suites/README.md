@@ -52,7 +52,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `version-from-manifest` | The version series comes from the root manifest's version |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
-| `release-archive`, `release-source-list`, `release-external` | The release's archives, source lists and external parts: `release.archives`, `release.sourceLists`, `release.external` |
+| `release-external` | The release's external parts: `release.external` |
 
 A value a topic selects is in the entry exactly when the topic is. The values are still in
 the list until each becomes a convention or the repository's own file (PIPT-12).
@@ -64,7 +64,7 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 | `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
 | `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
-| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `assets`, `image`, `archives`, `sourceLists`, `external`, `dispatch`, `mirror`, `dotnetProjects`, `assetNames`, `manifest`, `checksumFiles`, `checksumManifest` |
+| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `image`, `external`, `dispatch`, `mirror` |
 | `cmake`, `dotnet`, `python` | `buildPlatform`; `dotnet` also `sdk` |
 
 ### What the repository's name and files decide
@@ -86,6 +86,13 @@ A cluster service or web app is configured by its name and layout, not the list 
   The pin PR links the work package that PR links.
 - Its npm packages are each `package.json` at the root or one directory down with a `test`
   script.
+
+A release publishes what its build leaves at the top of `dist/` under its own names (CMake
+installs there, `release/assets/<part>/` adds files beside them), a Rust binary under its
+platform (`tuimail-x86_64-pc-windows-msvc.exe` as `tuimail-windows-amd64.exe`) and a folder as
+`<folder>-windows.zip` or `<folder>-linux.tar.gz`, with `SHA256SUMS` listing every file. A .NET
+release publishes each project that is neither a test project nor referenced by another. A
+consumer that wants other names (home-sync) renames on install.
 
 A few other things come from the repository rather than the list (`suites/conventions.mjs`): its
 Rust toolchain is its `rust-toolchain.toml` (channel and components), as rustup reads it, else
@@ -167,8 +174,8 @@ scripts put the files in place.
    `*.spec.*`), `.gitignore` and `.forgejo/workflows/`, which can't change what it ships (a
    workflow an external release part builds with counts).
    The other checks, the PR's release packaging among them, read their tool's files. Go
-   embeds, Rust includes, Dockerfile `COPY` sources, linked docs and the files a
-   release archives count wherever they are. No repository adds patterns of its own.
+   embeds, Rust includes, Dockerfile `COPY` sources and linked docs count wherever they
+   are. No repository adds patterns of its own.
 3. Builds keep their caches on the runners (Go, Cargo per repository and toolchain,
    tools, OpenTofu providers).
 4. No job holds a runner while it waits on something else; test services start on the

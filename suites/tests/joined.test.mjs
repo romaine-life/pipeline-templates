@@ -21,7 +21,7 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
   try {
     process.chdir(root);fs.writeFileSync('.goreleaser.yaml','{version: 2, builds: [{id: app, main: ., targets: [linux_amd64_v1]}]}');
     Object.assign(process.env,{VERSION:'v0.1.1',SOURCE_SHA:'a'.repeat(40),GITHUB_SHA:'a'.repeat(40),GITHUB_EVENT_NAME:'push',GITHUB_REF:'refs/heads/main',DEFAULT_BRANCH:'main',GITHUB_SERVER_URL:'https://forgejo.romaine.life',GITHUB_REPOSITORY:'test/app',TOKEN:'test-token',GITHUB_DISPATCH_TOKEN:'github-token',GITHUB_OUTPUT:path.join(root,'outputs')});
-    fleetEntry(({version:1,release:{toolchains:['go','rust','npm'],manifest:'bundle.json',checksumManifest:'SHA256SUMS',external:[{id:'macos',repository:'romaine-life/app',workflow:'macos.yml',assets:['macos.tar.gz']}]}}));
+    fleetEntry(({version:1,release:{toolchains:['go','rust','npm'],external:[{id:'macos',repository:'romaine-life/app',workflow:'macos.yml',assets:['macos.tar.gz']}]}}));
     globalThis.fetch=async(url,options={})=>{
       const u=String(url),method=options.method || 'GET';let result={};
       if(u.startsWith('https://api.github.com')){

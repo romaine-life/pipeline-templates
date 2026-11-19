@@ -8,7 +8,7 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['assets', 'dispatch', 'rustTargets', 'external', 'dotnetProjects', 'archives', 'image','mirror','assetNames','sourceLists','manifest','checksumFiles','checksumManifest'],
+  release: ['dispatch', 'rustTargets', 'external', 'image', 'mirror'],
   cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
@@ -77,7 +77,7 @@ export function validate(value, where = 'fleet entry') {
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  for (const [section, field] of [['rust','features'],['release','assets'],['release','dispatch']]) {
+  for (const [section, field] of [['rust','features'],['release','dispatch']]) {
     if (value[section]?.[field] !== undefined && !Array.isArray(value[section][field])) throw new Error(`${section}.${field} must be an array`);
   }
   if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
@@ -105,25 +105,6 @@ function settings(value) {
     for (const asset of part.assets) {if (externalAssets.has(asset)) throw new Error('external release asset names must be unique across parts');externalAssets.add(asset);}
     externalIds.add(part.id);
   }
-  for (const project of value.release?.dotnetProjects || []) safePath(project);
-  for(const name of [...Object.values(value.release?.sourceLists || {}),...(value.release?.checksumFiles || []),...[value.release?.manifest,value.release?.checksumManifest].filter(Boolean)])if(typeof name!=='string' || !/^[\w.*+{}-]+$/.test(name))throw new Error('release metadata names must be plain file names');
-  if(value.release?.assetNames && (Array.isArray(value.release.assetNames) || typeof value.release.assetNames!=='object'))throw new Error('release.assetNames must be an object');
-  if(value.release?.sourceLists && (Array.isArray(value.release.sourceLists) || typeof value.release.sourceLists!=='object' || Object.keys(value.release.sourceLists).some(part=>!(value.release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]).some(t=>part===`rust-${t.target}`))))throw new Error('release.sourceLists must name declared Rust parts');
-  for(const [part,mapping] of Object.entries(value.release?.assetNames || {})) {
-    if(!/^[a-z][a-z0-9_-]*$/.test(part) || !mapping || Array.isArray(mapping) || typeof mapping!=='object')throw new Error('release.assetNames maps part/target IDs to rename maps');
-    for(const [source,target] of Object.entries(mapping)) {
-      safePath(source);
-      if(source.split('*').length>2 || typeof target!=='string' || !/^[\w.*+{}-]+$/.test(target) || target.startsWith('ci-release-') || target.split('*').length>2 || target.replaceAll('{tag}','').replaceAll('{version}','').includes('{'))throw new Error('asset rename needs one optional wildcard and a plain published name with {tag}/{version}');
-    }
-  }
-  for (const archive of value.release?.archives || []) {
-    if(Object.keys(archive).some(k=>!['toolchain','targets','name','sources','entries'].includes(k)))throw new Error('unknown archive field');
-    if (!/^[\w.-]+\.(?:zip|tar\.gz)$/.test((archive.name || '').replaceAll('{tag}','tag').replaceAll('{version}','version')) || !Array.isArray(archive.sources) || !archive.sources.length) throw new Error('release.archives need a ZIP name and source files');
-    for (const file of archive.sources) {safePath(file);if(file==='dist')throw new Error('archive sources must name files or subdirectories, not the output root');}
-    if(archive.targets && (!Array.isArray(archive.targets) || !archive.targets.length))throw new Error('archive.targets must be nonempty');
-    for(const [source,target] of Object.entries(archive.entries || {})){safePath(source);if(!/^[\w.+-]+$/.test(target))throw new Error('archive entries must name plain files');}
-  }
-  for (const p of value.release?.assets || []) safePath(p);
   for (const target of value.release?.dispatch || []) {
     if (!/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(target.repository || '') || Object.keys(target).some(k=>!['repository','workflow'].includes(k))) throw new Error('release.dispatch must name an owned repository and optional workflow');
     if (target.workflow) safePath(target.workflow);

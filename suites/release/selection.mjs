@@ -22,9 +22,8 @@ export function validateDependencyOwnership(cfg) {
     if(!dependency.destination.startsWith('dist/'))continue;
     const file=dependency.destination.slice('dist/'.length);
     for(const part of candidates) {
-      if((cfg.release?.archives || []).some(archive=>selected(archive,kind,cfg,part.target) && archive.sources.includes(dependency.destination)))continue;
-      const name=assetName(file,{kind,...part,cfg}) || path.basename(file);
-      if(emitted.has(name))throw new Error(`dependency ${name} would be published by several targets; select one target, distinct assetNames, or consume it in per-target archives`);
+      const name=assetName(file,{kind,target:part.target}) || path.basename(file);
+      if(emitted.has(name))throw new Error(`dependency ${name} would be published by several targets; select one target`);
       emitted.add(name);
     }
   }

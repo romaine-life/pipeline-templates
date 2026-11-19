@@ -138,6 +138,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   }
   else if (mode === 'stage') {
     requirePublish();
-    await stage({files: stagedFiles(config().release?.assets || fs.readdirSync('dist').map(f => `dist/${f}`))});
+    await stage({files: stagedFiles(fs.readdirSync('dist').map(f => `dist/${f}`))});
   } else throw new Error('release.mjs scope <suite>|source|stage|publish');
 }
