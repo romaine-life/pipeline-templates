@@ -59,6 +59,11 @@
         "cluster-service"
       ]
     },
+    "nelsong6/hardware": {
+      "suites": [
+        "docs"
+      ]
+    },
     "nelsong6/home-cluster": {
       "suites": [
         "cluster-service",
