@@ -22,9 +22,13 @@ export function output(name, value) {
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
   else console.log(`${name}=${value}`);
 }
+// Caches stay off a Windows PC's system drive (PIPT-47): a runner's in D:\ci\cache, a local
+// run's (ci-check) in D:\ci-suites when the PC has a D: drive.
 export function cacheRoot() {
-  return path.resolve(process.env.CI_CACHE_ROOT || (process.platform === 'win32' && process.env.GITHUB_ACTIONS
-    ? 'D:/ci/cache' : path.join(process.env.RUNNER_TOOL_CACHE || path.join(os.homedir(), '.cache'), 'ci-suites')));
+  if (process.env.CI_CACHE_ROOT) return path.resolve(process.env.CI_CACHE_ROOT);
+  if (process.platform === 'win32' && process.env.GITHUB_ACTIONS) return path.resolve('D:/ci/cache');
+  if (process.platform === 'win32' && !process.env.RUNNER_TOOL_CACHE && fs.existsSync('D:/')) return path.resolve('D:/ci-suites');
+  return path.resolve(process.env.RUNNER_TOOL_CACHE || path.join(os.homedir(), '.cache'), 'ci-suites');
 }
 export function kept(name) {
   const dir = path.join(cacheRoot(), name);
