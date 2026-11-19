@@ -62,7 +62,6 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | Section | Fields |
 |---|---|
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
-| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang) |
 
 ### What the repository's name and files decide
 
@@ -83,6 +82,14 @@ A cluster service or web app is configured by its name and layout, not the list 
   The pin PR links the work package that PR links.
 - Its npm packages are each `package.json` at the root or one directory down with a `test`
   script.
+
+A Rust release builds each target its `rust-build-` topic names, with the values the root
+`Cargo.toml` gives it under `[workspace.metadata.pipeline-templates.targets.<target>]` (a single
+package's under `[package.metadata...]`): `package` builds that Cargo package alone with its own
+default features, for a workspace that ships a different program per platform; `features` and
+`noDefaultFeatures` are Cargo's; a Linux target with a `glibc` floor such as `"2.35"` builds
+through zig, which another architecture than the runner's x86_64 needs. Windows ARM64 builds
+with the Windows runner's LLVM clang.
 
 The services its tests start (PIPT-40) are its `ci/services.json`: each service a `service-`
 topic selects, and no other, maps to `{"image": ...}`, the image pinned by digest through

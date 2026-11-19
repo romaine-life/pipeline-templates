@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import TOML from '@iarna/toml';
 import {safePath, tracked} from './lib.mjs';
 import {serviceNames} from './topics.mjs';
 
@@ -85,7 +86,32 @@ export function testServices(text, topics = []) {
   return result;
 }
 
+// A Rust release target's values, in the root Cargo.toml's
+// [workspace.metadata.pipeline-templates.targets.<target>] (a single package's under
+// [package.metadata...]): package, features, noDefaultFeatures and glibc. Its rust-build- topic
+// builds the target (topics.mjs).
+export function rustTargets(targets, text) {
+  const manifest = text ? TOML.parse(text) : {};
+  const key = 'pipeline-templates';
+  const values = (manifest.workspace?.metadata?.[key] ?? manifest.package?.metadata?.[key])?.targets || {};
+  for (const target of Object.keys(values)) if (!targets.some(part => part.target === target)) throw new Error(`Cargo.toml has release values for ${target}, which no rust-build- topic builds`);
+  return targets.map(({target}) => {
+    const part = {target, ...values[target]};
+    if (Object.keys(part).some(field => !['target', 'package', 'features', 'noDefaultFeatures', 'glibc'].includes(field))) throw new Error(`Cargo.toml's ${target} values take package, features, noDefaultFeatures and glibc`);
+    // A workspace that ships a different program per platform names its package: Cargo builds it
+    // alone, with that package's own default features, instead of unifying every member's.
+    if (part.package !== undefined && (typeof part.package !== 'string' || !/^[A-Za-z0-9_-]+$/.test(part.package))) throw new Error(`Cargo.toml's ${target} package is a Cargo package name`);
+    if (part.features !== undefined && (!Array.isArray(part.features) || part.features.some(feature => typeof feature !== 'string'))) throw new Error(`Cargo.toml's ${target} features are a list of feature names`);
+    if (part.noDefaultFeatures !== undefined && typeof part.noDefaultFeatures !== 'boolean') throw new Error(`Cargo.toml's ${target} noDefaultFeatures is true or false`);
+    if (part.glibc !== undefined && (!target.endsWith('-unknown-linux-gnu') || !/^2\.\d+$/.test(part.glibc))) throw new Error(`Cargo.toml's ${target} glibc is a 2.N floor, for a -unknown-linux-gnu target`);
+    // The Linux runner is x86_64: another architecture links through zig, which a glibc floor selects.
+    if (target.endsWith('-unknown-linux-gnu') && !target.startsWith('x86_64-') && part.glibc === undefined) throw new Error(`${target} builds through zig: give it a glibc floor in Cargo.toml`);
+    return part;
+  });
+}
+
 export function layout(cfg, repo, {files, read = readFile} = {}) {
+  if (cfg.release?.rustTargets) cfg.release.rustTargets = rustTargets(cfg.release.rustTargets, read('Cargo.toml'));
   // Read where the suite runs, as release/dependencies.json is: every caller is in the checkout.
   const services = read(servicesFile);
   if (services !== null || serviceNames.some(name => cfg.topics?.includes(`service-${name}`))) Object.assign(cfg, testServices(services, cfg.topics || []));

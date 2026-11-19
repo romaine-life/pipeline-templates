@@ -6,6 +6,7 @@ import path from 'node:path';
 import {config, fleet, validate} from '../config.mjs';
 import {currentTopics, resolve, settingTopics, validTopic} from '../topics.mjs';
 import {checkVariants} from '../fingerprints.mjs';
+import {rustTargets} from '../layout.mjs';
 import {topicsFor} from '../fleet.mjs';
 
 test('unknown settings and unsafe paths fail visibly', () => {
@@ -29,20 +30,19 @@ test('a selected value is in the list exactly when its topic is', () => {
   const image = `artifacts.home.romaine.life/dockerhub/library/postgres:17@sha256:${'a'.repeat(64)}`;
   validate({suites: ['go'], topics: ['service-postgres']});
   for (const bad of [{suites: ['go'], topics: ['service-postgres'], service: {postgres: image}},
-    {suites: ['release'], topics: ['release-rust'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]}},
     {suites: ['release'], topics: ['release-rust', 'rust-build-linux-amd64'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu'}]}}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
   }
 });
 
 test('topics select the settings the suites read', () => {
-  const cfg = resolve({suites: ['cluster-service', 'go', 'release', 'rust', 'powershell'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]}},
+  const cfg = resolve({suites: ['cluster-service', 'go', 'release', 'rust', 'powershell']},
     ['go-test-windows', 'rust-test-linux', 'rust-test-windows', 'go-race', 'rust-audit', 'rust-typos', 'windows-powershell', 'release-rust', 'release-go', 'home-sync',
       'version-four-part', 'rust-build-linux-amd64', 'rust-build-windows-amd64', 'game', 'ci-go']);
   assert.deepEqual(cfg.go, {platforms: ['windows-latest'], race: ['./...']});
   assert.deepEqual(cfg.rust, {platforms: ['ubuntu-latest', 'windows-latest'], lints: ['typos', 'audit']});
   assert.deepEqual(cfg.release, {toolchains: ['go', 'rust'], homeSync: true, suffix: '.0',
-    rustTargets: [{target: 'x86_64-pc-windows-msvc'}, {target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]});
+    rustTargets: [{target: 'x86_64-pc-windows-msvc'}, {target: 'x86_64-unknown-linux-gnu'}]});
   assert.deepEqual(cfg.powershell, {windowsPowerShell: true});
   // Without cluster-image a cluster service builds no image.
   assert.deepEqual(cfg.cluster, {build: false, smoke: false});
@@ -111,13 +111,28 @@ test("the tests' services come from the repository's ci/services.json", () => {
   assert.throws(() => validate({suites: ['go'], topics: ['service-postgres'], service: {postgres: image('postgres')}}), /unknown field service/);
 });
 
-test('Rust glibc floors are checked where they are declared', () => {
-  const rust = (targets, values = []) => ({suites: ['release'], topics: ['release-rust', ...targets.map(t => `rust-build-${t}`)], release: values.length ? {rustTargets: values} : {}});
-  for (const bad of [rust(['linux-arm64']), rust(['windows-amd64'], [{target: 'x86_64-pc-windows-msvc', glibc: '2.35'}]),
-    rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', glibc: 'latest'}]), rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', strip: true}]),
-    rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', package: ''}]), rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', package: 'a b'}])]) {
-    assert.throws(() => validate(bad), JSON.stringify(bad));
+test("a Rust release target's values are the repository's Cargo.toml's", () => {
+  const targets = (...names) => names.map(target => ({target}));
+  const linux = 'x86_64-unknown-linux-gnu', arm = 'aarch64-unknown-linux-gnu', windows = 'x86_64-pc-windows-msvc';
+  const workspace = values => `[workspace]
+members = ["a"]
+${Object.entries(values).map(([target, body]) => `[workspace.metadata.pipeline-templates.targets.${target}]
+${body}
+`).join('')}`;
+  assert.deepEqual(rustTargets(targets(linux, windows), null), targets(linux, windows));
+  assert.deepEqual(rustTargets(targets(linux, windows), workspace({[linux]: 'package = "spotify_player_session"', [windows]: 'package = "spotify_player"'})),
+    [{target: linux, package: 'spotify_player_session'}, {target: windows, package: 'spotify_player'}]);
+  assert.deepEqual(rustTargets(targets(windows), workspace({[windows]: 'features = ["custom-protocol"]'})), [{target: windows, features: ['custom-protocol']}]);
+  assert.deepEqual(rustTargets(targets(linux, arm), `[package]
+name = "a"
+[package.metadata.pipeline-templates.targets.${arm}]
+glibc = "2.35"
+`),
+    [{target: linux}, {target: arm, glibc: '2.35'}]);
+  for (const [list, text] of [[targets(arm), null], [targets(linux), workspace({[windows]: 'package = "a"'})],
+    [targets(windows), workspace({[windows]: 'glibc = "2.35"'})], [targets(linux), workspace({[linux]: 'glibc = "latest"'})],
+    [targets(linux), workspace({[linux]: 'strip = true'})], [targets(linux), workspace({[linux]: 'package = ""'})],
+    [targets(linux), workspace({[linux]: 'package = "a b"'})], [targets(linux), workspace({[linux]: 'features = "a"'})]]) {
+    assert.throws(() => rustTargets(list, text), text || 'no Cargo.toml');
   }
-  validate(rust(['linux-arm64', 'linux-amd64', 'windows-arm64'], [{target: 'aarch64-unknown-linux-gnu', glibc: '2.35'}]));
-  validate(rust(['linux-amd64', 'windows-amd64'], [{target: 'x86_64-unknown-linux-gnu', package: 'spotify_player_session'}, {target: 'x86_64-pc-windows-msvc', package: 'spotify_player'}]));
 });

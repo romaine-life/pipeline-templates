@@ -52,6 +52,8 @@ try {
     dockerEnv.push('DOCKER_CERT_PATH=/fixture/docker-certs');
   }
   for(const file of ['services.mjs','docker-events.mjs','config.mjs','topics.mjs','layout.mjs','lib.mjs'])fs.copyFileSync(path.join(suites,file),path.join(dir,'suites',file));
+  // layout.mjs reads Cargo.toml with @iarna/toml, which needs nothing else.
+  fs.cpSync(path.join(suites,'node_modules','@iarna','toml'),path.join(dir,'suites','node_modules','@iarna','toml'),{recursive:true});
   const services={service:JSON.parse(fs.readFileSync(new URL('./service-images.json',import.meta.url),'utf8'))};
   fs.copyFileSync(fleetEntry(services,'test/cancel'),path.join(dir,'fleet.json'));servicesFile(services,dir);
   fs.writeFileSync(path.join(dir,'hold.mjs'),`import fs from 'node:fs';import net from 'node:net';console.log('CI_CANCEL_READY:'+JSON.parse(fs.readFileSync('.ci-services.json')).id);net.createServer().listen(0,'127.0.0.1');`);

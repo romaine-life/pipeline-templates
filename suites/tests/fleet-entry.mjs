@@ -67,15 +67,11 @@ export function entryFor(settings) {
   for (const name of Object.keys(entry.service || {})) topics.push(`service-${name}`);
   delete entry.service; delete entry.greenmail;
   const parts = take('release', 'rustTargets');
-  if (parts) {
-    const values = [];
-    for (const part of parts) {
-      const platform = Object.keys(rustBuilds).find(p => rustBuilds[p] === part.target);
-      if (!platform) throw new Error(`no rust-build- topic builds ${part.target}`);
-      topics.push(`rust-build-${platform}`);
-      if (Object.keys(part).length > 1) values.push(part);
-    }
-    if (values.length) (entry.release ??= {}).rustTargets = values;
+  for (const part of parts || []) {
+    const platform = Object.keys(rustBuilds).find(p => rustBuilds[p] === part.target);
+    if (!platform) throw new Error(`no rust-build- topic builds ${part.target}`);
+    if (Object.keys(part).length > 1) throw new Error(`${part.target}'s values are the repository's Cargo.toml's`);
+    topics.push(`rust-build-${platform}`);
   }
   return {entry, topics: [...new Set(topics)].sort()};
 }

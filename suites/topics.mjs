@@ -72,12 +72,9 @@ export function resolve(entry, topics, repo = 'owner/repo') {
   if (on.has('version-from-manifest')) section('release').fromManifest = true;
   if (on.has('version-four-part')) section('release').suffix = '.0';
   if (on.has('home-sync')) section('release').homeSync = true;
-  // release.rustTargets holds per-target values (features, a glibc floor); the topics
-  // choose the targets.
-  const values = new Map((cfg.release?.rustTargets || []).map(part => [part.target, part]));
-  const targets = Object.entries(rustBuilds).filter(([platform]) => on.has(`rust-build-${platform}`)).map(([, target]) => values.get(target) || {target});
+  // The topics choose the Rust targets; the repository's Cargo.toml gives their values (layout.mjs).
+  const targets = Object.entries(rustBuilds).filter(([platform]) => on.has(`rust-build-${platform}`)).map(([, target]) => ({target}));
   if (targets.length) section('release').rustTargets = targets;
-  else if (cfg.release) delete cfg.release.rustTargets;
   cfg.topics = [...on].sort();
   return cfg;
 }

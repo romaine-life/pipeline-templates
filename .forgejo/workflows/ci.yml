@@ -657,6 +657,7 @@ jobs:
       CI_SERVICE_SLOT: ${{ matrix.slot }}
     steps:
       - uses: actions/checkout@v4
+      - uses: ./actions/suite
       - run: node suites/tests/services.mjs
       - name: Remove services and prove no owned resources remain
         if: always()
@@ -668,6 +669,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: ./actions/suite
       # The fixture runs our runner image, which is private on Forgejo's registry, and the
       # runner's Docker keeps no image across restarts (nelsong6/forgejo PR 83).
       - name: Sign in to Forgejo's registry

@@ -13,9 +13,7 @@ test('release-module plans no build and refuses build settings', () => {
   const plan = releasePlan(resolve(entry, entry.topics));
   assert.deepEqual(plan.matrix.include, []);
   assert.equal(plan.local, false);
-  for (const [topics, extra] of [[['release-go'], {}]]) {
-    assert.throws(() => validate({...entry, topics: [...entry.topics, ...topics], release: extra}, 'test/lib'), /builds nothing/);
-  }
+  assert.throws(() => validate({...entry, topics: [...entry.topics, 'release-go']}, 'test/lib'), /builds nothing/);
 });
 
 test('an empty plan reaches the workflow as one placeholder entry, so its jobs exist and skip', () => {

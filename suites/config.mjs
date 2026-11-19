@@ -1,14 +1,13 @@
 import path from 'node:path';
 import {capture, readJSON, templates} from './lib.mjs';
-import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic} from './topics.mjs';
+import {currentTopics, isSettingTopic, resolve, validTopic} from './topics.mjs';
 import {layout} from './layout.mjs';
 
 // A fleet entry: its suites, its setting topics (topics.mjs), and the values a convention
 // doesn't decide yet.
 const fields = {
   suites: null, topics: null,
-  rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['rustTargets']
+  rust: ['features', 'noDefaultFeatures', 'platformFeatures']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
@@ -58,13 +57,6 @@ export function validate(value, where = 'fleet entry') {
   // Forgejo keeps at most 25 topics on a repository.
   if (value.suites.length + topics.length > 25) throw new Error(`${where}: more than 25 topics`);
   if (topics.includes('web-static') && topics.includes('web-image')) throw new Error(`${where}: a web app deploys a Static Web App (web-static) or an image (web-image), not both`);
-  if (value.release?.rustTargets !== undefined && !Array.isArray(value.release.rustTargets)) throw new Error(`${where}: release.rustTargets must be an array`);
-  for (const part of value.release?.rustTargets || []) {
-    const platform = Object.keys(rustBuilds).find(p => rustBuilds[p] === part?.target);
-    if (!platform || !topics.includes(`rust-build-${platform}`)) throw new Error(`${where}: release.rustTargets ${part?.target} needs its rust-build- topic`);
-    if (Object.keys(part).length < 2) throw new Error(`${where}: release.rustTargets holds a target's values; its topic alone builds it`);
-  }
-  if (new Set((value.release?.rustTargets || []).map(part => part.target)).size !== (value.release?.rustTargets || []).length) throw new Error(`${where}: release.rustTargets names a target twice`);
   settings(resolve(value, topics, /^[\w.-]+\/[\w.-]+$/.test(where) ? where : undefined));
   return value;
 }
@@ -76,17 +68,6 @@ function settings(value) {
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
   if (value.release?.module && (['toolchains', 'external', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
   const toolchains = value.release?.toolchains || [];
-  if(value.release?.rustTargets && (!Array.isArray(value.release.rustTargets) || !value.release.rustTargets.length))throw new Error('release.rustTargets must be a nonempty array');
-  for (const part of value.release?.rustTargets || []) {
-    if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples, and none for Apple');
-    if (Object.keys(part).some(key => !['target', 'package', 'features', 'noDefaultFeatures', 'glibc'].includes(key))) throw new Error('release.rustTargets take target, package, features, noDefaultFeatures and glibc');
-    // A workspace that ships a different program per platform names its package: Cargo builds it
-    // alone, with that package's own default features, instead of unifying every member's.
-    if (part.package !== undefined && (typeof part.package !== 'string' || !/^[A-Za-z0-9_-]+$/.test(part.package))) throw new Error('release.rustTargets package is a Cargo package name');
-    if (part.glibc !== undefined && (!part.target.endsWith('-unknown-linux-gnu') || !/^2\.\d+$/.test(part.glibc))) throw new Error('release.rustTargets glibc is a 2.N floor for a -unknown-linux-gnu target');
-    // The Linux runner is x86_64: another architecture links through zig, which a glibc floor selects.
-    if (part.target.endsWith('-unknown-linux-gnu') && !part.target.startsWith('x86_64-') && part.glibc === undefined) throw new Error(`${part.target} builds through zig: give it a glibc floor`);
-  }
   if (value.release?.image && !['cluster','web'].includes(value.release.image)) throw new Error('release.image must be cluster or web');
   if (value.release?.image && !value[value.release.image]?.image) throw new Error('joined image release needs the corresponding image configuration');
   return value;
