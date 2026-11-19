@@ -3,12 +3,9 @@ import {capture, readJSON, templates} from './lib.mjs';
 import {currentTopics, isSettingTopic, resolve, validTopic} from './topics.mjs';
 import {layout} from './layout.mjs';
 
-// A fleet entry: its suites, its setting topics (topics.mjs), and the values a convention
-// doesn't decide yet.
-const fields = {
-  suites: null, topics: null,
-  rust: ['features', 'noDefaultFeatures', 'platformFeatures']
-};
+// A fleet entry: its suites and its setting topics (topics.mjs); everything else follows from
+// the repository (layout.mjs, conventions.mjs).
+const fields = ['suites', 'topics'];
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
 export function currentRepository() {
@@ -43,13 +40,7 @@ export function validate(value, where = 'fleet entry') {
   if (!Array.isArray(value.suites) || value.suites.some(s => !suiteNames.includes(s) || s === 'default') || new Set(value.suites).size !== value.suites.length) {
     throw new Error(`${where}: suites must name each suite once (default is always included)`);
   }
-  for (const [key, section] of Object.entries(value)) {
-    if (!(key in fields)) throw new Error(`${where}: unknown field ${key}`);
-    if (fields[key]) {
-      if (!section || Array.isArray(section) || typeof section !== 'object') throw new Error(`${where}: ${key} must be an object`);
-      for (const field of Object.keys(section)) if (!fields[key].includes(field)) throw new Error(`${where}: unknown field ${key}.${field}`);
-    }
-  }
+  for (const key of Object.keys(value)) if (!fields.includes(key)) throw new Error(`${where}: unknown field ${key}`);
   const topics = value.topics ?? [];
   if (!Array.isArray(topics) || new Set(topics).size !== topics.length || topics.some(topic => !validTopic(topic) || !isSettingTopic(topic))) {
     throw new Error(`${where}: topics must name each setting topic once (suites are ci- topics, from suites)`);
@@ -63,11 +54,8 @@ export function validate(value, where = 'fleet entry') {
 
 // The settings a repository runs with: its entry, resolved with its topics.
 function settings(value) {
-  if (value.rust?.features !== undefined && !Array.isArray(value.rust.features)) throw new Error('rust.features must be an array');
-  if (value.rust?.noDefaultFeatures !== undefined && typeof value.rust.noDefaultFeatures !== 'boolean') throw new Error('rust.noDefaultFeatures must be boolean');
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
   if (value.release?.module && (['toolchains', 'external', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
-  const toolchains = value.release?.toolchains || [];
   if (value.release?.image && !['cluster','web'].includes(value.release.image)) throw new Error('release.image must be cluster or web');
   if (value.release?.image && !value[value.release.image]?.image) throw new Error('joined image release needs the corresponding image configuration');
   return value;

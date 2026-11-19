@@ -9,7 +9,7 @@ job no suite covers.
 ## The fleet list
 
 `fleet.json` at this repository's root names every repository on the suites, the suites
-it takes, its setting topics, and the few values a convention can't decide for it yet. It
+it takes, and its setting topics; everything else follows from the repository. It
 is the only place a repository's CI is configured: changing the fleet, or any repository in
 it, is one PR here. The `Fleet` workflow aligns every owned repository to it: on a PR it
 prints what the merge would change, and the merge changes it.
@@ -21,8 +21,8 @@ prints what the merge would change, and the merge changes it.
 - A repository the list doesn't name carries no `ci-` or setting topics.
 - Any other topic, one set by hand, is left as it is.
 
-An entry is `{"suites": [...], "topics": [...]}` plus any of the values below. `config.mjs`
-validates it; an unknown field or topic fails.
+An entry is `{"suites": [...], "topics": [...]}`. `config.mjs` validates it; an unknown field
+or topic fails.
 
 ### Setting topics
 
@@ -53,15 +53,6 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
 | `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`) |
-
-A value a topic selects is in the entry exactly when the topic is. The values are still in
-the list until each becomes a convention or the repository's own file (PIPT-12).
-
-### Values
-
-| Section | Fields |
-|---|---|
-| `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
 
 ### What the repository's name and files decide
 

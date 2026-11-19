@@ -7,10 +7,9 @@ import {cargoCache} from './cache.mjs';
 import {rustEnvironment} from './environment.mjs';
 rustEnvironment();
 cargoCache(`release-${process.platform}`);
-const cfg = config().rust || {};
 const target=process.env.RELEASE_TARGET;
-const features=process.env.RELEASE_FEATURES===undefined ? cfg.features : process.env.RELEASE_FEATURES.split(',').filter(Boolean);
-const noDefault=process.env.RELEASE_NO_DEFAULT===undefined ? cfg.noDefaultFeatures : process.env.RELEASE_NO_DEFAULT==='true';
+const features=(process.env.RELEASE_FEATURES || '').split(',').filter(Boolean);
+const noDefault=process.env.RELEASE_NO_DEFAULT==='true';
 const part=(config().release?.rustTargets || []).find(item=>item.target===target);
 let build='build',buildTarget=target;
 if(part?.glibc) {

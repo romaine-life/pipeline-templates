@@ -14,7 +14,7 @@ export function releasePlan(cfg=config(),goBuilds) {
   const include=[];
   for (const kind of kinds) {
     if (kind==='rust') {
-      for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,features:(part.features || cfg.rust?.features || []).join(','),noDefault:part.noDefaultFeatures ?? cfg.rust?.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});
+      for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,features:(part.features || []).join(','),noDefault:part.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});
     } else if(kind==='go') {
       for(const part of goParts(goBuilds))include.push({id:part.part,toolchain:kind,target:part.target,features:'',noDefault:false,runner:part.runner});
     } else include.push({id:kind,toolchain:kind,target:'',features:'',noDefault:false,runner:buildRunner(cfg,kind)});

@@ -11,7 +11,6 @@ import {pythonProjects} from '../conventions.mjs';
 const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 export function settings(cfg) {
   const kinds=cfg.release?.toolchains || [],result={release:cfg.release};
-  if(kinds.includes('rust'))result.rust={features:cfg.rust?.features,noDefaultFeatures:cfg.rust?.noDefaultFeatures};
   if(kinds.includes('npm'))result.web={packages:cfg.web?.packages};
   for(const kind of ['cmake','dotnet','python'])if(kinds.includes(kind))result[kind]={buildPlatform:buildRunner(cfg,kind)};
   if(cfg.release?.image)result.image=cfg[cfg.release.image];

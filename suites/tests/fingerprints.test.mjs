@@ -42,7 +42,6 @@ test('fingerprints follow code, linked/embedded inputs, configuration, patterns 
     fs.writeFileSync('docs/help.md','changed help');commit();assert.notEqual(await fp(),source);source=await fp();
     assert.equal(await fp('go.test','ubuntu-latest',{...cfg,docs:{required:['other.md']}}),source);
     assert.notEqual(await fp('go.test','ubuntu-latest',cfg,'b'.repeat(40)),source);
-    assert.notEqual(await fp('rust.test','ubuntu-latest',{rust:{features:['tls']}}),await fp('rust.test','ubuntu-latest',{rust:{features:[]}}));
     assert.notEqual(await fp('go.test','services',{service:{postgres:'one'}}),await fp('go.test','services',{service:{postgres:'two'}}));
     assert.equal(await fp('go.test','windows-latest',{service:{postgres:'one'}}),await fp('go.test','windows-latest',{service:{postgres:'two'}}));
     fs.unlinkSync('main.go');commit();assert.notEqual(await fp('go.format'),format);
