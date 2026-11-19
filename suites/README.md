@@ -40,7 +40,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `go-race` | Every package's tests run again under the race detector, in the Linux test job |
 | `rust-typos`, `rust-machete`, `rust-audit` | Rust lints; `audit` checks RustSec's advisories, read fresh through Artifact Keeper, when `Cargo.lock` changes |
 | `windows-powershell` | The PowerShell parse check runs in Windows PowerShell too |
-| `service-postgres`, `service-manticore`, `service-greenmail` | The tests' services, each the image `service.<name>` names. The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
+| `service-postgres`, `service-manticore`, `service-greenmail` | The tests' services, each the image the repository's `ci/services.json` names (below). The tests get `DATABASE_URL`, `MANTICORE_URL`, or GreenMail's `SMTP_HOST`, `IMAP_HOST` and `POP3_HOST` (one address) with `SMTP_PORT`, `IMAP_PORT`, `POP3_PORT` and, over TLS, `SMTPS_PORT`, `IMAPS_PORT`, `POP3S_PORT`, and `GREENMAIL_CERT`: a file holding the certificate GreenMail presents |
 | `cluster-image` | A cluster service builds and smoke-tests its own image; without it the service renders and pins what upstream publishes |
 | `web-image` | The web app builds its image |
 | `web-static` | The web app deploys to its Static Web App |
@@ -62,8 +62,6 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | Section | Fields |
 |---|---|
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
-| `service` | `postgres`, `manticore`, `greenmail`: the digest-pinned image of each service a `service-` topic selects |
-| `greenmail` | `users`: GreenMail's accounts, each `login:password@domain`, signing in with the whole address |
 | `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `external` |
 
 ### What the repository's name and files decide
@@ -85,6 +83,12 @@ A cluster service or web app is configured by its name and layout, not the list 
   The pin PR links the work package that PR links.
 - Its npm packages are each `package.json` at the root or one directory down with a `test`
   script.
+
+The services its tests start (PIPT-40) are its `ci/services.json`: each service a `service-`
+topic selects, and no other, maps to `{"image": ...}`, the image pinned by digest through
+Artifact Keeper; GreenMail's also takes `users`, its accounts, each `login:password@domain`,
+signing in with the whole address. A change to it runs the tests (and the image's smoke test)
+and cuts no release.
 
 A release publishes what its build leaves at the top of `dist/` under its own names (CMake
 installs there, `release/assets/<part>/` adds files beside them), a Rust binary under its

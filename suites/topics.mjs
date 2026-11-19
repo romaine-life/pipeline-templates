@@ -16,13 +16,13 @@ export const rustBuilds = {
   'linux-amd64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu',
 };
 const lints = ['typos', 'machete', 'audit'];
-const serviceNames = ['postgres', 'manticore', 'greenmail'];
+export const serviceNames = ['postgres', 'manticore', 'greenmail'];
 
 // Selectors that pick a value fleet.json still holds (to become conventions or repository
-// files): the topic decides whether it applies, the value what it is.
+// files): the topic decides whether it applies, the value what it is. A service- topic's
+// image is the repository's own (layout.mjs, ci/services.json).
 export const valueSelectors = {
   'release-external': ['release', 'external'],
-  ...Object.fromEntries(serviceNames.map(name => [`service-${name}`, ['service', name]])),
 };
 
 // Every topic the suites read, and so every topic Fleet owns besides `ci-`.
@@ -74,7 +74,6 @@ export function resolve(entry, topics, repo = 'owner/repo') {
     if (!on.has(topic)) { if (cfg[name]) delete cfg[name][field]; continue; }
     if (cfg[name]?.[field] === undefined) throw new Error(`topic ${topic} needs ${name}.${field} in fleet.json`);
   }
-  if (cfg.service && !Object.keys(cfg.service).length) delete cfg.service;
   if (on.has('release-module')) section('release').module = true;
   const toolchains = releaseToolchains.filter(kind => on.has(`release-${kind}`));
   if (toolchains.length) section('release').toolchains = toolchains;

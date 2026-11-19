@@ -30,10 +30,11 @@ export const inputs = {
   'release.package': ['.goreleaser.yaml','release/assets/**','ci/build/**','ci/package/**','scripts/build*','scripts/package*','packaging/**','installer/**','**/*.manifest','**/*.appxmanifest','**/*.syso','**/*.rc','**/*.ico','**/*.wxs','**/*.wxi','**/*.nsi','**/*.iss']
 };
 export const broad = Object.keys(inputs).filter(check => inputs[check] === everything);
-// Tests, .gitignore and the repository's workflows (which call the suites, which build it)
-// can't change a shipped binary, so a merge that changes only those cuts no release. A
-// workflow that builds a release part itself counts (releaseInputs).
-const unshipped = ['**/*_test.go', '**/testdata/**', 'tests/**', 'test/**', '**/tests/**', 'Tests/**', '**/Tests/**', 'benches/**', '**/*.test.*', '**/*.spec.*', '**/.gitignore', '.forgejo/workflows/**'];
+// Tests, their services (ci/services.json), .gitignore and the repository's workflows (which
+// call the suites, which build it) can't change a shipped binary, so a merge that changes
+// only those cuts no release. A workflow that builds a release part itself counts
+// (releaseInputs).
+const unshipped = ['**/*_test.go', '**/testdata/**', 'tests/**', 'test/**', '**/tests/**', 'Tests/**', '**/Tests/**', 'benches/**', '**/*.test.*', '**/*.spec.*', 'ci/services.json', '**/.gitignore', '.forgejo/workflows/**'];
 export const ignoredBy = job => !broad.includes(job) ? [] : job === 'release.build' ? [...ignored, ...unshipped] : ignored;
 export function matches(file, glob) {
   let pattern = '';

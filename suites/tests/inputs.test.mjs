@@ -17,7 +17,7 @@ test('narrow checks read their tool\'s files; tests and a merge\'s release read 
     assert.equal(relevant(['assets/embed.txt'], job, ['assets/embed.txt']), true, job);
   }
   assert.deepEqual([...broad].sort(), ['cmake.test','dotnet.test','go.test','python.test','release.build','rust.test','web-app.test']);
-  const tests = ['cmd/app/main_test.go','internal/x/testdata/case.json','tests/cli.rs','crate/tests/it.rs','test/fixture.txt','benches/speed.rs','src/app.test.ts','frontend/src/view.spec.js','Tests/Unit/Parse.cs','App/Tests/Run.cs','.gitignore','frontend/.gitignore','.forgejo/workflows/ci.yml'];
+  const tests = ['ci/services.json','cmd/app/main_test.go','internal/x/testdata/case.json','tests/cli.rs','crate/tests/it.rs','test/fixture.txt','benches/speed.rs','src/app.test.ts','frontend/src/view.spec.js','Tests/Unit/Parse.cs','App/Tests/Run.cs','.gitignore','frontend/.gitignore','.forgejo/workflows/ci.yml'];
   for (const job of broad) {
     for (const file of ['frontend/src/app.ts','scripts/build.mjs','regress/case.sh','probes/probe.rs','.forgejo/container/run.cmd','Cargo.toml']) assert.ok(relevant([file], job), `${job} ${file}`);
     for (const file of ['README.md','frontend/README.md','docs/guide.txt','LICENSE','LICENSE-MIT','k8s/values.yaml','tofu/main.tf']) assert.equal(relevant([file], job), false, `${job} ${file}`);

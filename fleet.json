@@ -50,10 +50,7 @@
       "topics": [
         "cluster-image",
         "service-postgres"
-      ],
-      "service": {
-        "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42"
-      }
+      ]
     },
     "nelsong6/emulation-screensaver": {
       "suites": [
@@ -199,10 +196,7 @@
       "topics": [
         "cluster-image",
         "service-manticore"
-      ],
-      "service": {
-        "manticore": "artifacts.home.romaine.life/dockerhub/manticoresearch/manticore:29.9.0@sha256:6e32ad69a4a1bf5e596b8b2abd00b7625fc2a146c3877b365a4d4840f5cffd12"
-      }
+      ]
     },
     "nelsong6/sf6-nelson-lab": {
       "suites": [
@@ -388,10 +382,7 @@
         "service-postgres",
         "web-history",
         "web-image"
-      ],
-      "service": {
-        "postgres": "artifacts.home.romaine.life/dockerhub/library/postgres:16@sha256:63e83b5a3dc36a917dccb76fe1bd2ac51f1ec9c1deb47ff20d4f04233bf6eae9"
-      }
+      ]
     },
     "romaine-life/composer": {
       "suites": [
@@ -702,15 +693,6 @@
         "service-greenmail",
         "version-from-manifest"
       ],
-      "service": {
-        "greenmail": "artifacts.home.romaine.life/dockerhub/greenmail/standalone:2.1.3@sha256:d6db42a4fc258fec0948b1ae7b579fd06947cc92087c162ec0597972a6c36850"
-      },
-      "greenmail": {
-        "users": [
-          "alice:secret@example.com",
-          "bob:secret@example.com"
-        ]
-      },
       "release": {
         "rustTargets": [
           {

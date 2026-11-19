@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import {safePath, tracked} from './lib.mjs';
+import {serviceNames} from './topics.mjs';
 
 // The settings a repository's files decide (PIPT-30): what its cluster service renders,
 // where its image builds, which file pins the image, and which npm packages it tests. Read
@@ -56,7 +57,38 @@ export function downloads(text, toolchains = []) {
   return value;
 }
 
+// The services a repository's tests start (PIPT-40): ci/services.json maps each service its
+// service- topic selects to {image}, digest-pinned through Artifact Keeper, and GreenMail's
+// to its accounts too, {image, users}, each login:password@domain as GreenMail takes them.
+export const servicesFile = 'ci/services.json';
+export function testServices(text, topics = []) {
+  const value = text === null ? {} : JSON.parse(text);
+  if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error(`${servicesFile} must map service names to their settings`);
+  for (const name of Object.keys(value)) if (!serviceNames.includes(name)) throw new Error(`${servicesFile}: no service is called ${name} (${serviceNames.join(', ')})`);
+  for (const name of serviceNames) {
+    const selected = topics.includes(`service-${name}`);
+    if (selected && !value[name]) throw new Error(`topic service-${name} needs ${servicesFile} to name its ${name} image`);
+    if (!selected && value[name]) throw new Error(`${servicesFile} names ${name}, which only topic service-${name} starts`);
+  }
+  const result = {};
+  for (const [name, entry] of Object.entries(value)) {
+    const fields = name === 'greenmail' ? ['image', 'users'] : ['image'];
+    if (!entry || Array.isArray(entry) || typeof entry !== 'object' || Object.keys(entry).some(key => !fields.includes(key))) throw new Error(`${servicesFile}: ${name} takes ${fields.join(' and ')}`);
+    if (typeof entry.image !== 'string' || !/^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/.test(entry.image)) throw new Error(`${servicesFile}: ${name}.image must be a digest-pinned Artifact Keeper image`);
+    (result.service ??= {})[name] = entry.image;
+  }
+  const users = value.greenmail?.users;
+  if (users !== undefined) {
+    if (!Array.isArray(users) || !users.length || users.some(user => typeof user !== 'string' || !/^[\w.+-]+:[^\s,@:]+@[\w.-]+$/.test(user))) throw new Error(`${servicesFile}: greenmail.users are login:password@domain, as GreenMail takes them`);
+    result.greenmail = {users};
+  }
+  return result;
+}
+
 export function layout(cfg, repo, {files, read = readFile} = {}) {
+  // Read where the suite runs, as release/dependencies.json is: every caller is in the checkout.
+  const services = read(servicesFile);
+  if (services !== null || serviceNames.some(name => cfg.topics?.includes(`service-${name}`))) Object.assign(cfg, testServices(services, cfg.topics || []));
   if (cfg.suites?.includes('release')) {
     const text = read(downloadsFile);
     if (text) cfg.release = {...cfg.release, dependencies: downloads(text, cfg.release?.toolchains)};

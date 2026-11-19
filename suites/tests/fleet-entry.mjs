@@ -58,11 +58,10 @@ export function entryFor(settings) {
   if (joined && !entry.suites.includes('release')) entry.suites = [...entry.suites, 'release'];
   if (joined === 'cluster' && !topics.includes('cluster-image')) topics.push('cluster-image');
   if (joined === 'web' && !topics.includes('web-image')) topics.push('web-image');
-  for (const [name, field, topic] of [
-    ['release', 'external', 'release-external'],
-    ['service', 'postgres', 'service-postgres'], ['service', 'manticore', 'service-manticore'], ['service', 'greenmail', 'service-greenmail']]) {
-    if (entry[name]?.[field] !== undefined) topics.push(topic);
-  }
+  if (entry.release?.external !== undefined) topics.push('release-external');
+  // A service's image is the repository's (ci/services.json, servicesFile below); the topic selects it.
+  for (const name of Object.keys(entry.service || {})) topics.push(`service-${name}`);
+  delete entry.service; delete entry.greenmail;
   const parts = take('release', 'rustTargets');
   if (parts) {
     const values = [];
@@ -75,4 +74,12 @@ export function entryFor(settings) {
     if (values.length) (entry.release ??= {}).rustTargets = values;
   }
   return {entry, topics: [...new Set(topics)].sort()};
+}
+
+// The repository's ci/services.json for settings' services (layout.mjs), written under root.
+export function servicesFile(settings, root = '.') {
+  const value = Object.fromEntries(Object.entries(settings.service || {}).map(([name, image]) => [name, {image}]));
+  if (settings.greenmail?.users) value.greenmail.users = settings.greenmail.users;
+  fs.mkdirSync(path.join(root, 'ci'), {recursive: true});
+  fs.writeFileSync(path.join(root, 'ci', 'services.json'), JSON.stringify(value));
 }

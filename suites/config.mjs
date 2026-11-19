@@ -8,8 +8,7 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['rustTargets', 'external'],
-  service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
+  release: ['rustTargets', 'external']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
@@ -101,14 +100,6 @@ function settings(value) {
     for (const asset of part.assets) if (!/^[\w.+-]+$/.test(asset.replaceAll('{tag}','tag').replaceAll('{version}','version'))) throw new Error('external assets must be plain file names');
     for (const asset of part.assets) {if (externalAssets.has(asset)) throw new Error('external release asset names must be unique across parts');externalAssets.add(asset);}
     externalIds.add(part.id);
-  }
-  for (const [name, image] of Object.entries(value.service || {})) {
-    if (typeof image !== 'string' || !/^artifacts\.home\.romaine\.life\/[\w./:-]+@sha256:[0-9a-f]{64}$/.test(image)) throw new Error(`service.${name} must be a digest-pinned Artifact Keeper image`);
-  }
-  if (value.greenmail && !value.service?.greenmail) throw new Error('greenmail.users needs service.greenmail');
-  const users = value.greenmail?.users;
-  if (users !== undefined && (!Array.isArray(users) || !users.length || users.some(user => typeof user !== 'string' || !/^[\w.+-]+:[^\s,@:]+@[\w.-]+$/.test(user)))) {
-    throw new Error('greenmail.users are login:password@domain, as GreenMail takes them');
   }
   return value;
 }

@@ -27,8 +27,8 @@ test('setting topics are Forgejo topics, never a suite, and the list holds only 
 
 test('a selected value is in the list exactly when its topic is', () => {
   const image = `artifacts.home.romaine.life/dockerhub/library/postgres:17@sha256:${'a'.repeat(64)}`;
-  validate({suites: ['go'], topics: ['service-postgres'], service: {postgres: image}});
-  for (const bad of [{suites: ['go'], service: {postgres: image}}, {suites: ['go'], topics: ['service-postgres']},
+  validate({suites: ['go'], topics: ['service-postgres']});
+  for (const bad of [{suites: ['go'], topics: ['service-postgres'], service: {postgres: image}},
     {suites: ['release'], topics: ['release-rust'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]}},
     {suites: ['release'], topics: ['release-rust', 'rust-build-linux-amd64'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu'}]}}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
@@ -36,7 +36,7 @@ test('a selected value is in the list exactly when its topic is', () => {
 });
 
 test('topics select the settings the suites read', () => {
-  const cfg = resolve({suites: ['cluster-service', 'go', 'release', 'rust', 'powershell'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]}, service: {postgres: 'image'}},
+  const cfg = resolve({suites: ['cluster-service', 'go', 'release', 'rust', 'powershell'], release: {rustTargets: [{target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]}},
     ['go-test-windows', 'rust-test-linux', 'rust-test-windows', 'go-race', 'rust-audit', 'rust-typos', 'windows-powershell', 'release-rust', 'release-go', 'home-sync',
       'version-four-part', 'rust-build-linux-amd64', 'rust-build-windows-amd64', 'game', 'ci-go']);
   assert.deepEqual(cfg.go, {platforms: ['windows-latest'], race: ['./...']});
@@ -44,10 +44,8 @@ test('topics select the settings the suites read', () => {
   assert.deepEqual(cfg.release, {toolchains: ['go', 'rust'], homeSync: true, suffix: '.0',
     rustTargets: [{target: 'x86_64-pc-windows-msvc'}, {target: 'x86_64-unknown-linux-gnu', glibc: '2.35'}]});
   assert.deepEqual(cfg.powershell, {windowsPowerShell: true});
-  // Without cluster-image a cluster service builds no image; without service-postgres the
-  // tests get no database.
+  // Without cluster-image a cluster service builds no image.
   assert.deepEqual(cfg.cluster, {build: false, smoke: false});
-  assert.equal(cfg.service, undefined);
   assert.ok(!cfg.topics.includes('game') && !cfg.topics.includes('ci-go'));
   // No topic: tests on Linux, no lints, no release builds.
   const bare = resolve({suites: ['go', 'rust', 'release']}, []);
@@ -93,18 +91,33 @@ test('the real fleet list is valid', () => {
   assert.ok(Object.keys(fleet()).length > 0);
 });
 
-test('GreenMail users and Rust glibc floors are checked where they are declared', () => {
-  const image = `artifacts.home.romaine.life/dockerhub/greenmail/standalone:2.1.3@sha256:${'a'.repeat(64)}`;
+// A repository's services are its own ci/services.json, named exactly as its topics select them.
+test("the tests' services come from the repository's ci/services.json", () => {
+  const image = name => `artifacts.home.romaine.life/dockerhub/${name}:1@sha256:${'a'.repeat(64)}`;
+  const run = (files, topics) => config('o/app', {'o/app': {suites: ['go']}}, topics, {files: Object.keys(files), read: file => files[file] ?? null});
+  assert.equal(run({}, []).service, undefined);
+  const mail = {image: image('greenmail'), users: ['alice:secret@example.com', 'bob:secret@example.com']};
+  const cfg = run({'ci/services.json': JSON.stringify({postgres: {image: image('postgres')}, greenmail: mail})}, ['service-postgres', 'service-greenmail']);
+  assert.deepEqual(cfg.service, {postgres: image('postgres'), greenmail: image('greenmail')});
+  assert.deepEqual(cfg.greenmail, {users: mail.users});
+  for (const [services, topics] of [[undefined, ['service-postgres']], [{postgres: {image: image('postgres')}}, []],
+    [{postgres: {image: image('postgres')}}, ['service-postgres', 'service-manticore']], [{redis: {image: image('redis')}}, []],
+    [{postgres: {image: 'postgres:17'}}, ['service-postgres']], [{postgres: image('postgres')}, ['service-postgres']],
+    [{postgres: {image: image('postgres'), users: mail.users}}, ['service-postgres']],
+    [{greenmail: {...mail, users: ['alice']}}, ['service-greenmail']], [{greenmail: {...mail, users: []}}, ['service-greenmail']], [[], []]]) {
+    assert.throws(() => run(services === undefined ? {} : {'ci/services.json': JSON.stringify(services)}, topics), JSON.stringify([services, topics]));
+  }
+  // The list holds no service settings any more.
+  assert.throws(() => validate({suites: ['go'], topics: ['service-postgres'], service: {postgres: image('postgres')}}), /unknown field service/);
+});
+
+test('Rust glibc floors are checked where they are declared', () => {
   const rust = (targets, values = []) => ({suites: ['release'], topics: ['release-rust', ...targets.map(t => `rust-build-${t}`)], release: values.length ? {rustTargets: values} : {}});
-  for (const bad of [{suites: ['rust'], greenmail: {users: ['alice:secret@example.com']}},
-    {suites: ['rust'], topics: ['service-greenmail'], service: {greenmail: image}, greenmail: {users: ['alice']}},
-    {suites: ['rust'], topics: ['service-greenmail'], service: {greenmail: image}, greenmail: {users: []}},
-    rust(['linux-arm64']), rust(['windows-amd64'], [{target: 'x86_64-pc-windows-msvc', glibc: '2.35'}]),
+  for (const bad of [rust(['linux-arm64']), rust(['windows-amd64'], [{target: 'x86_64-pc-windows-msvc', glibc: '2.35'}]),
     rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', glibc: 'latest'}]), rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', strip: true}]),
     rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', package: ''}]), rust(['linux-amd64'], [{target: 'x86_64-unknown-linux-gnu', package: 'a b'}])]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
   }
-  validate({suites: ['rust'], topics: ['service-greenmail'], service: {greenmail: image}, greenmail: {users: ['alice:secret@example.com', 'bob:secret@example.com']}});
   validate(rust(['linux-arm64', 'linux-amd64', 'windows-arm64'], [{target: 'aarch64-unknown-linux-gnu', glibc: '2.35'}]));
   validate(rust(['linux-amd64', 'windows-amd64'], [{target: 'x86_64-unknown-linux-gnu', package: 'spotify_player_session'}, {target: 'x86_64-pc-windows-msvc', package: 'spotify_player'}]));
 });

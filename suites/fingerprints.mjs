@@ -6,6 +6,7 @@ import {inputs,input,ignoredBy,matches} from './input-patterns.mjs';
 import {embedded,imageInputs,docLinks} from './dependencies.mjs';
 import {packagingInputs,packagingMetadata,releaseInputs,settings} from './release/inputs.mjs';
 import {pythonProjects,requiredDocs,tofuVersion} from './conventions.mjs';
+import {servicesFile} from './layout.mjs';
 
 export const canonical=value=>JSON.stringify(value,(_,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))) : item);
 export function tree(ref='HEAD') {
@@ -20,9 +21,11 @@ export async function found(check,cfg,read) {
   if(check==='go.test' || check==='rust.test')return embedded()[check.split('.')[0]];
   if(check==='docs.validate')return [...docLinks().flatMap(target=>[target,`${target.replace(/\/+$/,'')}/**`]),...requiredDocs];
   if(check==='default.rules'){const {dependencies}=await import('./default/rules.mjs');return dependencies();}
-  if(check.endsWith('.image'))return imageInputs((check==='cluster-service.image'?cfg.cluster:cfg.web) || {},read);
+  // An image's smoke test runs against the tests' services, so their file is its input too.
+  const services=Object.keys(cfg.service || {}).length ? [servicesFile] : [];
+  if(check.endsWith('.image'))return [...imageInputs((check==='cluster-service.image'?cfg.cluster:cfg.web) || {},read),...services];
   if(check==='release.build')return releaseInputs(cfg,read);
-  if(check==='release.package')return packagingInputs(cfg,read).patterns;
+  if(check==='release.package')return [...packagingInputs(cfg,read).patterns,...(cfg.release?.image ? services : [])];
   return [];
 }
 export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
