@@ -108,8 +108,8 @@ export async function dispatch() {
   // go.mod requires it (go/modules.mjs).
   const module = ownModule();
   if (module) await dispatchModuleConsumers(module);
-  if (config().release?.mirror) {
-    if (!process.env.DISPATCH_TOKEN) throw new Error('mirror sync requires PIPELINE_DISPATCH_TOKEN');
+  // The repository's push mirrors (fzt's GitHub copies) take the release's tag.
+  if (process.env.DISPATCH_TOKEN) {
     const options={token:process.env.DISPATCH_TOKEN};
     const mirrors=await request(`${api()}/push_mirrors`,options);
     if (mirrors.length) await post(`${api()}/push_mirrors-sync`,{},options);

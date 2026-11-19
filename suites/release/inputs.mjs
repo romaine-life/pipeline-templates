@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import TOML from '@iarna/toml';
+import {buildRunner} from './plan.mjs';
 import {capture} from '../lib.mjs';
 import {matches,relevant} from '../input-patterns.mjs';
 import {embedded,imageInputs} from '../dependencies.mjs';
@@ -12,7 +13,7 @@ export function settings(cfg) {
   const kinds=cfg.release?.toolchains || [],result={release:cfg.release};
   if(kinds.includes('rust'))result.rust={features:cfg.rust?.features,noDefaultFeatures:cfg.rust?.noDefaultFeatures};
   if(kinds.includes('npm'))result.web={packages:cfg.web?.packages};
-  for(const kind of ['cmake','dotnet','python'])if(kinds.includes(kind))result[kind]={buildPlatform:cfg[kind]?.buildPlatform,...(kind==='dotnet'?{sdk:cfg.dotnet?.sdk}:{})};
+  for(const kind of ['cmake','dotnet','python'])if(kinds.includes(kind))result[kind]={buildPlatform:buildRunner(cfg,kind)};
   if(cfg.release?.image)result.image=cfg[cfg.release.image];
   return result;
 }

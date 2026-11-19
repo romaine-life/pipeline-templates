@@ -72,12 +72,12 @@ export async function scope(suite) {
   output('suffix', cfg.release?.suffix || '');
   output('node', nodeVersion());
   output('tofu', tofuVersion);
-  output('dotnet', cfg.dotnet?.sdk || '9.0');
+  output('dotnet', '9.0');
   output('python', pythonVersion());
   output('static-app', Boolean(cfg.web?.staticApp));
   output('has-image', Boolean(cfg.web?.image));
   output('test-history', cfg.web?.history === true);
-  output('has-dispatch', Boolean(cfg.release?.dispatch?.length || cfg.release?.mirror || ownPackage() || ownModule()));
+  output('has-dispatch', Boolean(suite==='release' || cfg.release?.dispatch?.length || ownPackage() || ownModule()));
   for (const name of ['postgres', 'manticore', 'greenmail']) output(name, cfg.service?.[name] || '');
 }
 if (process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) await scope(process.argv[2]);

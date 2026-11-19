@@ -40,10 +40,7 @@
         "home-sync",
         "release-cmake",
         "version-from-manifest"
-      ],
-      "cmake": {
-        "buildPlatform": "windows-latest"
-      }
+      ]
     },
     "nelsong6/avatars": {
       "suites": [
@@ -255,7 +252,6 @@
         "version-from-manifest"
       ],
       "release": {
-        "image": "cluster",
         "rustTargets": [
           {
             "target": "x86_64-unknown-linux-gnu",
@@ -380,10 +376,7 @@
         "home-sync",
         "release-go",
         "web-image"
-      ],
-      "release": {
-        "image": "web"
-      }
+      ]
     },
     "romaine-life/chess-tactics": {
       "suites": [
@@ -440,10 +433,7 @@
         "go-test-windows",
         "home-sync",
         "release-go"
-      ],
-      "release": {
-        "mirror": true
-      }
+      ]
     },
     "romaine-life/fzt-browser": {
       "suites": [
@@ -494,10 +484,7 @@
         "cluster-image",
         "go-test-windows",
         "release-module"
-      ],
-      "release": {
-        "image": "cluster"
-      }
+      ]
     },
     "romaine-life/fzt-picker": {
       "suites": [
@@ -512,10 +499,7 @@
         "release-rust",
         "rust-build-windows-amd64",
         "rust-test-windows"
-      ],
-      "release": {
-        "mirror": true
-      }
+      ]
     },
     "romaine-life/fzt-terminal": {
       "suites": [
@@ -526,10 +510,7 @@
         "go-test-windows",
         "home-sync",
         "release-go"
-      ],
-      "release": {
-        "mirror": true
-      }
+      ]
     },
     "romaine-life/guitar-tabs": {
       "suites": [
@@ -675,9 +656,6 @@
         "go-test-windows",
         "release-dotnet"
       ],
-      "dotnet": {
-        "buildPlatform": "windows-latest"
-      },
       "release": {
         "dispatch": [
           {

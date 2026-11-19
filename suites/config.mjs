@@ -8,8 +8,7 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['dispatch', 'rustTargets', 'external', 'image', 'mirror'],
-  cmake: ['buildPlatform'], dotnet: ['sdk', 'buildPlatform'], python: ['buildPlatform'],
+  release: ['dispatch', 'rustTargets', 'external'],
   service: ['postgres', 'manticore', 'greenmail'], greenmail: ['users']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];

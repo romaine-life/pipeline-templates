@@ -73,7 +73,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
       VERSION:'v0.1.1',TOKEN:'repo-token',DISPATCH_TOKEN:'dispatch-token',GITHUB_OUTPUT:path.join(dir,'outputs')});
     globalThis.fetch=async (url,options={}) => {
       const u=String(url),method=options.method || 'GET';calls.push([method,u]);
-      assert.equal(options.headers.Authorization,u.includes('/romaine-life/consumer') ? 'token dispatch-token' : 'token repo-token');
+      assert.equal(options.headers.Authorization,u.includes('/romaine-life/consumer') || u.includes('/push_mirrors') ? 'token dispatch-token' : 'token repo-token');
       let body={};
       if (u.endsWith('/releases/tags/v0.1.1') && !release) return new Response('{}',{status:404});
       if (u.endsWith('/releases') && method==='POST') release={...JSON.parse(options.body),id:1,assets:[]};
@@ -81,6 +81,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
       if (u.endsWith('/releases/1') && method==='PATCH') release={...release,...JSON.parse(options.body)};
       if (u.includes('/releases?')) body=[release];
       else if (u.includes('/releases')) body=release;
+      else if (u.endsWith('/push_mirrors')) body=[];
       else if (u.endsWith('/romaine-life/consumer')) body={default_branch:'master'};
       else if (u.endsWith('/romaine-life/consumer/raw/go.mod?ref=master')) return new Response('module x\n\nrequire github.com/romaine-life/source v0.1.0\n');
       else if (u.endsWith('/dispatches')) {
@@ -92,6 +93,7 @@ test('source release, publication, pruning, dispatch and successful-input gating
     await sourceRelease();assert.equal(release.draft,true);
     assert.ok(fs.statSync('dist/source.zip').size>0);
     await publish();assert.equal(release.draft,false);
+    assert.ok(calls.some(([method,url])=>method==='GET' && url.endsWith('/test/source/push_mirrors')) && !calls.some(([,url])=>url.endsWith('/push_mirrors-sync')),'a repository without push mirrors syncs none');
     assert.equal(calls.filter(([method,url])=>method==='POST' && url.endsWith('/romaine-life/consumer/actions/workflows/go%2Fdependencies.yml/dispatches')).length,2);
     await releaseScope('docs');assert.match(fs.readFileSync('outputs','utf8'),/build=false/);
     // Started by hand, the same unchanged head releases (PIPT-37).

@@ -31,7 +31,7 @@ export async function fingerprint(check,variant,cfg,suite,entries=tree()) {
   let configuration={},metadata=[];
   const os=variant==='windows-latest' || variant==='windows-legacy' ? 'win32' : 'linux';
   if(check==='rust.test')configuration={features:cfg.rust?.platformFeatures?.[os] || cfg.rust?.features || [],noDefaultFeatures:cfg.rust?.noDefaultFeatures || false};
-  if(check==='dotnet.test')configuration={sdk:cfg.dotnet?.sdk || '9.0'};
+  if(check==='dotnet.test')configuration={sdk:'9.0'};
   // .python-version and .nvmrc are inputs to these checks, so their versions are in the fingerprint.
   if(check==='python.test')configuration={projects:pythonProjects(entries.map(entry=>entry.path))};
   if(check==='web-app.test')configuration={packages:cfg.web?.packages || ['.']};

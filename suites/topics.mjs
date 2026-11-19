@@ -67,6 +67,8 @@ export function resolve(entry, topics, repo = 'owner/repo') {
   if (cfg.suites?.includes('cluster-service') && !on.has('cluster-image')) Object.assign(section('cluster'), {build: false, smoke: false});
   if (on.has('cluster-image')) Object.assign(section('cluster'), {image: `forgejo.romaine.life/${repo}`, baoRole: `${name}-publish`, baoSecret: `services/${name}-build`});
   if (on.has('web-image')) section('web').image = `romainecr.azurecr.io/${name}`;
+  // A repository that releases and builds an image releases them together, under one version.
+  if (cfg.suites?.includes('release') && (on.has('cluster-image') || on.has('web-image'))) section('release').image = on.has('cluster-image') ? 'cluster' : 'web';
   if (on.has('web-static')) Object.assign(section('web'), {staticApp: `${name}-app`, resourceGroup: `${name}-rg`});
   for (const [topic, [name, field]] of Object.entries(valueSelectors)) {
     if (!on.has(topic)) { if (cfg[name]) delete cfg[name][field]; continue; }

@@ -1,6 +1,9 @@
 import {config} from '../config.mjs';
 import {output} from '../lib.mjs';
 import {goParts} from '../go/goreleaser.mjs';
+// A CMake, .NET or Python release builds where its tests run: on Windows when they run on
+// Windows alone (its -test-windows topic without -test-linux), else on Linux.
+export const buildRunner=(cfg,kind)=>{const platforms=cfg[kind]?.platforms || [];return platforms.length===1 && platforms[0]==='windows-latest' ? 'windows-latest' : 'ubuntu-latest';};
 export function releasePlan(cfg=config(),goBuilds) {
   const release=cfg.release || {};
   // A Go library's release is its tag and source (release-module): nothing is built.
@@ -14,7 +17,7 @@ export function releasePlan(cfg=config(),goBuilds) {
       for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,features:(part.features || cfg.rust?.features || []).join(','),noDefault:part.noDefaultFeatures ?? cfg.rust?.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});
     } else if(kind==='go') {
       for(const part of goParts(goBuilds))include.push({id:part.part,toolchain:kind,target:part.target,features:'',noDefault:false,runner:part.runner});
-    } else include.push({id:kind,toolchain:kind,target:'',features:'',noDefault:false,runner:cfg[kind]?.buildPlatform || 'ubuntu-latest'});
+    } else include.push({id:kind,toolchain:kind,target:'',features:'',noDefault:false,runner:buildRunner(cfg,kind)});
   }
   const local=include.length>0;
   if(!local)for(const part of release.external)include.push({id:part.id,toolchain:'external',target:part.id,features:'',noDefault:false,runner:'ubuntu-latest'});

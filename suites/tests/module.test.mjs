@@ -26,9 +26,9 @@ test('an empty plan reaches the workflow as one placeholder entry, so its jobs e
 });
 
 test('a module may join its cluster image, and nothing else', () => {
-  const entry = {suites: ['cluster-service', 'go', 'release'], topics: ['cluster-image', 'release-module'], release: {image: 'cluster'}};
+  const entry = {suites: ['cluster-service', 'go', 'release'], topics: ['cluster-image', 'release-module']};
   validate(entry, 'test/lib');
-  assert.throws(() => validate({...entry, topics: [...entry.topics, 'web-image'], release: {image: 'web'}}, 'test/lib'), /at most its cluster image/);
+  assert.throws(() => validate({suites: ['go', 'release'], topics: ['release-module', 'web-image']}, 'test/lib'), /at most its cluster image/);
 });
 
 test("a module's joined cluster image is a PR check, reuse included", () => {

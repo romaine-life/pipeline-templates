@@ -53,6 +53,11 @@ export function entryFor(settings) {
   // An image and a Static Web App are named for the repository: the topic alone selects them.
   flag('web', 'image', 'web-image');
   flag('web', 'static', 'web-static');
+  // A release joins the image its topic builds (topics.mjs).
+  const joined = take('release', 'image');
+  if (joined && !entry.suites.includes('release')) entry.suites = [...entry.suites, 'release'];
+  if (joined === 'cluster' && !topics.includes('cluster-image')) topics.push('cluster-image');
+  if (joined === 'web' && !topics.includes('web-image')) topics.push('web-image');
   for (const [name, field, topic] of [
     ['release', 'external', 'release-external'],
     ['service', 'postgres', 'service-postgres'], ['service', 'manticore', 'service-manticore'], ['service', 'greenmail', 'service-greenmail']]) {
