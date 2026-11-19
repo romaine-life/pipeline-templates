@@ -21,7 +21,7 @@ export function releasePlan(cfg=config(),goBuilds) {
   }
   const local=include.length>0;
   if(!local)for(const part of release.external)include.push({id:part.id,toolchain:'external',target:part.id,features:'',noDefault:false,runner:'ubuntu-latest'});
-  return {matrix:{include},local,external:(release.external || []).map(part=>({...part,assets:[...new Set(part.assets.flatMap(name=>{const value=process.env.VERSION?name.replaceAll('{tag}',process.env.VERSION).replaceAll('{version}',process.env.VERSION.replace(/^v/,'')):name;return value.endsWith('.zip')?[value,`${value}.signature.json`]:[value];}))]})),homeSync:release.homeSync === true,image:release.image || ''};
+  return {matrix:{include},local,external:(release.external || []).map(part=>({id:part.id,workflow:part.workflow})),homeSync:release.homeSync === true,image:release.image || ''};
 }
 // Forgejo never creates a job whose matrix has no entries, and the jobs that need it then
 // wait forever (fzt's first module PR). An empty plan is sent as one placeholder entry, so

@@ -30,7 +30,7 @@ test('narrow checks read their tool\'s files; tests and a merge\'s release read 
   assert.ok(relevant(['internal/x/testdata/embedded.txt'], 'release.build', ['internal/x/testdata/embedded.txt']));
   assert.ok(relevant(['src/app.test.ts','src/app.ts'], 'release.build'));
   // A workflow that builds a release part itself is an input to the release.
-  const external = releaseInputs({release: {external: [{id: 'msix', workflow: 'build.yml'}]}});
+  const external = releaseInputs({release: {external: [{id: 'build', workflow: 'build.yml'}]}});
   assert.ok(relevant(['.forgejo/workflows/build.yml'], 'release.build', external));
   assert.equal(relevant(['.forgejo/workflows/checks.yml'], 'release.build', external), false);
 });

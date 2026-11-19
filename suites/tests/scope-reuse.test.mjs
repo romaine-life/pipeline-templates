@@ -19,7 +19,7 @@ test('fixed platform selectors handle none, one and all reused, undeclared platf
   }
   const service=testPlatforms('rust',{rust:{platforms:['ubuntu-latest']},service:{postgres:'pinned'}},()=>true);
   assert.deepEqual(service,{platforms:['ubuntu-latest'],run:{'ubuntu-latest':false}});
-  const external=releasePlan({release:{external:[{id:'macos',repository:'o/r',workflow:'macos.yml',assets:['macos.zip']}]}});
+  const external=releasePlan({release:{external:[{id:'build',workflow:'build.yml'}]}});
   assert.equal(external.local,false);assert.equal(external.matrix.include.length,1);assert.equal(external.matrix.include[0].toolchain,'external');
   assert.throws(()=>releasePlan({release:{toolchains:['rust'],rustTargets:[]}}),/nonempty/);
 });

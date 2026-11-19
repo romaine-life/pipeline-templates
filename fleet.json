@@ -13,22 +13,7 @@
         "home-sync",
         "release-external",
         "version-four-part"
-      ],
-      "release": {
-        "external": [
-          {
-            "id": "msix",
-            "provider": "forgejo",
-            "repository": "nelsong6/at-terminal",
-            "workflow": "build.yml",
-            "assets": [
-              "at-terminal_{version}_x64.msix",
-              "at-terminal.cer",
-              "at-protocol.txt"
-            ]
-          }
-        ]
-      }
+      ]
     },
     "nelsong6/at-tmux": {
       "suites": [

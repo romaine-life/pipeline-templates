@@ -58,7 +58,11 @@ export function entryFor(settings) {
   if (joined && !entry.suites.includes('release')) entry.suites = [...entry.suites, 'release'];
   if (joined === 'cluster' && !topics.includes('cluster-image')) topics.push('cluster-image');
   if (joined === 'web' && !topics.includes('web-image')) topics.push('web-image');
-  if (entry.release?.external !== undefined) topics.push('release-external');
+  const external = take('release', 'external');
+  if (external !== undefined) {
+    if (JSON.stringify(external) !== '[{"id":"build","workflow":"build.yml"}]') throw new Error("release-external is the repository's build.yml");
+    topics.push('release-external');
+  }
   // A service's image is the repository's (ci/services.json, servicesFile below); the topic selects it.
   for (const name of Object.keys(entry.service || {})) topics.push(`service-${name}`);
   delete entry.service; delete entry.greenmail;

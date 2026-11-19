@@ -20,19 +20,13 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
   let rel=null,id=0,dispatches=0,callbacks=0,completionReceipt;const data=new Map(),states=[];
   try {
     process.chdir(root);fs.writeFileSync('.goreleaser.yaml','{version: 2, builds: [{id: app, main: ., targets: [linux_amd64_v1]}]}');
-    Object.assign(process.env,{VERSION:'v0.1.1',SOURCE_SHA:'a'.repeat(40),GITHUB_SHA:'a'.repeat(40),GITHUB_EVENT_NAME:'push',GITHUB_REF:'refs/heads/main',DEFAULT_BRANCH:'main',GITHUB_SERVER_URL:'https://forgejo.romaine.life',GITHUB_REPOSITORY:'test/app',TOKEN:'test-token',GITHUB_DISPATCH_TOKEN:'github-token',GITHUB_OUTPUT:path.join(root,'outputs')});
-    fleetEntry(({version:1,release:{toolchains:['go','rust','npm'],external:[{id:'macos',repository:'romaine-life/app',workflow:'macos.yml',assets:['macos.tar.gz']}]}}));
+    Object.assign(process.env,{VERSION:'v0.1.1',SOURCE_SHA:'a'.repeat(40),GITHUB_SHA:'a'.repeat(40),GITHUB_EVENT_NAME:'push',GITHUB_REF:'refs/heads/main',DEFAULT_BRANCH:'main',GITHUB_SERVER_URL:'https://forgejo.romaine.life',GITHUB_REPOSITORY:'test/app',TOKEN:'test-token',DISPATCH_TOKEN:'test-token',GITHUB_OUTPUT:path.join(root,'outputs')});
+    fleetEntry(({version:1,release:{toolchains:['go','rust','npm'],external:[{id:'build',workflow:'build.yml'}]}}));
     globalThis.fetch=async(url,options={})=>{
       const u=String(url),method=options.method || 'GET';let result={};
-      if(u.startsWith('https://api.github.com')){
-        assert.equal(options.headers.Authorization,'token github-token');
-        if(method==='POST'){dispatches++;return new Response(null,{status:204});}
-        return Response.json({default_branch:'main'});
-      }
       if(u.includes('/attachments/')){assert.equal(options.headers.Authorization,'token download-token');assert.equal(rel.draft,false,'draft bytes must never use the web route');return new Response(data.get(Number(u.split('/').at(-1))));}
       assert.equal(options.headers.Authorization,'token test-token');
-      if(u.endsWith('/api/v1/repos/romaine-life/app'))return Response.json({default_branch:'main'});
-      if(u.endsWith('/repos/romaine-life/app/actions/workflows/native.yml/dispatches')){dispatches++;return new Response(null,{status:204});}
+      if(u.endsWith('/repos/test/app/actions/workflows/build.yml/dispatches')){dispatches++;assert.equal(JSON.parse(options.body).inputs.part_id,'build');return new Response(null,{status:204});}
       if(u.endsWith('/actions/workflows/release%2Fci.yml/dispatches')){callbacks++;const body=JSON.parse(options.body);completionReceipt=JSON.parse(body.inputs.receipt);assert.equal(body.inputs['source-sha'],'a'.repeat(40));return new Response(null,{status:204});}
       if(u.endsWith('/api/v1/repos/test/app'))return Response.json({default_branch:'main'});
       if(u.endsWith('/releases/1') && method==='PATCH'){Object.assign(rel,JSON.parse(options.body));return Response.json(rel);}
@@ -51,30 +45,32 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
     assert.equal(await finalize(),false);
     fs.writeFileSync('macos.tar.gz','macOS binary');
     fs.mkdirSync('dist');fs.copyFileSync('macos.tar.gz','dist/macos.tar.gz');
-    Object.assign(process.env,{RELEASE_SERVER_URL:'https://forgejo.romaine.life',RELEASE_REPOSITORY:'test/app',PART_ID:'macos'});
+    Object.assign(process.env,{RELEASE_SERVER_URL:'https://forgejo.romaine.life',RELEASE_REPOSITORY:'test/app',PART_ID:'build'});
     await completeExternal();assert.equal(callbacks,1);
-    assert.equal(await finalize('macos','success',completionReceipt),false);
+    assert.equal(await finalize('build','success',completionReceipt),false);
     fs.writeFileSync('app.exe','signed Windows binary');fs.writeFileSync('web.tar.gz','npm assets');
+    // The build named its own files; another part can't take one of them.
+    await assert.rejects(stagePart('local',['app.exe','macos.tar.gz']),/another part uploaded: macos.tar.gz/);
     await stagePart('local',['app.exe','web.tar.gz']);assert.equal(await finalize(),true);assert.equal(rel.prerelease,false);
-    rel.draft=false;assert.equal(await finalize('macos','success',completionReceipt),true);rel.draft=true;
+    rel.draft=false;assert.equal(await finalize('build','success',completionReceipt),true);rel.draft=true;
     assert.match(data.get(rel.assets.find(a=>a.name==='SHA256SUMS').id).toString(),/macos.tar.gz/);
     const binary=rel.assets.find(a=>a.name==='app.exe');binary.size++;
-    await assert.rejects(finalize('macos','success',completionReceipt),/differs from its receipt/);
-    await stagePart('local',['app.exe','web.tar.gz']);assert.equal(await finalize('macos','success',completionReceipt),true);
-    process.env.SOURCE_SHA='b'.repeat(40);await assert.rejects(finalize('macos'),/source SHA/);process.env.SOURCE_SHA='a'.repeat(40);
+    await assert.rejects(finalize('build','success',completionReceipt),/differs from its receipt/);
+    await stagePart('local',['app.exe','web.tar.gz']);assert.equal(await finalize('build','success',completionReceipt),true);
+    process.env.SOURCE_SHA='b'.repeat(40);await assert.rejects(finalize('build'),/source SHA/);process.env.SOURCE_SHA='a'.repeat(40);
     await assert.rejects(finalize('unknown'),/undeclared/);
-    await assert.rejects(finalize('macos','failure'),/build failed/);assert.equal(states.at(-1),'failure');
-    rel.draft=false;await assert.rejects(stagePart('macos',['macos.tar.gz']),/published/);
+    await assert.rejects(finalize('build','failure'),/build failed/);assert.equal(states.at(-1),'failure');
+    rel.draft=false;await assert.rejects(stagePart('build',['macos.tar.gz']),/published/);
     await assert.rejects(materializeAsset('app.exe','downloaded.exe'),/DOWNLOAD_TOKEN/);process.env.DOWNLOAD_TOKEN='download-token';
     await materializeAsset('app.exe','downloaded.exe');assert.equal(fs.readFileSync('downloaded.exe','utf8'),'signed Windows binary');
-    for(const provider of ['github','forgejo']) {
-      rel=null;data.clear();id=0;
-      process.env.DISPATCH_TOKEN='test-token';
-      fleetEntry(({version:1,release:{toolchains:[],external:[{id:'macos',provider,repository:'romaine-life/app',workflow:provider==='github'?'macos.yml':'native.yml',assets:['macos.tar.gz']}]}}));
-      await reserve();assert.equal(await finalize(),false);
-      completionReceipt=await stagePart('macos',['macos.tar.gz'],{deferReceipt:true});assert.equal(await finalize('macos','success',completionReceipt),true);
-      await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
-    }
+    // A release built only by the repository's build.yml publishes whatever files it uploaded.
+    rel=null;data.clear();id=0;
+    fleetEntry(({version:1,release:{toolchains:[],external:[{id:'build',workflow:'build.yml'}]}}));
+    await reserve();assert.equal(await finalize(),false);
+    fs.writeFileSync('app.cer','certificate');
+    completionReceipt=await stagePart('build',['macos.tar.gz','app.cer'],{deferReceipt:true});assert.equal(await finalize('build','success',completionReceipt),true);
+    assert.deepEqual(rel.assets.map(a=>a.name).filter(n=>n!=='SHA256SUMS').sort(),['app.cer','macos.tar.gz']);
+    await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
     fleetEntry(({version:1,release:{image:'web'},web:{image:true}}));
     const calls=[];
     await deployJoined(async(...args)=>calls.push(args),(...args)=>calls.push(args));

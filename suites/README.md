@@ -52,7 +52,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `version-from-manifest` | The version series comes from the root manifest's version |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
-| `release-external` | The release's external parts: `release.external` |
+| `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`) |
 
 A value a topic selects is in the entry exactly when the topic is. The values are still in
 the list until each becomes a convention or the repository's own file (PIPT-12).
@@ -62,7 +62,7 @@ the list until each becomes a convention or the repository's own file (PIPT-12).
 | Section | Fields |
 |---|---|
 | `rust` | `features`, `noDefaultFeatures`, `platformFeatures` |
-| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang), `external` |
+| `release` | `rustTargets` (each `{target, package, features, noDefaultFeatures, glibc}`, the values of a target its `rust-build-` topic builds; `package` builds that Cargo package alone with its own default features, for a workspace that ships a different program per platform; a Linux target with a `glibc` floor such as `2.35` builds through zig, which another architecture than the runner's x86_64 needs; Windows ARM64 builds with the Windows runner's LLVM clang) |
 
 ### What the repository's name and files decide
 

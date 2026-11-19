@@ -1,6 +1,6 @@
 import path from 'node:path';
 import {capture, readJSON, templates} from './lib.mjs';
-import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic, valueSelectors} from './topics.mjs';
+import {currentTopics, isSettingTopic, resolve, rustBuilds, validTopic} from './topics.mjs';
 import {layout} from './layout.mjs';
 
 // A fleet entry: its suites, its setting topics (topics.mjs), and the values a convention
@@ -8,7 +8,7 @@ import {layout} from './layout.mjs';
 const fields = {
   suites: null, topics: null,
   rust: ['features', 'noDefaultFeatures', 'platformFeatures'],
-  release: ['rustTargets', 'external']
+  release: ['rustTargets']
 };
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
@@ -58,10 +58,6 @@ export function validate(value, where = 'fleet entry') {
   // Forgejo keeps at most 25 topics on a repository.
   if (value.suites.length + topics.length > 25) throw new Error(`${where}: more than 25 topics`);
   if (topics.includes('web-static') && topics.includes('web-image')) throw new Error(`${where}: a web app deploys a Static Web App (web-static) or an image (web-image), not both`);
-  // A value a topic selects is there exactly when the topic is.
-  for (const [topic, [name, field]] of Object.entries(valueSelectors)) {
-    if ((value[name]?.[field] !== undefined) !== topics.includes(topic)) throw new Error(`${where}: ${name}.${field} goes with topic ${topic}`);
-  }
   if (value.release?.rustTargets !== undefined && !Array.isArray(value.release.rustTargets)) throw new Error(`${where}: release.rustTargets must be an array`);
   for (const part of value.release?.rustTargets || []) {
     const platform = Object.keys(rustBuilds).find(p => rustBuilds[p] === part?.target);
@@ -82,7 +78,7 @@ function settings(value) {
   const toolchains = value.release?.toolchains || [];
   if(value.release?.rustTargets && (!Array.isArray(value.release.rustTargets) || !value.release.rustTargets.length))throw new Error('release.rustTargets must be a nonempty array');
   for (const part of value.release?.rustTargets || []) {
-    if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples; Apple targets belong in release.external');
+    if (!/^[\w]+-[\w]+-[\w]+(?:-[\w]+)?$/.test(part.target || '') || part.target.includes('apple')) throw new Error('Rust targets need target triples, and none for Apple');
     if (Object.keys(part).some(key => !['target', 'package', 'features', 'noDefaultFeatures', 'glibc'].includes(key))) throw new Error('release.rustTargets take target, package, features, noDefaultFeatures and glibc');
     // A workspace that ships a different program per platform names its package: Cargo builds it
     // alone, with that package's own default features, instead of unifying every member's.
@@ -93,13 +89,5 @@ function settings(value) {
   }
   if (value.release?.image && !['cluster','web'].includes(value.release.image)) throw new Error('release.image must be cluster or web');
   if (value.release?.image && !value[value.release.image]?.image) throw new Error('joined image release needs the corresponding image configuration');
-  const externalIds=new Set(),externalAssets=new Set();
-  for (const part of value.release?.external || []) {
-    if (part.provider && !['github','forgejo'].includes(part.provider)) throw new Error('external release provider must be github or forgejo');
-    if (!/^[a-z][a-z0-9-]*$/.test(part.id || '') || (['local','plan'].includes(part.id) || part.id.startsWith('request-')) || externalIds.has(part.id) || !/^(?:romaine-life|nelsong6)\/[\w.-]+$/.test(part.repository || '') || !/^[\w.-]+\.ya?ml$/.test(part.workflow || '') || !Array.isArray(part.assets) || !part.assets.length) throw new Error('external release parts need unique id, repository, workflow and asset names');
-    for (const asset of part.assets) if (!/^[\w.+-]+$/.test(asset.replaceAll('{tag}','tag').replaceAll('{version}','version'))) throw new Error('external assets must be plain file names');
-    for (const asset of part.assets) {if (externalAssets.has(asset)) throw new Error('external release asset names must be unique across parts');externalAssets.add(asset);}
-    externalIds.add(part.id);
-  }
   return value;
 }

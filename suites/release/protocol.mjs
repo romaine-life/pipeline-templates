@@ -55,12 +55,13 @@ export async function reserve() {
   rel=await release();
   for(const asset of rel.assets || [])if(asset.name==='ci-release-plan.json')await request(`${api()}/releases/${rel.id}/assets/${asset.id}`,{method:'DELETE',allow404:true});
   await status(plan,'pending','Building the declared release parts');
+  // An external part is the repository's own workflow (topics.mjs), dispatched on its default
+  // branch with the reserved tag.
   for(const part of plan.external) {
     if(value.requests[part.id] || value.receipts[part.id])continue;
-    const forgejo=part.provider==='forgejo',token=forgejo?process.env.DISPATCH_TOKEN:process.env.GITHUB_DISPATCH_TOKEN;
+    const token=process.env.DISPATCH_TOKEN;
     if(!token)throw new Error('external release build needs its dispatch token');
-    const remote=forgejo?`${process.env.GITHUB_SERVER_URL}/api/v1/repos/${part.repository}`:`https://api.github.com/repos/${part.repository}`;
-    const repo=await request(remote,{token});
+    const remote=api(),repo=await request(remote,{token});
     await post(`${remote}/actions/workflows/${encodeURIComponent(part.workflow)}/dispatches`,{ref:repo.default_branch,inputs:{release_tag:tag(),source_sha:source(),release_repository:process.env.GITHUB_REPOSITORY,part_id:part.id,callback_workflow:'release/ci.yml',suites_ref:process.env.SUITES_REF || 'main'}},{token});
     value.requests[part.id]=true;await save(rel,value);
   }
@@ -69,8 +70,6 @@ export async function reserve() {
 function verifyReceipt(rel,value,receipt) {
   const plan=value.plan,id=receipt.id;
   if(receipt.version!==2 || receipt.sha!==plan.sha || receipt.tag!==plan.tag || !receipt.files?.length || id==='local' && !plan.local || id!=='local' && id!=='metadata' && !plan.external.some(p=>p.id===id))throw new Error('invalid or undeclared release receipt');
-  const expected=['local','metadata'].includes(id)?null:plan.external.find(p=>p.id===id).assets;
-  if(expected && JSON.stringify([...expected].sort())!==JSON.stringify(receipt.files.map(f=>f.name).sort()))throw new Error('external receipt has unexpected assets');
   const names=new Set();
   for(const file of receipt.files) {
     const asset=rel.assets?.find(a=>a.id===file.id);
@@ -92,15 +91,15 @@ export async function stagePart(id,files,{deferReceipt=false}={}) {
   if(!rel.draft)throw new Error('cannot upload a part to a published release');
   if(id==='local' && !plan.local || id!=='local' && !plan.external.some(p=>p.id===id))throw new Error('undeclared external release part');
   if(id!=='local' && !deferReceipt)throw new Error('external receipts must arrive through the serialized Forgejo callback');
-  const reserved=new Set(plan.external.flatMap(p=>p.assets)),manifest=[];
+  // A part's files are what it built: no part may take a name another part's receipt holds.
+  const taken=new Set(Object.entries(value.receipts).filter(([part])=>part!==id).flatMap(([,part])=>part.files.map(f=>f.name))),manifest=[];
   for(const file of files) {
     const name=path.basename(file),size=fs.statSync(file).size;
     if(name.startsWith('ci-release-') || !size || manifest.some(f=>f.name===name))throw new Error('release files must be nonempty, uniquely named assets');
-    if(id==='local' && reserved.has(name))throw new Error('local asset collides with a reserved external asset');
+    if(taken.has(name))throw new Error(`release part ${id} names a file another part uploaded: ${name}`);
     manifest.push({name});
   }
   if(!manifest.length)throw new Error('release part has no assets');
-  if(id!=='local' && JSON.stringify([...plan.external.find(p=>p.id===id).assets].sort())!==JSON.stringify(manifest.map(f=>f.name).sort()))throw new Error('external assets differ from the reserved names');
   for(const old of value.receipts[id]?.files || [])if(!manifest.some(f=>f.name===old.name)) {
     const asset=rel.assets.find(a=>a.id===old.id);
     if(asset)await request(`${api()}/releases/${rel.id}/assets/${asset.id}`,{method:'DELETE'});

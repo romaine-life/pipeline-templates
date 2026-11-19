@@ -18,13 +18,6 @@ export const rustBuilds = {
 const lints = ['typos', 'machete', 'audit'];
 export const serviceNames = ['postgres', 'manticore', 'greenmail'];
 
-// Selectors that pick a value fleet.json still holds (to become conventions or repository
-// files): the topic decides whether it applies, the value what it is. A service- topic's
-// image is the repository's own (layout.mjs, ci/services.json).
-export const valueSelectors = {
-  'release-external': ['release', 'external'],
-};
-
 // Every topic the suites read, and so every topic Fleet owns besides `ci-`.
 export const settingTopics = [
   ...testTools.flatMap(tool => [`${tool}-test-linux`, `${tool}-test-windows`]),
@@ -43,7 +36,6 @@ export const validTopic = topic => typeof topic === 'string' && /^[a-z0-9][-.a-z
 
 // The settings the suites read, from a fleet entry and the topics the repository carries:
 // a topic turns its setting on; without it the setting is off (tests run on Linux only).
-// The values a selector picks stay in the entry and apply only while their topic is set.
 // What an image, its registry sign-in and a Static Web App are called follows from the
 // repository's name (PIPT-30).
 export function resolve(entry, topics, repo = 'owner/repo') {
@@ -70,10 +62,10 @@ export function resolve(entry, topics, repo = 'owner/repo') {
   // A repository that releases and builds an image releases them together, under one version.
   if (cfg.suites?.includes('release') && (on.has('cluster-image') || on.has('web-image'))) section('release').image = on.has('cluster-image') ? 'cluster' : 'web';
   if (on.has('web-static')) Object.assign(section('web'), {staticApp: `${name}-app`, resourceGroup: `${name}-rg`});
-  for (const [topic, [name, field]] of Object.entries(valueSelectors)) {
-    if (!on.has(topic)) { if (cfg[name]) delete cfg[name][field]; continue; }
-    if (cfg[name]?.[field] === undefined) throw new Error(`topic ${topic} needs ${name}.${field} in fleet.json`);
-  }
+  // A release part no suite builds is the repository's own .forgejo/workflows/build.yml: the
+  // release dispatches it with the tag it reserved, and learns the part's files from what that
+  // build uploads (complete-external.mjs), so nothing here names them (PIPT-42).
+  if (on.has('release-external')) section('release').external = [{id: 'build', workflow: 'build.yml'}];
   if (on.has('release-module')) section('release').module = true;
   const toolchains = releaseToolchains.filter(kind => on.has(`release-${kind}`));
   if (toolchains.length) section('release').toolchains = toolchains;

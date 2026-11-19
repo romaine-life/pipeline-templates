@@ -173,7 +173,6 @@ jobs:
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
-        GITHUB_DISPATCH_TOKEN: ${{ secrets.GITHUB_DISPATCH_TOKEN }}
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
       id: draft
     outputs:
