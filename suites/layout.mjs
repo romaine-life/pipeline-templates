@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import TOML from '@iarna/toml';
+import YAML from 'yaml';
 import {safePath, tracked} from './lib.mjs';
 
 // The settings a repository's files decide (PIPT-30): what its cluster service renders,
@@ -22,10 +23,41 @@ export const imageContext = files => files.includes('k8s/image/Dockerfile') ? 'k
 
 export const pinPattern = image => new RegExp(`${image.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:[\\w.+-]+@sha256:[0-9a-f]{64}`);
 
+// An upstream Helm chart that is vendored, so can't be edited, names its image by separate
+// values (OPADMIN-37): a map whose `registry` and `repository` make the image, with its `tag`
+// and its digest, either `sha256: <hex>` (OpenProject's chart) or `digest: sha256:<hex>`
+// (Bitnami's). Each such map in a parsed YAML document, with its pin as
+// `<image>:<tag>@sha256:<hex>` and the key that holds the digest.
+export function fieldPins(image, document) {
+  const found = [];
+  const text = (map, key) => { const value = map.get(key); return typeof value === 'string' ? value : undefined; };
+  YAML.visit(document, {Map(_, map) {
+    const registry = text(map, 'registry'), repository = text(map, 'repository'), tag = text(map, 'tag');
+    if (registry === undefined || repository === undefined || `${registry}/${repository}` !== image || !/^[\w.+-]+$/.test(tag || '')) return;
+    const sha256 = text(map, 'sha256'), digest = text(map, 'digest');
+    const key = sha256 !== undefined ? 'sha256' : 'digest';
+    const hex = key === 'sha256' ? sha256 : digest?.match(/^sha256:([0-9a-f]{64})$/)?.[1];
+    if (/^[0-9a-f]{64}$/.test(hex || '')) found.push({map, key, pin: `${image}:${tag}@sha256:${hex}`});
+  }});
+  return found;
+}
+
+// The distinct pins of the image a YAML file's text holds: each `<image>:<tag>@sha256:<digest>`
+// string, and each map of separate fields that pins it (fieldPins). A file that isn't YAML
+// (a Helm template) has only its strings.
+export function imagePins(image, text) {
+  const pins = text.match(new RegExp(pinPattern(image).source, 'g')) || [];
+  if (text.includes(image.split('/').pop())) {
+    for (const document of YAML.parseAllDocuments(text)) {
+      if (document.errors?.length === 0) pins.push(...fieldPins(image, document).map(found => found.pin));
+    }
+  }
+  return [...new Set(pins)];
+}
+
 // The one tracked YAML file that pins the image by digest; none when no file or several do.
 export function pinFile(image, files, read = readFile) {
-  const pattern = pinPattern(image);
-  const found = files.filter(file => /\.ya?ml$/.test(file) && pattern.test(read(file) || ''));
+  const found = files.filter(file => /\.ya?ml$/.test(file) && imagePins(image, read(file) || '').length);
   return found.length === 1 ? found[0] : undefined;
 }
 

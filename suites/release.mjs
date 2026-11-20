@@ -7,6 +7,7 @@ import {config, currentRepository} from './config.mjs';
 import {relevant, matches} from './input-patterns.mjs';
 import {imageInputs} from './dependencies.mjs';
 import {found} from './fingerprints.mjs';
+import {imagePins} from './layout.mjs';
 import {zipDirectory} from './release/zip.mjs';
 import {dispatchConsumers, publishPackage} from './packages.mjs';
 import {publishProvider} from './release/tofu-provider.mjs';
@@ -64,11 +65,11 @@ export async function releaseScope(suite) {
   output('build', relevant(files, job, await found(job, cfg)));
   if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', joinedImageChanged(cfg.cluster));
 }
-// The image the pin file runs (`<image>:<tag>@sha256:<digest>`), when it names exactly one.
+// The image the pin file runs (`<image>:<tag>@sha256:<digest>`, written as one string or as a
+// chart's separate fields, layout.mjs), when it names exactly one.
 export function pinnedImage(section) {
   if (!section.pinFile) return null;
-  const escaped = section.image.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pins = [...new Set(fs.readFileSync(section.pinFile, 'utf8').match(new RegExp(`${escaped}:[\\w.+-]+@sha256:[0-9a-f]{64}`, 'g')) || [])];
+  const pins = imagePins(section.image, fs.readFileSync(section.pinFile, 'utf8'));
   return pins.length === 1 ? pins[0] : null;
 }
 // A joined cluster image is built again only when its inputs changed since the release that

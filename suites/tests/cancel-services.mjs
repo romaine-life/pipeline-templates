@@ -53,8 +53,9 @@ try {
     dockerEnv.push('DOCKER_CERT_PATH=/fixture/docker-certs');
   }
   for(const file of ['services.mjs','docker-events.mjs','config.mjs','topics.mjs','conventions.mjs','layout.mjs','lib.mjs'])fs.copyFileSync(path.join(suites,file),path.join(dir,'suites',file));
-  // layout.mjs reads Cargo.toml with @iarna/toml, which needs nothing else.
-  fs.cpSync(path.join(suites,'node_modules','@iarna','toml'),path.join(dir,'suites','node_modules','@iarna','toml'),{recursive:true});
+  // layout.mjs reads Cargo.toml with @iarna/toml and a chart's image fields with yaml, which
+  // need nothing else.
+  for(const pkg of [['@iarna','toml'],['yaml']])fs.cpSync(path.join(suites,'node_modules',...pkg),path.join(dir,'suites','node_modules',...pkg),{recursive:true});
   fs.copyFileSync(fleetEntry({service:serviceImages},'test/cancel'),path.join(dir,'fleet.json'));
   fs.writeFileSync(path.join(dir,'hold.mjs'),`import fs from 'node:fs';import net from 'node:net';console.log('CI_CANCEL_READY:'+JSON.parse(fs.readFileSync('.ci-services.json')).id);net.createServer().listen(0,'127.0.0.1');`);
   fs.writeFileSync(path.join(dir,'result.mjs'),`import fs from 'node:fs';console.log('CI_CANCELLED_CONFIRMED');fs.writeFileSync('cancelled-proof','cancelled');`);

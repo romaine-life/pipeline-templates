@@ -174,6 +174,10 @@
     "nelsong6/openproject": {
       "suites": [
         "cluster-service"
+      ],
+      "topics": [
+        "cluster-image",
+        "service-postgres"
       ]
     },
     "nelsong6/pcloud-sync": {

@@ -69,7 +69,11 @@ A cluster service or web app is configured by its name and layout, not the list 
 - `k8s/` is what the cluster runs, rendered as a Helm chart (`Chart.yaml`, as release
   `<repo>`, with its `values.yaml` and once more over each `values-<case>.yaml` beside it),
   a kustomization (`kustomization.yaml`), or an Argo CD app of apps (`root-app.yaml`).
-- The pin file is the one tracked YAML file that pins the image by digest. Its top-level
+- The pin file is the one tracked YAML file that pins the image by digest: as one string,
+  `<image>:<tag>@sha256:<digest>`, or, for an upstream chart that names its image by separate
+  values, a map whose `registry` and `repository` make the image, with its `tag` and its
+  digest as `sha256: <hex>` (OpenProject's chart) or `digest: sha256:<hex>` (Bitnami's); a
+  release sets that map's tag and digest. Its top-level
   `release` map, if it has one, holds pin fields named for what each takes: `tag`,
   `commit`, `version` (the tag without its v), `date` (when the release was pinned, UTC,
   to the second), or the PR the release's commit merged, `prNumber`, `prTitle`, `prUrl`.
