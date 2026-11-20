@@ -173,7 +173,8 @@
     },
     "nelsong6/openproject": {
       "suites": [
-        "cluster-service"
+        "cluster-service",
+        "tofu"
       ],
       "topics": [
         "cluster-image",
