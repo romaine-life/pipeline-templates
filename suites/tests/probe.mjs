@@ -7,6 +7,11 @@ const log = value => fs.appendFileSync(process.env.PROBE_LOG, `${JSON.stringify(
 child.spawnSync = (command, args, options) => {
   log({command, args, goos:options.env?.GOOS,goarch:options.env?.GOARCH,input: options.input ? '<stdin>' : undefined});
   if (process.env.PROBE_FAIL === command) return {status: 9, stdout: ''};
+  // The registry refuses the first docker login (the job's own token), and takes the next.
+  if (process.env.PROBE_REFUSE_LOGIN && command === 'docker' && args[0] === 'login' && !globalThis.refusedLogin) {
+    globalThis.refusedLogin = true;
+    return {status: 1, stdout: ''};
+  }
   let stdout = '';
   if (command === 'rustc') stdout = 'rustc 1.100.0 (abc 2026-01-01)';
   if (command === 'python') stdout = 'Python 3.12.10';

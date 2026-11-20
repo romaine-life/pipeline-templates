@@ -59,7 +59,9 @@ Without its topic a setting is off. `topics.mjs` lists them.
 A cluster service or web app is configured by its name and layout, not the list (PIPT-30):
 
 - Its image is `forgejo.romaine.life/<owner>/<repo>` (`cluster-image`, signing in to the
-  registry as OpenBao role `<repo>-publish`, reading `secret/services/<repo>-build`) or
+  registry with the publish job's own short-lived token, which nelson's Forgejo integration
+  `ci-image-publish` takes; until each publish has signed in that way once, the OpenBao role
+  `<repo>-publish` reading `secret/services/<repo>-build` is the fallback, BAO-15) or
   `romainecr.azurecr.io/<repo>` (`web-image`). It builds from `k8s/image/` when its
   `Dockerfile` is there, else from the root.
 - Its Static Web App is `<repo>-app` in resource group `<repo>-rg` (`web-static`).
