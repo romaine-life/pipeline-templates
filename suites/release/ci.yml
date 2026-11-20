@@ -33,7 +33,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 env:
   DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-  CHECK_VERSION: 0.0.0-pr${{ github.event.pull_request.number }}.${{ github.run_number }}
   SOURCE_SHA: ${{ inputs.source-sha || github.sha }}
   SUITES_REF: ${{ vars.CI_SUITES_REF || 'main' }}
   GOMAXPROCS: '4'
@@ -68,6 +67,19 @@ jobs:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - run: node _ci/suites/release/plan.mjs
       id: plan
+    # A PR's build stamps the tag its merge would take and attests what it read, so a merge
+    # that reserves that tag with the same inputs publishes this build (release/prior-build.mjs).
+    - uses: ./_ci/actions/release-version
+      id: version
+      if: github.event_name == 'pull_request' && steps.scope.outputs.package == 'true' && steps.plan.outputs.has-local == 'true'
+      with:
+        prefix: ${{ steps.scope.outputs.prefix }}
+        prefix-from: ${{ steps.scope.outputs.prefix-from }}
+        suffix: ${{ steps.scope.outputs.suffix }}
+    - run: node _ci/suites/release/prior-build.mjs attest
+      if: steps.version.outputs.next != ''
+      env:
+        VERSION: ${{ steps.version.outputs.next }}
     - run: node _ci/suites/release.mjs scope release
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -87,6 +99,7 @@ jobs:
       node: ${{ steps.scope.outputs.node }}
       has-dispatch: ${{ steps.scope.outputs.has-dispatch }}
       matrix: ${{ steps.plan.outputs.matrix }}
+      check-version: ${{ steps.version.outputs.next }}
       build: ${{ steps.release.outputs.build || steps.scope.outputs.package }}
       joined-image: ${{ steps.scope.outputs.joined-image }}
       image-build: ${{ steps.release.outputs.image-build }}
@@ -175,9 +188,16 @@ jobs:
         VERSION: ${{ steps.version.outputs.version }}
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
       id: draft
+    - run: node _ci/suites/release/prior-build.mjs find
+      id: prior
+      if: needs.scope.outputs.has-local == 'true' && steps.draft.outputs.published == 'false'
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.tag }}
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       published: ${{ steps.draft.outputs.published }}
+      prior-run: ${{ steps.prior.outputs.prior-run }}
   build:
     enable-openid-connect: true
     name: build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})
@@ -185,7 +205,7 @@ jobs:
     - scope
     - reserve
     if: github.event_name != 'pull_request' && !inputs.release-tag && needs.reserve.outputs.published == 'false' && needs.scope.outputs.has-local
-      == 'true'
+      == 'true' && needs.reserve.outputs.prior-run == ''
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -251,7 +271,8 @@ jobs:
     - reserve
     - build
     if: always() && !cancelled() && github.event_name != 'pull_request' && needs.scope.result == 'success' && (inputs.release-tag || (needs.build.result
-      == 'success' || (needs.scope.outputs.has-local == 'false' && needs.reserve.result == 'success')))
+      == 'success' || (needs.scope.outputs.has-local == 'false' && needs.reserve.result == 'success') || (needs.reserve.outputs.prior-run != '' && needs.reserve.result
+      == 'success')))
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -279,7 +300,12 @@ jobs:
       with:
         pattern: release-*
         path: parts
-      if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
+      if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'' && needs.reserve.outputs.prior-run == '''''
+    - run: node _ci/suites/release/prior-build.mjs download
+      if: '!inputs.release-tag && needs.reserve.outputs.prior-run != '''''
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PRIOR_RUN: ${{ needs.reserve.outputs.prior-run }}
     - run: node _ci/suites/release/assemble.mjs
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
     - run: node _ci/suites/release/sign-linux.mjs
@@ -421,7 +447,7 @@ jobs:
       if: matrix.toolchain == 'python'
     - run: node _ci/suites/release/build.mjs
       env:
-        VERSION: ${{ env.CHECK_VERSION }}
+        VERSION: ${{ needs.scope.outputs.check-version }}
         RELEASE_TOOLCHAIN: ${{ matrix.toolchain }}
         RELEASE_PART: ${{ matrix.id }}
         RELEASE_TARGET: ${{ matrix.target }}
@@ -466,14 +492,14 @@ jobs:
       env:
         AT_TERMINAL_PFX: ${{ secrets.AT_TERMINAL_PFX }}
         AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
-        VERSION: ${{ env.CHECK_VERSION }}
+        VERSION: ${{ needs.scope.outputs.check-version }}
     - run: node _ci/suites/release/image.mjs check
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop
     - run: node _ci/suites/release/metadata.mjs
       env:
-        VERSION: ${{ env.CHECK_VERSION }}
+        VERSION: ${{ needs.scope.outputs.check-version }}
 
   deploy-image:
     needs:

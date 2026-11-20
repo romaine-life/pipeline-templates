@@ -91,7 +91,9 @@ raw.githubusercontent.com at `/general/githubusercontent/<path>`, get.helm.sh at
 Every home build's version comes from one step, and none carries a commit hash. A release
 is numbered `<prefix>.N`: the plain count (`v0.1.12`), or for a fork the upstream version
 it's built on (`v0.25.1.4`). A build that isn't released is named after the number it would
-take and its PR and run (`v0.1.13-pr152.871`), or its run alone (`v0.1.13-run871`).
+take and its PR and run (`v0.1.13-pr152.871`), or its run alone (`v0.1.13-run871`); the
+release suite's PR build alone stamps the tag itself (`v0.1.13`, the action's `next`), so its
+merge can publish that build (suites/README.md, rule 1).
 
 ```yaml
       - id: version

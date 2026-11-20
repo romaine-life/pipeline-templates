@@ -51,6 +51,11 @@ outputs:
     description: On a release run the tag reserved on the commit, which equals version; empty otherwise.
   reserved:
     description: true when this run created the tag, false when the commit already had it.
+  next:
+    description: >-
+      The tag a release of this commit would take now: the tag on a release run, else the
+      version without its PR and run. The release suite's PR build stamps it, so a merge whose
+      reserved tag and inputs match can publish that build (suites/release/prior-build.mjs).
 runs:
   using: node20
   main: version.js

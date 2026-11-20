@@ -49,7 +49,7 @@ test('PR packaging signs and verifies assembled assets with the merge signer, wi
   assert.ok(assemble>=0 && assemble<sign && sign<smoke);
   const merge=workflow.jobs.finalize.steps.find(step=>step.run==='node _ci/suites/release/sign-linux.mjs');
   for(const key of ['AT_TERMINAL_PFX','AT_TERMINAL_PFX_PASSWORD'])assert.equal(steps[sign].env[key],merge.env[key]);
-  assert.equal(steps[sign].env.VERSION,'${{ env.CHECK_VERSION }}');
+  assert.equal(steps[sign].env.VERSION,'${{ needs.scope.outputs.check-version }}');
   assert.equal(workflow.jobs['check-build'].steps.find(step=>step.run==='node _ci/suites/release/build.mjs').env.VERSION,steps[sign].env.VERSION);
   assert.equal(steps.some(step=>/\bpublish\b|protocol\.mjs/.test(step.run || '')),false);
   assert.equal(steps[sign].env.TOKEN,undefined);

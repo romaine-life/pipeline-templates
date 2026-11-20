@@ -34,7 +34,7 @@ const run = (f, opts) => releaseVersion({api: 'https://f/api/v1/repos/o/r', toke
 test('a release takes the next number in its series, ignoring other series and hashes', async () => {
   const f = forgejo([tag('v0.1.9'), tag('v0.1.10'), tag('v0.2.40'), tag('v0.1.11-3-gabcdef1'), tag('coach-v0.1.50')]);
   const result = await run(f, {series: 'v0.1', publish: true, sha: A});
-  assert.deepEqual(result, {version: 'v0.1.11', tag: 'v0.1.11', reserved: true});
+  assert.deepEqual(result, {version: 'v0.1.11', tag: 'v0.1.11', reserved: true, next: 'v0.1.11'});
   assert.deepEqual(f.created, ['v0.1.11']);
 });
 
@@ -45,7 +45,7 @@ test('a series with no tags starts at 0', async () => {
 
 test('a commit already numbered keeps its number and creates nothing', async () => {
   const f = forgejo([tag('v0.1.4', A), tag('v0.1.5')]);
-  assert.deepEqual(await run(f, {series: 'v0.1', publish: true, sha: A}), {version: 'v0.1.4', tag: 'v0.1.4', reserved: false});
+  assert.deepEqual(await run(f, {series: 'v0.1', publish: true, sha: A}), {version: 'v0.1.4', tag: 'v0.1.4', reserved: false, next: 'v0.1.4'});
   assert.deepEqual(f.created, []);
 });
 
@@ -64,9 +64,9 @@ test('a component numbers its own series', async () => {
   assert.equal((await run(f, {series: 'coach-v0.1', publish: true, sha: A})).version, 'coach-v0.1.3');
 });
 
-test('a PR build is named after the next number, the PR and the run, and tags nothing', async () => {
+test('a PR build is named after the next number, the PR and the run, tags nothing, and names the tag a release would take', async () => {
   const f = forgejo([tag('v0.1.133')]);
-  assert.deepEqual(await run(f, {series: 'v0.1', publish: false, pullRequest: '152'}), {version: 'v0.1.134-pr152.871', tag: '', reserved: false});
+  assert.deepEqual(await run(f, {series: 'v0.1', publish: false, pullRequest: '152'}), {version: 'v0.1.134-pr152.871', tag: '', reserved: false, next: 'v0.1.134'});
   assert.deepEqual(f.created, []);
 });
 

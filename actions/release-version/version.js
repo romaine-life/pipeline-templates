@@ -93,13 +93,13 @@ async function releaseVersion({api, token, series, component = '', suffix = '', 
       const mine = tags.find(t => t.sha === sha);
       if (mine) {
         log(`${sha} is already ${mine.name}`);
-        return {version: mine.name, tag: mine.name, reserved: false};
+        return {version: mine.name, tag: mine.name, reserved: false, next: mine.name};
       }
       const name = `${series}.${next(tags)}${suffix}`;
       const response = await call('POST', '/tags', {tag_name: name, target: sha});
       if (response.ok) {
         log(`Reserved ${name} on ${sha}`);
-        return {version: name, tag: name, reserved: true};
+        return {version: name, tag: name, reserved: true, next: name};
       }
       // Another run took the number first (409, or 422 on older Forgejo): read again.
       if (response.status !== 409 && response.status !== 422) throw new Error(`POST /tags ${name}: HTTP ${response.status}`);
@@ -110,9 +110,10 @@ async function releaseVersion({api, token, series, component = '', suffix = '', 
 
   if (!/^[0-9]+$/.test(String(run || ''))) throw new Error(`run number ${run} is not a number`);
   const from = /^[0-9]+$/.test(String(pullRequest || '')) ? `pr${pullRequest}.${run}` : `run${run}`;
-  const version = `${series}.${next(await numbered())}${suffix}-${from}`;
+  const release = `${series}.${next(await numbered())}${suffix}`;
+  const version = `${release}-${from}`;
   log(`Build ${version}, not released`);
-  return {version, tag: '', reserved: false};
+  return {version, tag: '', reserved: false, next: release};
 }
 
 module.exports = {releaseVersion, prefixFrom, seriesFromTags};
