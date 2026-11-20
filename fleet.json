@@ -167,7 +167,8 @@
     },
     "nelsong6/openbao": {
       "suites": [
-        "cluster-service"
+        "cluster-service",
+        "tofu"
       ]
     },
     "nelsong6/openproject": {
