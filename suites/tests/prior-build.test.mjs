@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {zipSync} from 'fflate';
 import {run} from '../lib.mjs';
-import {buildFingerprint,download,findPrior} from '../release/prior-build.mjs';
+import {buildFingerprint,download,findPrior,suiteInputs} from '../release/prior-build.mjs';
 
 test('a build fingerprint follows what the binary is built from and the version it stamps, not tests or docs',()=>{
   const cwd=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),'prior-build-'));
@@ -13,12 +13,12 @@ test('a build fingerprint follows what the binary is built from and the version 
     process.chdir(dir);run('git',['init','-q','-b','main']);
     const commit=()=>{run('git',['add','.']);run('git',['-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture']);};
     fs.mkdirSync('src');fs.writeFileSync('src/main.rs','fn main() {}\n');fs.writeFileSync('Cargo.toml','[package]\nname = "x"\n');fs.writeFileSync('app.ico','icon');commit();
-    const cfg={topics:['release-rust'],release:{toolchains:['rust']}},plan={matrix:{include:[{id:'rust-x86_64-pc-windows-msvc'}]}},suite='a'.repeat(40);
+    const cfg={topics:['release-rust'],release:{toolchains:['rust']}},plan={matrix:{include:[{id:'rust-x86_64-pc-windows-msvc'}]}},suite={job:{},files:[{path:'suites/lib.mjs',oid:'a'}]};
     const fp=(over={})=>buildFingerprint({cfg,version:'v0.1.4',suite,plan,repository:'owner/repo',...over});
     const original=fp();
     assert.equal(fp(),original);
     assert.notEqual(fp({version:'v0.1.5'}),original);
-    assert.notEqual(fp({suite:'b'.repeat(40)}),original);
+    assert.notEqual(fp({suite:{...suite,files:[{path:'suites/lib.mjs',oid:'b'}]}}),original);
     assert.notEqual(fp({cfg:{...cfg,topics:[...cfg.topics,'rust-build-linux-amd64']}}),original);
     assert.notEqual(fp({plan:{matrix:{include:[...plan.matrix.include,{id:'rust-x86_64-unknown-linux-gnu'}]}}}),original);
     fs.mkdirSync('tests');fs.writeFileSync('tests/it.rs','#[test] fn t() {}\n');fs.writeFileSync('README.md','docs');commit();
@@ -26,8 +26,21 @@ test('a build fingerprint follows what the binary is built from and the version 
     fs.writeFileSync('app.ico','another icon');commit();
     assert.notEqual(fp(),original);
     assert.throws(()=>fp({version:''}),/version/);
-    assert.throws(()=>fp({suite:'main'}),/suites commit/);
   } finally {process.chdir(cwd);fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('a release build depends on the pipeline-templates files it runs, not the rest of the repository',()=>{
+  const files={
+    'suites/release/ci.yml':'jobs:\n  check-build:\n    steps:\n    - uses: ./_ci/actions/rust-toolchain\n    - run: node _ci/suites/release/build.mjs\n',
+    'suites/release/build.mjs':"import {run} from '../lib.mjs';\nrun('x',[path.join(suites,kind,'build.mjs')]);\n",
+    'suites/rust/build.mjs':"import {tool} from '../tools.mjs';\nconst data='rust/targets.json';\n",
+    'suites/rust/targets.json':'{}','suites/lib.mjs':"export const docs='README.md';const fleet='fleet.json';\n",'suites/tools.mjs':'',
+    'suites/go/build.mjs':'go','suites/tofu/plan.mjs':'tofu','suites/package-lock.json':'{}','README.md':'docs','fleet.json':'{}',
+    'actions/rust-toolchain/action.yml':'rust','actions/rust-toolchain/tests/t.js':'test','actions/setup-go/action.yml':'go','actions/pins.txt':'pins',
+  };
+  const inputs=()=>suiteInputs(['rust'],{entries:Object.keys(files).map(file=>({path:file,oid:file})),read:oid=>files[oid]});
+  assert.deepEqual(inputs().files.map(file=>file.path),['actions/pins.txt','actions/rust-toolchain/action.yml','suites/lib.mjs','suites/package-lock.json','suites/release/build.mjs','suites/rust/build.mjs','suites/rust/targets.json','suites/tools.mjs']);
+  assert.deepEqual(inputs().job.steps[0],{uses:'./_ci/actions/rust-toolchain'});
 });
 
 // A Forgejo that merged PR 25, whose head 'h2' had release runs 10 (older) and 11.

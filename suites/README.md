@@ -180,8 +180,8 @@ scripts put the files in place.
 1. A check runs on the pull request only. A merge builds, publishes and deploys; it checks
    nothing again. A check whose inputs are identical to a passing run's reuses it. A PR's
    release build stamps the tag its merge would take, and the merge that reserves that tag
-   with the same inputs (every file a release reads, the suites' commit, the settings and
-   the parts) publishes the PR's files rather than compiling them again
+   with the same inputs (every file a release reads, the pipeline-templates files the build
+   runs, the settings and the parts) publishes the PR's files rather than compiling them again
    (`release/prior-build.mjs`); kept a week, they're built again after that.
 2. A check runs only when files it reads changed (`input-patterns.mjs`). The tests, and
    whether a merge cuts a release, read every file but documentation (Markdown, `docs/`,

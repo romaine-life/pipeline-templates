@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {unzipSync} from 'fflate';
+import YAML from 'yaml';
 import {api,capture,hash,output,request,safePath,templates} from '../lib.mjs';
 import {canonical,tree} from '../fingerprints.mjs';
 import {input} from '../input-patterns.mjs';
@@ -16,16 +17,49 @@ import {releasePlan} from './plan.mjs';
 const marker='CI_BUILD_V1 ';
 export const artifactName=id=>`check-release-${id}`;
 
+// The pipeline-templates files a release build runs, so a change anywhere else there doesn't
+// build again: the check-build job, every file of the actions it uses, and each script the
+// build reaches from release/build.mjs and its toolchains' build.mjs, followed through every
+// string in them that names a file here, documents and workflows aside. fleet.json is left
+// out: the repository's own entry is its settings, which the fingerprint holds.
+export function suiteInputs(kinds,{entries=templateTree(),read=oid=>capture('git',['-C',templates,'cat-file','blob',oid])}={}) {
+  const byPath=new Map(entries.map(entry=>[entry.path,entry.oid]));
+  const job=YAML.parse(read(byPath.get('suites/release/ci.yml'))).jobs['check-build'];
+  const files=new Set(['suites/package-lock.json','actions/pins.txt','actions/package.json'].filter(file=>byPath.has(file)));
+  const tested=file=>/(^|\/)tests?\//.test(file);
+  for(const step of job.steps) {
+    const action=step.uses?.match(/^\.\/_ci\/(actions\/[\w-]+)$/)?.[1];
+    if(action)for(const file of byPath.keys())if(file.startsWith(action+'/') && !tested(file))files.add(file);
+  }
+  const pending=['suites/release/build.mjs',...kinds.map(kind=>`suites/${kind==='npm' ? 'web-app' : kind}/build.mjs`)];
+  while(pending.length) {
+    const file=pending.pop();
+    if(!byPath.has(file) || files.has(file))continue;
+    files.add(file);
+    for(const [,,literal] of read(byPath.get(file)).matchAll(/(['"`])([^'"`$\n]+)\1/g)) {
+      const candidates=literal.startsWith('.') ? [path.posix.join(path.posix.dirname(file),literal)] : [`suites/${literal}`,literal];
+      for(const candidate of candidates.filter(candidate=>byPath.has(candidate) && candidate!=='fleet.json' && !/\.(md|ya?ml)$/.test(candidate) && !tested(candidate))) {
+        if(/\.m?js$/.test(candidate))pending.push(candidate);else files.add(candidate);
+      }
+    }
+  }
+  return {job,files:[...files].sort().map(file=>({path:file,oid:byPath.get(file)}))};
+}
+function templateTree() {
+  return capture('git',['-C',templates,'ls-tree','-r','--full-tree','HEAD']).split('\n').filter(Boolean).map(line=>{
+    const [meta,file]=line.split('\t');return {path:file,oid:meta.split(' ')[2]};
+  });
+}
+
 // What a release build reads: the files a merge's release reads (release.build, tests and
-// documentation aside), the version it stamps, the suites that build it, the repository's
+// documentation aside), the version it stamps, the suite files that build it, the repository's
 // settings and the parts it builds. BUILD_TIME is left out: the release says when it was built.
-export function buildFingerprint({cfg,version,suite,entries=tree(),plan=releasePlan(cfg),repository=process.env.GITHUB_REPOSITORY}) {
+export function buildFingerprint({cfg,version,entries=tree(),plan=releasePlan(cfg),suite=suiteInputs([...new Set(plan.matrix.include.map(part=>part.toolchain))]),repository=process.env.GITHUB_REPOSITORY}) {
   if(!/^[\w.+-]+$/.test(version || ''))throw new Error('a build fingerprint needs the version it stamps');
-  if(!/^[0-9a-f]{40,64}$/.test(suite || ''))throw new Error('a build fingerprint needs the exact suites commit');
   const read=file=>{const entry=entries.find(entry=>entry.path===file);return entry?capture('git',['show',entry.oid]):null;};
   const patterns=[...new Set(releaseInputs(cfg,read))].sort();
   const files=entries.filter(entry=>input(entry.path,'release.build',patterns)).sort((a,b)=>a.path.localeCompare(b.path));
-  return hash(canonical({version:1,repository,suite,stamp:version,topics:cfg.topics || [],settings:settings(cfg),parts:plan.matrix.include,patterns,files}));
+  return hash(canonical({version:2,repository,suite,stamp:version,topics:cfg.topics || [],settings:settings(cfg),parts:plan.matrix.include,patterns,files}));
 }
 
 // The PR's scope job writes the fingerprint to its own log, which the PR's code can't reach.
@@ -105,13 +139,12 @@ export async function download(run,parts,{get=request,url=api(),directory='parts
 if(process.argv[1] && path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const {config}=await import('../config.mjs');
   const command=process.argv[2],cfg=config(),plan=releasePlan(cfg),parts=plan.matrix.include.map(part=>part.id);
-  const suite=capture('git',['-C',templates,'rev-parse','HEAD']);
   if(command==='attest') {
-    attest(buildFingerprint({cfg,version:process.env.VERSION,suite,plan}));
+    attest(buildFingerprint({cfg,version:process.env.VERSION,plan}));
   } else if(command==='find') {
     let prior=null;
     // A lookup that fails builds, as every release did before.
-    try {prior=await findPrior({fingerprint:buildFingerprint({cfg,version:process.env.VERSION,suite,plan}),parts});}
+    try {prior=await findPrior({fingerprint:buildFingerprint({cfg,version:process.env.VERSION,plan}),parts});}
     catch(error){console.log(`::warning::Looking for the pull request's build failed, so the release builds: ${error.message}`);}
     output('prior-run',prior?.run ?? '');
   } else if(command==='download') {
