@@ -50,7 +50,9 @@ export function peerCertificate(host,port) {
       if(!raw?.length)return reject(new Error(`${host}:${port} presented no certificate`));
       resolve(`-----BEGIN CERTIFICATE-----\n${raw.toString('base64').match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----\n`);
     });
-    socket.setTimeout(3000,()=>socket.destroy(new Error(`${host}:${port} TLS handshake timed out`)));
+    // Healthy means only that the port accepts a connection; the first handshake after it
+    // overran 3 seconds on a busy runner (PIPT-49).
+    socket.setTimeout(30000,()=>socket.destroy(new Error(`${host}:${port} TLS handshake timed out`)));
     socket.on('error',reject);
   });
 }
