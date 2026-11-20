@@ -58,7 +58,7 @@ export function resolve(entry, topics, repo = 'owner/repo') {
   // A cluster service builds and smoke-tests its own image only with cluster-image;
   // without it, it renders and pins what upstream publishes.
   if (cfg.suites?.includes('cluster-service') && !on.has('cluster-image')) Object.assign(section('cluster'), {build: false, smoke: false});
-  if (on.has('cluster-image')) Object.assign(section('cluster'), {image: `forgejo.romaine.life/${repo}`, baoRole: `${name}-publish`, baoSecret: `services/${name}-build`});
+  if (on.has('cluster-image')) Object.assign(section('cluster'), {image: `forgejo.romaine.life/${repo}`});
   if (on.has('web-image')) section('web').image = `romainecr.azurecr.io/${name}`;
   // A service- topic starts that service for the tests, from the image every repository uses.
   for (const service of serviceNames) if (on.has(`service-${service}`)) section('service')[service] = serviceImages[service];

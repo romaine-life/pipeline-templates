@@ -56,7 +56,7 @@ test('topics select the settings the suites read', () => {
   assert.deepEqual(checkVariants('rust', bare).map(c => c.key), ['rust.format/ubuntu-latest', 'rust.test/ubuntu-latest']);
   // An image, its registry sign-in and a Static Web App are named for the repository.
   const named = resolve({suites: ['cluster-service', 'web-app']}, ['cluster-image', 'web-image'], 'o/app');
-  assert.deepEqual(named.cluster, {image: 'forgejo.romaine.life/o/app', baoRole: 'app-publish', baoSecret: 'services/app-build'});
+  assert.deepEqual(named.cluster, {image: 'forgejo.romaine.life/o/app'});
   assert.deepEqual(named.web, {image: 'romainecr.azurecr.io/app'});
   assert.deepEqual(resolve({suites: ['web-app']}, ['web-static'], 'o/site').web, {staticApp: 'site-app', resourceGroup: 'site-rg'});
 });

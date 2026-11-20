@@ -101,13 +101,10 @@ test('image checks smoke once, publication skips smoke and queues the pin withou
   // no stored token is read (BAO-15).
   assert.ok(publish.trace.some(t=>t.url?.includes('oidc') && t.url.includes('audience=u%3A1%3Acd5766fe-554a-40dc-93a5-d8d6e441c444')));
   assert.equal(publish.trace.some(t=>t.url?.includes('bao.home.romaine.life')),false);
-  // Refused, it falls back to the stored token: the repository's publish role, reading its build secret.
-  const fallback = probe('cluster-service/image.mjs',['publish'],{...tracked,PROBE_REFUSE_LOGIN:'1'},cfg);
-  assert.equal(fallback.result.status,0,fallback.result.stderr);
-  assert.match(fallback.result.stdout,/::warning::the job's own token didn't sign in/);
-  assert.equal(fallback.trace.find(t=>t.url?.includes('/auth/forgejo/login')).body.role,'probe-publish');
-  assert.ok(fallback.trace.some(t=>t.url?.endsWith('/secret/data/services/probe-build')));
-  assert.equal(fallback.trace.filter(t=>t.command==='docker' && t.args[0]==='login').length,2);
+  // Refused, the publish fails: there is no stored token to fall back to.
+  const refused = probe('cluster-service/image.mjs',['publish'],{...tracked,PROBE_REFUSE_LOGIN:'1'},cfg);
+  assert.notEqual(refused.result.status,0);
+  assert.equal(refused.trace.some(t=>t.url?.includes('bao.home.romaine.life')),false);
   const pin = probe('cluster-service/pin.mjs',[],{...tracked,PROBE_MERGED:'Moves the probe. https://openproject.home.romaine.life/wp/PIPT-30'},cfg);
   assert.equal(pin.result.status,0,pin.result.stderr);
   assert.equal(pin.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
