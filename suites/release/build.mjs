@@ -22,4 +22,6 @@ const staticAssets=path.join('release','assets',process.env.RELEASE_PART || kind
 if(fs.existsSync(staticAssets))for(const entry of fs.readdirSync(staticAssets))fs.cpSync(path.join(staticAssets,entry),path.join('dist',entry),{recursive:true,errorOnExist:true,force:false});
 packageAssets({kind});
 // An OpenTofu provider's programs publish as the packages tofu installs (tofu-provider.mjs).
-if(config().release?.tofuProvider)packageProviders({type:providerType(currentRepository()),version:providerVersion(process.env.VERSION)});
+// A pull request's check build has no release version: its packages are named 0.0.0, which
+// shows they package and assemble, and are never published.
+if(config().release?.tofuProvider)packageProviders({type:providerType(currentRepository()),version:providerVersion(process.env.VERSION || 'v0.0.0')});

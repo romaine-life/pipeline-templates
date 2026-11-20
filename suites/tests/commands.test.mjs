@@ -172,6 +172,13 @@ test("an OpenTofu provider's release build publishes its programs as tofu's pack
   assert.equal(assembled.result.status,0,assembled.result.stderr);
   const linuxOnly=probe('release/assemble.mjs',[],{GITHUB_REPOSITORY:env.GITHUB_REPOSITORY},cfg,part([dist[0]]));
   assert.notEqual(linuxOnly.result.status,0);assert.match(linuxOnly.result.stderr,/no terraform-provider-probe package for windows_amd64/);
+  // A pull request's check build has no VERSION; its packages still build and assemble.
+  const unversioned={...env,VERSION:''};
+  let checked;
+  const check=probe('release/build.mjs',[],unversioned,cfg,files,root=>{checked=fs.readdirSync(path.join(root,'dist')).sort();});
+  assert.equal(check.result.status,0,check.result.stderr);
+  assert.deepEqual(checked,['terraform-provider-probe_0.0.0_linux_amd64.zip','terraform-provider-probe_0.0.0_windows_amd64.zip']);
+  assert.equal(probe('release/assemble.mjs',[],{GITHUB_REPOSITORY:env.GITHUB_REPOSITORY},cfg,part(checked)).result.status,0);
 });
 test("a pull request's Go tests fail on a program under cmd/ that .goreleaser.yaml doesn't build",()=>{
   const files={'.goreleaser.yaml':goReleaser([['probe','./cmd/probe',['windows_amd64_v1']]]),'cmd/probe/main.go':'package main\n'};
