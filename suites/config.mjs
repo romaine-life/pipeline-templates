@@ -1,6 +1,6 @@
 import path from 'node:path';
 import {capture, readJSON, templates} from './lib.mjs';
-import {currentTopics, isSettingTopic, resolve, validTopic} from './topics.mjs';
+import {currentTopics, isSettingTopic, providerType, resolve, validTopic} from './topics.mjs';
 import {layout} from './layout.mjs';
 
 // A fleet entry: its suites, its setting topics (topics.mjs), and nas, which says homesvc on
@@ -51,7 +51,9 @@ export function validate(value, where = 'fleet entry') {
   // Forgejo keeps at most 25 topics on a repository.
   if (value.suites.length + topics.length > 25) throw new Error(`${where}: more than 25 topics`);
   if (topics.includes('web-static') && topics.includes('web-image')) throw new Error(`${where}: a web app deploys a Static Web App (web-static) or an image (web-image), not both`);
-  settings(resolve(value, topics, /^[\w.-]+\/[\w.-]+$/.test(where) ? where : undefined));
+  const repo = /^[\w.-]+\/[\w.-]+$/.test(where) ? where : undefined;
+  if (topics.includes('release-tofu-provider') && repo) providerType(repo);
+  settings(resolve(value, topics, repo));
   return value;
 }
 
@@ -59,6 +61,8 @@ export function validate(value, where = 'fleet entry') {
 function settings(value) {
   // A Go library that is also a cluster service (fzt-frontend) releases both under one tag.
   if (value.release?.module && (['toolchains', 'external', 'assets'].some(f => value.release[f] !== undefined) || ![undefined, 'cluster'].includes(value.release.image))) throw new Error('release.module tags a Go library and publishes its source, with at most its cluster image; it builds nothing else');
+  // A provider's versions are tofu's, X.Y.Z, and it ships programs.
+  if (value.release?.tofuProvider && (value.release.suffix || value.release.module || !value.release.toolchains?.length)) throw new Error('release.tofuProvider builds a provider program with a release toolchain, versioned X.Y.Z');
   if (value.release?.image && !['cluster','web'].includes(value.release.image)) throw new Error('release.image must be cluster or web');
   if (value.release?.image && !value[value.release.image]?.image) throw new Error('joined image release needs the corresponding image configuration');
   return value;

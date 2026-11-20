@@ -666,7 +666,12 @@
     },
     "romaine-life/terraform-provider-openproject": {
       "suites": [
-        "go"
+        "go",
+        "release"
+      ],
+      "topics": [
+        "release-go",
+        "release-tofu-provider"
       ]
     },
     "romaine-life/tuimail": {

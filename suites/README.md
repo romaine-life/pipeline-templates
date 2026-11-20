@@ -53,6 +53,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
 | `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`) |
+| `release-tofu-provider` | The repository, `terraform-provider-<type>`, is an OpenTofu provider: its release publishes it to Artifact Keeper ([OpenTofu providers](#opentofu-providers-on-artifact-keeper)) |
 
 ### What the repository's name and files decide
 
@@ -174,6 +175,55 @@ RUN --mount=type=secret,id=FORGEJO_PACKAGES_TOKEN,env=FORGEJO_PACKAGES_TOKEN npm
 A release that embeds packages in a non-npm build (fzt-desktop's frontend takes
 fzt-browser's files) runs `npm ci` in its root before it builds, and the package's own
 scripts put the files in place.
+
+## OpenTofu providers on Artifact Keeper
+
+A repository named `terraform-provider-<type>` with the `release-tofu-provider` topic is an
+OpenTofu provider, installed from the source address `artifacts.home.romaine.life/<owner>/<type>`
+(`romaine-life/terraform-provider-openproject` is `artifacts.home.romaine.life/romaine-life/openproject`).
+Its release toolchain builds the provider as programs named
+`terraform-provider-<type>-<os>-<arch>`, `.exe` on Windows (a Go provider's `.goreleaser.yaml`
+build sets `binary: terraform-provider-<type>-{{ .Os }}-{{ .Arch }}`), for `linux_amd64` and
+`windows_amd64` at least. The build publishes each as the package tofu installs,
+`terraform-provider-<type>_<version>_<os>_<arch>.zip` holding
+`terraform-provider-<type>_v<version>`, and a release missing either platform fails. Versions are
+the release's, `X.Y.Z`, so the topic takes no `version-four-part` (`release/tofu-provider.mjs`).
+
+Once the release is published, its packages go to Artifact Keeper's hosted repository
+`tofu-providers`. Nothing stores a credential: the job asks Forgejo for its own token with the
+audience `https://artifacts.home.romaine.life` and trades it at Artifact Keeper for an hour's
+token that may write there and nowhere else. Artifact Keeper takes it only from a repository its
+`k8s/publishers.txt` lists (nelsong6/artifact-keeper), on a push or dispatch of `main`, so a new
+provider repository adds its line there. A version is published once; a rerun finds its own
+packages there, and a package that differs is refused.
+
+The suites' jobs install them through `home-cache`, which adds the mirror
+`https://artifacts.home.romaine.life/terraform/tofu-providers/` for
+`artifacts.home.romaine.life/*/*`; home-sync writes the same mirror into each home PC's
+`%APPDATA%\tofu.rc`, with every other provider installing directly as before.
+
+A repository that uses one requires it by that address:
+
+```hcl
+terraform {
+  required_providers {
+    openproject = { source = "artifacts.home.romaine.life/romaine-life/openproject", version = "0.1.2" }
+  }
+}
+```
+
+and commits its lock with the hashes for Linux, where CI runs it (`tofu init -lockfile=readonly`),
+and Windows, where the home PCs do. `tofu providers lock` asks each provider's registry, and
+`artifacts.home.romaine.life` isn't one, so our providers are locked from the mirror, each named,
+and the registry's as usual; each run updates only the providers it names:
+
+```sh
+tofu providers lock -net-mirror=https://artifacts.home.romaine.life/terraform/tofu-providers/ \
+  -platform=linux_amd64 -platform=windows_amd64 artifacts.home.romaine.life/romaine-life/openproject
+tofu providers lock -platform=linux_amd64 -platform=windows_amd64 hashicorp/random
+```
+
+A new version is a change to `version` and the lock, made the same way.
 
 ## The rules every suite keeps
 

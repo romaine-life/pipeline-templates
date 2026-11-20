@@ -29,7 +29,7 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () =
   const root = fs.mkdtempSync(path.join(os.tmpdir(),'suite-command-'));
   try {
     for (const [file, text] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(root,file)),{recursive:true}); fs.writeFileSync(path.join(root,file),text); }
-    fleetEntry(({version:1,...cfg}),'test/probe');
+    fleetEntry(({version:1,...cfg}),env.GITHUB_REPOSITORY || 'test/probe');
     fs.writeFileSync(path.join(root,'README.md'),'# A document\n');
     fs.writeFileSync(path.join(root,'config.json'),'{}');
     fs.writeFileSync(path.join(root,'main.go'),'package main\r\n');
@@ -156,6 +156,22 @@ test('a release copies the files under release/assets/<toolchain> beside the bui
   const cfg={release:{toolchains:['go']}};
   const {result}=probe('release/build.mjs',[],{RELEASE_TOOLCHAIN:'go'},cfg,{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]]),'release/assets/go/site.css':'body{}','release/assets/go/fonts/a.ttf':'font'});
   assert.equal(result.status,0,result.stderr);
+});
+test("an OpenTofu provider's release build publishes its programs as tofu's packages, and its assembly holds Linux's and Windows'",()=>{
+  // The probe runs no toolchain build, so the programs come in as the build's static assets.
+  const cfg={suites:['release','go'],release:{toolchains:['go'],tofuProvider:true}};
+  const files={'.goreleaser.yaml':goReleaser([['provider','.',['linux_amd64_v1','windows_amd64_v1']]]),
+    'release/assets/go/terraform-provider-probe-linux-amd64':'program','release/assets/go/terraform-provider-probe-windows-amd64.exe':'program'};
+  const env={RELEASE_TOOLCHAIN:'go',VERSION:'v0.1.4',GITHUB_REPOSITORY:'romaine-life/terraform-provider-probe'};
+  let dist;
+  const built=probe('release/build.mjs',[],env,cfg,files,root=>{dist=fs.readdirSync(path.join(root,'dist')).sort();});
+  assert.equal(built.result.status,0,built.result.stderr);
+  assert.deepEqual(dist,['terraform-provider-probe_0.1.4_linux_amd64.zip','terraform-provider-probe_0.1.4_windows_amd64.zip']);
+  const part=list=>Object.fromEntries(list.map(file=>[`parts/release-go/${file}`,'package']));
+  const assembled=probe('release/assemble.mjs',[],{GITHUB_REPOSITORY:env.GITHUB_REPOSITORY},cfg,part(dist));
+  assert.equal(assembled.result.status,0,assembled.result.stderr);
+  const linuxOnly=probe('release/assemble.mjs',[],{GITHUB_REPOSITORY:env.GITHUB_REPOSITORY},cfg,part([dist[0]]));
+  assert.notEqual(linuxOnly.result.status,0);assert.match(linuxOnly.result.stderr,/no terraform-provider-probe package for windows_amd64/);
 });
 test("a pull request's Go tests fail on a program under cmd/ that .goreleaser.yaml doesn't build",()=>{
   const files={'.goreleaser.yaml':goReleaser([['probe','./cmd/probe',['windows_amd64_v1']]]),'cmd/probe/main.go':'package main\n'};

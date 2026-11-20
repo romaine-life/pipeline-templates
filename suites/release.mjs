@@ -3,12 +3,13 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {api, post, request, tracked, requirePublish, capture, output, hash, templates} from './lib.mjs';
-import {config} from './config.mjs';
+import {config, currentRepository} from './config.mjs';
 import {relevant, matches} from './input-patterns.mjs';
 import {imageInputs} from './dependencies.mjs';
 import {found} from './fingerprints.mjs';
 import {zipDirectory} from './release/zip.mjs';
 import {dispatchConsumers, publishPackage} from './packages.mjs';
+import {publishProvider} from './release/tofu-provider.mjs';
 import {dispatchConsumers as dispatchModuleConsumers, ownModule} from './go/modules.mjs';
 const require = createRequire(import.meta.url);
 
@@ -104,6 +105,8 @@ export async function dispatch() {
   // repository that uses it (packages.mjs).
   const name = await publishPackage();
   if (name) await dispatchConsumers(name);
+  // The release's OpenTofu provider packages, to Artifact Keeper (release/tofu-provider.mjs).
+  if (config().release?.tofuProvider) console.log(`Published ${await publishProvider({repository: currentRepository()})}`);
   // The release's Go module, when go.mod names one, then a take-up to every repository whose
   // go.mod requires it (go/modules.mjs).
   const module = ownModule();

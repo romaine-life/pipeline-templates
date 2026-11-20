@@ -4,6 +4,8 @@ import {run, suites} from '../lib.mjs';
 import {dependencies} from './dependencies.mjs';
 import {packageAssets} from './assets.mjs';
 import {forgejoDependencies} from '../packages.mjs';
+import {config, currentRepository} from '../config.mjs';
+import {packageProviders, providerType, providerVersion} from './tofu-provider.mjs';
 const kind=process.env.RELEASE_TOOLCHAIN || process.argv[2];
 if (!['go','rust','npm','python','dotnet','cmake','powershell'].includes(kind)) throw new Error('unknown release toolchain');
 fs.rmSync('dist',{recursive:true,force:true});fs.mkdirSync('dist');
@@ -19,3 +21,5 @@ const staticAssets=path.join('release','assets',process.env.RELEASE_PART || kind
 // into it, and a static asset must never replace a built one.
 if(fs.existsSync(staticAssets))for(const entry of fs.readdirSync(staticAssets))fs.cpSync(path.join(staticAssets,entry),path.join('dist',entry),{recursive:true,errorOnExist:true,force:false});
 packageAssets({kind});
+// An OpenTofu provider's programs publish as the packages tofu installs (tofu-provider.mjs).
+if(config().release?.tofuProvider)packageProviders({type:providerType(currentRepository()),version:providerVersion(process.env.VERSION)});

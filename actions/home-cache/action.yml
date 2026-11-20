@@ -2,8 +2,9 @@ name: home-cache
 description: >-
   Points apt, cargo, NuGet and OpenTofu's providers at Artifact Keeper
   (artifacts.home.romaine.life), which keeps serving what it holds when a source is down
-  (FORGEJO-25). The runners already send Go, npm, pip, uv and rustup there; these four read
-  config files, not the environment, so a job that uses them runs this step first.
+  (FORGEJO-25), and installs our own OpenTofu providers from the hosted repository their
+  releases publish to. The runners already send Go, npm, pip, uv and rustup there; these four
+  read config files, not the environment, so a job that uses them runs this step first.
 runs:
   using: composite
   steps:
@@ -43,8 +44,13 @@ runs:
         printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' '    <clear />' \
           "    <add key=\"home\" value=\"$cache/nuget/nuget/v3/index.json\" protocolVersion=\"3\" />" \
           '  </packageSources>' '</configuration>' > "$HOME/.nuget/NuGet/NuGet.Config"
-        printf '%s\n' 'provider_installation {' '  network_mirror {' "    url     = \"$cache/terraform/opentofu/\"" \
-          '    include = ["registry.opentofu.org/*/*"]' '  }' '}' > "$RUNNER_TEMP/tofu.tfrc"
+        # OpenTofu's registry through its cache, and our own providers
+        # (artifacts.home.romaine.life/<owner>/<type>) from the hosted repository their releases
+        # publish to (suites/release/tofu-provider.mjs).
+        printf '%s\n' 'provider_installation {' \
+          '  network_mirror {' "    url     = \"$cache/terraform/opentofu/\"" '    include = ["registry.opentofu.org/*/*"]' '  }' \
+          '  network_mirror {' "    url     = \"$cache/terraform/tofu-providers/\"" '    include = ["artifacts.home.romaine.life/*/*"]' '  }' \
+          '}' > "$RUNNER_TEMP/tofu.tfrc"
         echo "TF_CLI_CONFIG_FILE=$RUNNER_TEMP/tofu.tfrc" >> "$GITHUB_ENV"
 
     - name: Fetch cargo, NuGet and OpenTofu packages through Artifact Keeper
@@ -65,6 +71,8 @@ runs:
           '  </packageSources>', '</configuration>')
         $tofu = Join-Path $env:RUNNER_TEMP 'tofu.tfrc'
         Set-Content -LiteralPath $tofu -Encoding utf8NoBOM -Value @(
-          'provider_installation {', '  network_mirror {', "    url     = `"$cache/terraform/opentofu/`"",
-          '    include = ["registry.opentofu.org/*/*"]', '  }', '}')
+          'provider_installation {',
+          '  network_mirror {', "    url     = `"$cache/terraform/opentofu/`"", '    include = ["registry.opentofu.org/*/*"]', '  }',
+          '  network_mirror {', "    url     = `"$cache/terraform/tofu-providers/`"", '    include = ["artifacts.home.romaine.life/*/*"]', '  }',
+          '}')
         "TF_CLI_CONFIG_FILE=$tofu" >> $env:GITHUB_ENV

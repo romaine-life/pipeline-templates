@@ -531,6 +531,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'artifacts.home.romaine.life/terraform/opentofu/' "$TF_CLI_CONFIG_FILE"
+          grep -q 'artifacts.home.romaine.life/terraform/tofu-providers/' "$TF_CLI_CONFIG_FILE"
           d=$(mktemp -d)
           printf '%s\n' 'terraform {' '  required_providers {' \
             '    random = { source = "hashicorp/random", version = "3.9.0" }' '  }' '}' > "$d/main.tf"
@@ -628,6 +629,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           if (-not (Select-String -Quiet -LiteralPath $env:TF_CLI_CONFIG_FILE -Pattern 'artifacts.home.romaine.life/terraform/opentofu/')) { throw 'tofu config' }
+          if (-not (Select-String -Quiet -LiteralPath $env:TF_CLI_CONFIG_FILE -Pattern 'artifacts.home.romaine.life/terraform/tofu-providers/')) { throw 'tofu config: our providers' }
           $d = Join-Path $env:RUNNER_TEMP 'tofu-probe'
           New-Item -ItemType Directory $d | Out-Null
           Set-Content -LiteralPath "$d\main.tf" -Value @('terraform {', '  required_providers {',

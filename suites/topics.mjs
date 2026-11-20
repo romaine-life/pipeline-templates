@@ -28,7 +28,7 @@ export const settingTopics = [
   'release-source', 'release-module', ...releaseToolchains.map(kind => `release-${kind}`),
   'version-from-manifest', 'version-four-part', 'home-sync',
   ...Object.keys(rustBuilds).map(platform => `rust-build-${platform}`),
-  'release-external',
+  'release-external', 'release-tofu-provider',
 ];
 const known = new Set(settingTopics);
 export const isSettingTopic = topic => known.has(topic);
@@ -75,11 +75,22 @@ export function resolve(entry, topics, repo = 'owner/repo') {
   if (on.has('version-from-manifest')) section('release').fromManifest = true;
   if (on.has('version-four-part')) section('release').suffix = '.0';
   if (on.has('home-sync')) section('release').homeSync = true;
+  // An OpenTofu provider: its release packages its programs as tofu installs them and
+  // publishes them to Artifact Keeper (release/tofu-provider.mjs).
+  if (on.has('release-tofu-provider')) section('release').tofuProvider = true;
   // The topics choose the Rust targets; the repository's Cargo.toml gives their values (layout.mjs).
   const targets = Object.entries(rustBuilds).filter(([platform]) => on.has(`rust-build-${platform}`)).map(([, target]) => ({target}));
   if (targets.length) section('release').rustTargets = targets;
   cfg.topics = [...on].sort();
   return cfg;
+}
+
+// An OpenTofu provider's type, from its repository's name: terraform-provider-openproject is
+// openproject (release/tofu-provider.mjs).
+export function providerType(repository) {
+  const repo = String(repository).split('/').pop(), match = repo.match(/^terraform-provider-([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+  if (!match) throw new Error(`release-tofu-provider: ${repo} isn't named terraform-provider-<type>`);
+  return match[1];
 }
 
 // The topics the running repository carries, as the suite action or ci-check read them.

@@ -42,6 +42,7 @@ export function entryFor(settings) {
   flag('web', 'history', 'web-history');
   flag('release', 'module', 'release-module');
   flag('release', 'homeSync', 'home-sync');
+  flag('release', 'tofuProvider', 'release-tofu-provider');
   for (const kind of take('release', 'toolchains') || []) topics.push(`release-${kind}`);
   const suffix = take('release', 'suffix');
   if (take('release', 'fromManifest')) topics.push('version-from-manifest');
