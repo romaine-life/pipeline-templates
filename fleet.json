@@ -664,6 +664,11 @@
         "web-image"
       ]
     },
+    "romaine-life/terraform-provider-openproject": {
+      "suites": [
+        "go"
+      ]
+    },
     "romaine-life/tuimail": {
       "suites": [
         "release",
