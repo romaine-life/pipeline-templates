@@ -92,8 +92,9 @@ export async function findPrior({sha=process.env.GITHUB_SHA,fingerprint,parts,ge
   }
   const runs=[];
   for(const head of heads) {
-    const listing=await get(`${url}/actions/runs?event=pull_request&head_sha=${head}`);
-    runs.push(...(listing.workflow_runs || []).filter(run=>run.workflow_id==='release/ci.yml' && run.commit_sha===head));
+    // Not ?event=pull_request: Forgejo's filter leaves out the runs a push to the PR starts.
+    const listing=await get(`${url}/actions/runs?head_sha=${head}&limit=50`);
+    runs.push(...(listing.workflow_runs || []).filter(run=>run.event==='pull_request' && run.workflow_id==='release/ci.yml' && run.commit_sha===head));
   }
   for(const run of runs.sort((a,b)=>b.id-a.id)) {
     const jobs=await get(`${url}/actions/runs/${run.id}/jobs`),scope=jobs.find(job=>job.name==='scope');

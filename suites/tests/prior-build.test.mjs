@@ -51,8 +51,10 @@ function forgejo({jobs={},artifacts={},logs={},pull={number:25,merged:true}}={})
     if(route.startsWith('/commits/'))return pull;
     if(route.startsWith('/pulls/25/commits'))return [{sha:'h1'},{sha:'h2'}];
     if(route.startsWith('/actions/runs?')) {
-      const head=new URL(address).searchParams.get('head_sha');
-      return {workflow_runs:head==='h2'?[{id:10,workflow_id:'release/ci.yml',commit_sha:'h2'},{id:11,workflow_id:'release/ci.yml',commit_sha:'h2'},{id:12,workflow_id:'rust/ci.yml',commit_sha:'h2'}]:[]};
+      const query=new URL(address).searchParams,head=query.get('head_sha');
+      // As Forgejo does, the event filter drops the runs a push to the PR started: here, all of them.
+      if(query.has('event'))return {workflow_runs:[]};
+      return {workflow_runs:head==='h2'?[{id:10,event:'pull_request',workflow_id:'release/ci.yml',commit_sha:'h2'},{id:11,event:'pull_request',workflow_id:'release/ci.yml',commit_sha:'h2'},{id:12,event:'pull_request',workflow_id:'rust/ci.yml',commit_sha:'h2'},{id:13,event:'push',workflow_id:'release/ci.yml',commit_sha:'h2'}]:[]};
     }
     let m=route.match(/^\/actions\/runs\/(\d+)\/jobs$/);if(m)return jobs[m[1]] || [];
     m=route.match(/^\/actions\/runs\/(\d+)\/artifacts$/);if(m)return artifacts[m[1]] || [];
