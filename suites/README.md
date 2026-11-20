@@ -103,9 +103,16 @@ image (Postgres 18.6, Manticore 29.9.0, GreenMail 2.1.3). And a Go release build
 suite keeps versions, upload and home-sync): one Linux job builds the programs, the Windows
 runner the `c-shared` DLLs, and each file GoReleaser builds publishes under the name its
 `binary` gives it. Every program under `cmd/` must be one of its builds, every program and
-DLL must carry the release's `VERSION` (its ldflags' `-X ...version={{ .Env.VERSION }}`
-stamping a variable that exists, since the linker ignores one naming none), and a Windows
+DLL must carry the release's `VERSION`, and a Windows
 DLL fails if it imports a MinGW runtime DLL (`lib*.dll`), which nothing ships beside it.
+
+A build carries `VERSION` when its ldflags stamp it, `-X <package>.<variable>={{ .Env.VERSION }}`,
+into a variable the program links. The linker ignores an `-X` naming anything else without a
+word, so the go suite's tests check each one against the source on every Go pull request, and
+the release again before it builds: on each of the build's targets, `go list` says the program
+links the package (`main` is the program's own) and `go doc` that the package declares the
+variable. Every build that fails is listed at once. Whether a program reads its version is its
+own business; the check is about the stamp landing.
 
 ## An image joined to a release
 

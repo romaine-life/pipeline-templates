@@ -8,9 +8,11 @@ import {pathToFileURL} from 'node:url';
 import {suites} from '../lib.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
-// A .goreleaser.yaml with one build per [id, main, targets, buildmode].
-const goReleaser = builds => 'version: 2\nbuilds:\n' + builds.map(([id, main, targets, buildmode]) =>
-  `  - id: ${id}\n    main: ${main}\n    targets: [${targets.join(', ')}]\n${buildmode ? `    buildmode: ${buildmode}\n` : ''}`).join('');
+// A .goreleaser.yaml with one build per [id, main, targets, buildmode, ldflags], each stamping
+// VERSION into a buildinfo package's variable unless its ldflags say otherwise.
+const stamp = "-s -w -X example.com/probe/internal/buildinfo.version={{ .Env.VERSION }}";
+const goReleaser = builds => 'version: 2\nbuilds:\n' + builds.map(([id, main, targets, buildmode, ldflags = stamp]) =>
+  `  - id: ${id}\n    main: ${main}\n    targets: [${targets.join(', ')}]\n${buildmode ? `    buildmode: ${buildmode}\n` : ''}    ldflags: '${ldflags}'\n`).join('');
 const goMod = `module forgejo.romaine.life/romaine-life/probe
 
 go 1.25
@@ -49,7 +51,7 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () =
 }
 test('toolchain scripts execute standard commands and propagate failures', () => {
   for (const [script,expected,cfg,files] of [
-    ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go','go'],{}],['go/build.mjs',['goreleaser'],{},{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]])}],
+    ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go','go'],{}],['go/build.mjs',['go','go','goreleaser'],{},{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]])}],
     ['rust/format.mjs',['cargo'],{}],['rust/test.mjs',['rustc','cargo','cargo'],{}],['rust/build.mjs',['rustc','cargo','cargo'],{}],
     ['web-app/test.mjs',process.platform === 'win32' ? ['npm.cmd','npm.cmd','npm.cmd'] : ['npm','npm','npm'],{}],
     ['powershell/files.mjs',['git'],{}],['docs/validate.mjs',['git','git','git'],{}],
@@ -135,8 +137,9 @@ test('a Go release job builds its builds from .goreleaser.yaml, and every progra
   assert.deepEqual(dll.args.filter((_,i)=>dll.args[i-1]==='--id'),['dll'],'the Windows job builds the DLLs');
   assert.deepEqual(dist,['dll.dll']);
   assert.ok(library.trace.some(t=>t.command==='objdump'),"a DLL's imports are checked for MinGW runtime DLLs");
-  const unstamped=probe('go/build.mjs',[],{PROBE_UNSTAMPED:'1'},{},files);
-  assert.notEqual(unstamped.result.status,0);assert.match(unstamped.result.stderr,/probe doesn't carry v0\.1\.1/);
+  const unstamped=probe('go/build.mjs',[],{PROBE_GO_DOC:''},{},files);
+  assert.notEqual(unstamped.result.status,0);assert.equal(unstamped.trace.some(t=>t.command==='goreleaser'),false,'nothing builds');
+  assert.match(unstamped.result.stderr,/probe: stamps VERSION into example\.com\/probe\/internal\/buildinfo\.version, which example\.com\/probe\/internal\/buildinfo doesn't declare as a variable on windows\/amd64/);
   const unlisted=probe('go/build.mjs',[],{},{},{...files,'cmd/extra/main.go':'package main\n'});
   assert.notEqual(unlisted.result.status,0);assert.match(unlisted.result.stderr,/builds no program from cmd\/extra/);
   assert.notEqual(probe('go/build.mjs').result.status,0,'a Go release needs .goreleaser.yaml');
@@ -153,6 +156,25 @@ test("a pull request's Go tests fail on a program under cmd/ that .goreleaser.ya
   assert.notEqual(unlisted.result.status,0);assert.match(unlisted.result.stderr,/builds no program from cmd\/extra/);
   assert.equal(probe('go/test.mjs',[],{},{},{'cmd/tool/main.go':'package main\n'}).result.status,0,'a repository releasing no Go program has nothing to list');
 });
+test("a pull request's Go tests list every build whose VERSION stamp names no variable the program links",()=>{
+  const files={'.goreleaser.yaml':goReleaser([['a','./cmd/a',['windows_amd64_v1','linux_amd64_v1']],['b','./cmd/b',['windows_amd64_v1']],['c','./cmd/c',['windows_amd64_v1'],'','-s -w -X main.version={{ .Env.VERSION }}']]),
+    'cmd/a/main.go':'package main\n','cmd/b/main.go':'package main\n','cmd/c/main.go':'package main\n'};
+  const stamped=probe('go/test.mjs',[],{},{},files);assert.equal(stamped.result.status,0,stamped.result.stderr);
+  const lists=stamped.trace.filter(t=>t.command==='go' && t.args[1]==='-f');
+  assert.deepEqual(lists.map(t=>[t.goos,t.args.slice(3)]),[['windows',['./cmd/a','./cmd/b','./cmd/c']],['linux',['./cmd/a']]],'one go list per target');
+  const docs=stamped.trace.filter(t=>t.command==='go' && t.args[0]==='doc').map(t=>[t.goos,...t.args.slice(-2)]);
+  assert.deepEqual(docs,[['windows','example.com/probe/internal/buildinfo','version'],['linux','example.com/probe/internal/buildinfo','version'],['windows','./cmd/c','version']],"a package's variable is looked up once per target, and main's in the program's folder");
+  const unlinked=probe('go/test.mjs',[],{PROBE_GO_DEPS:''},{},files);
+  assert.notEqual(unlinked.result.status,0);
+  for (const line of ["a: stamps VERSION into example.com/probe/internal/buildinfo.version, but ./cmd/a doesn't link example.com/probe/internal/buildinfo on windows/amd64",
+    "a: stamps VERSION into example.com/probe/internal/buildinfo.version, but ./cmd/a doesn't link example.com/probe/internal/buildinfo on linux/amd64",
+    "b: stamps VERSION into example.com/probe/internal/buildinfo.version, but ./cmd/b doesn't link example.com/probe/internal/buildinfo on windows/amd64"]) assert.ok(unlinked.result.stderr.includes(line),line);
+  assert.doesNotMatch(unlinked.result.stderr,/^c:/m,'main is the program itself');
+  const func=probe('go/test.mjs',[],{PROBE_GO_DOC:'func version()'},{},files);
+  assert.match(func.result.stderr,/c: stamps VERSION into main\.version, which \.\/cmd\/c doesn't declare as a variable on windows\/amd64/);
+  const none=probe('go/test.mjs',[],{},{},{'.goreleaser.yaml':goReleaser([['a','./cmd/a',['windows_amd64_v1'],'','-s -w -X example.com/probe/internal/buildinfo.version=v1']]),'cmd/a/main.go':'package main\n'});
+  assert.match(none.result.stderr,/a: its ldflags stamp VERSION into no variable/);
+});
 test('go-race runs every package under the race detector, with cgo, on Linux',()=>{
   const {result,trace}=probe('go/test.mjs',[],{},{go:{race:['./...']}});
   assert.equal(result.status,0,result.stderr);
@@ -163,9 +185,10 @@ test('go-race runs every package under the race detector, with cgo, on Linux',()
 test('a js/wasm release target is vetted as js/wasm and ships its wasm_exec.js',()=>{
   const cfg={release:{toolchains:['go']}},files={'.goreleaser.yaml':goReleaser([['fzt','.',['js_wasm']]])};
   const only=probe('go/test.mjs',[],{PROBE_GO_LIST:''},cfg,files);assert.equal(only.result.status,0,only.result.stderr);
-  assert.deepEqual(only.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[['list',''],['vet','js']]);
+  const checks=[['list','js'],['doc','js']];
+  assert.deepEqual(only.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[...checks,['list',''],['vet','js']]);
   const both=probe('go/test.mjs',[],{},cfg,files);
-  assert.deepEqual(both.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[['list',''],['vet',''],['test',''],['vet','js']]);
+  assert.deepEqual(both.trace.filter(t=>t.command==='go').map(t=>[t.args[0],t.goos || '']),[...checks,['list',''],['vet',''],['test',''],['vet','js']]);
   assert.notEqual(probe('go/test.mjs',[],{PROBE_GO_LIST:''}).result.status,0,'no packages and no js/wasm target is an error');
   const goroot=fs.mkdtempSync(path.join(os.tmpdir(),'goroot-'));
   fs.mkdirSync(path.join(goroot,'lib','wasm'),{recursive:true});fs.writeFileSync(path.join(goroot,'lib','wasm','wasm_exec.js'),'// runtime');

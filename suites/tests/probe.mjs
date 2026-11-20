@@ -17,6 +17,13 @@ child.spawnSync = (command, args, options) => {
   if (command === 'git' && args.includes('--name-only')) stdout = process.env.PROBE_DIFF || '';
   if (command === 'git' && args[0] === 'rev-parse') stdout = 'a'.repeat(40);
   if (command === 'go' && args[0] === 'list') stdout = process.env.PROBE_GO_LIST ?? 'example.com/probe/cmd/probe';
+  // The packages each listed program links (PROBE_GO_DEPS), and the declaration go doc finds
+  // for a stamped variable (PROBE_GO_DOC; empty, it finds none).
+  if (command === 'go' && args[0] === 'list' && args[1] === '-f') stdout = args.slice(3).map(() => process.env.PROBE_GO_DEPS ?? 'example.com/probe/internal/buildinfo').join('\n');
+  if (command === 'go' && args[0] === 'doc') {
+    if (process.env.PROBE_GO_DOC === '') return {status: 1, stdout: ''};
+    stdout = process.env.PROBE_GO_DOC ?? 'var version string';
+  }
   if (command === 'go' && args[0] === 'env' && args[1] === 'GOROOT') stdout = process.env.PROBE_GOROOT || '';
   // GoReleaser writes each --id's artifacts (PROBE_GORELEASER, else one Linux program per id)
   // into the dist its --config names, and lists them in artifacts.json as it does.
@@ -26,8 +33,7 @@ child.spawnSync = (command, args, options) => {
     const artifacts = (process.env.PROBE_GORELEASER ? JSON.parse(process.env.PROBE_GORELEASER) : ids.map(id => ({name: id, type: 'Binary', goos: 'linux'})))
       .map(a => ({...a, path: path.join(dist, a.name)}));
     fs.mkdirSync(dist, {recursive: true});
-    // Each carries VERSION, as one whose ldflags stamp it does, unless PROBE_UNSTAMPED.
-    for (const a of artifacts) fs.writeFileSync(a.path, `binary ${process.env.PROBE_UNSTAMPED ? '' : process.env.VERSION || ''}`);
+    for (const a of artifacts) fs.writeFileSync(a.path, 'binary');
     fs.writeFileSync(path.join(dist, 'artifacts.json'), JSON.stringify([{name: 'metadata.json', path: path.join(dist, 'metadata.json'), type: 'Metadata'}, ...artifacts]));
   }
   if (command === 'objdump') stdout = '\tDLL Name: KERNEL32.dll\n';

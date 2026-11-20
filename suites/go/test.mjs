@@ -1,6 +1,6 @@
 import {capture, run} from '../lib.mjs';
 import {config} from '../config.mjs';
-import {goReleaserBuilds, goReleaserConfig, unreleasedCommands} from './goreleaser.mjs';
+import {goReleaserBuilds, goReleaserConfig, unreleasedCommands, unstampedBuilds} from './goreleaser.mjs';
 import {goEnvironment} from './environment.mjs';
 goEnvironment();
 const builds = goReleaserBuilds();
@@ -9,6 +9,9 @@ const builds = goReleaserBuilds();
 if (builds.length) {
   const missing = unreleasedCommands(builds);
   if (missing.length) throw new Error(`${goReleaserConfig} builds no program from ${missing.join(', ')}: add a build for each`);
+  // Whether each build's VERSION stamp lands depends on its code, so every Go change checks it.
+  const unstamped = unstampedBuilds(builds);
+  if (unstamped.length) throw new Error(`${goReleaserConfig}: a build doesn't carry the release's VERSION:\n${unstamped.join('\n')}`);
 }
 // A js/wasm release target's code builds only for js/wasm, so it is vetted there as
 // well; a module that is only that (fzt-browser) has no native packages to vet or test.

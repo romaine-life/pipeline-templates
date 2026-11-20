@@ -5,7 +5,7 @@ import YAML from 'yaml';
 import {capture, run} from '../lib.mjs';
 import {tool} from '../tools.mjs';
 import {goEnvironment} from './environment.mjs';
-import {goParts, goReleaserBuilds, goReleaserConfig, unreleasedCommands} from './goreleaser.mjs';
+import {goParts, goReleaserBuilds, goReleaserConfig, unreleasedCommands, unstampedBuilds} from './goreleaser.mjs';
 
 // A DLL cgo builds links through MinGW's gcc, which can leave it importing a MinGW runtime
 // DLL (libwinpthread-1.dll, libgcc_s_seh-1.dll). Nothing ships that DLL beside it, so the
@@ -17,13 +17,6 @@ export function mingwRuntimeImports(objdump) {
   if (!names.length) throw new Error('objdump listed no imports');
   return names.filter(name=>/^lib.*\.dll$/i.test(name));
 }
-// Whether a built file carries the release's VERSION. The linker ignores an -X naming a
-// variable that doesn't exist, and a build without -trimpath records its -ldflags text in the
-// binary, so that text is taken out before looking.
-export function stamped(bytes, version) {
-  const escaped=version.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return bytes.toString('latin1').replace(new RegExp(`-X[=\\s]+[^\\s="]+=${escaped}`,'g'),'').includes(version);
-}
 // GoReleaser builds this job's builds from .goreleaser.yaml. It wants its output folder empty
 // and dist/ may already hold staged dependencies, so it writes to a folder of its own, and the
 // programs and DLLs it lists in artifacts.json move to dist/ (the DLLs' C headers stay behind).
@@ -31,6 +24,8 @@ export async function buildGo(part=process.env.RELEASE_PART || 'go') {
   goEnvironment();
   const builds=goReleaserBuilds(),missing=unreleasedCommands(builds);
   if (missing.length) throw new Error(`${goReleaserConfig} builds no program from ${missing.join(', ')}`);
+  const unstamped=unstampedBuilds(builds);
+  if (unstamped.length) throw new Error(`${goReleaserConfig}: a build doesn't carry the release's VERSION:\n${unstamped.join('\n')}`);
   const selected=goParts(builds).find(p=>p.part===part);
   if (!selected) throw new Error(`${goReleaserConfig} has no builds for the ${part} release job`);
   fs.mkdirSync('dist',{recursive:true});
@@ -45,7 +40,6 @@ export async function buildGo(part=process.env.RELEASE_PART || 'go') {
       const asset=path.basename(artifact.path);
       if (fs.existsSync(`dist/${asset}`)) throw new Error(`duplicate Go release asset: ${asset}`);
       fs.copyFileSync(artifact.path,`dist/${asset}`);
-      if (process.env.VERSION && !stamped(fs.readFileSync(`dist/${asset}`),process.env.VERSION)) throw new Error(`${asset} doesn't carry ${process.env.VERSION}: ${goReleaserConfig}'s ldflags for it stamp VERSION into no variable that exists (-X ...version={{ .Env.VERSION }})`);
       if (artifact.type==='C Shared Library') {
         const runtime=mingwRuntimeImports(capture('objdump',['-p',`dist/${asset}`],{maxBuffer:1<<28}));
         if (runtime.length) throw new Error(`${asset} needs ${runtime.join(', ')}, which nothing ships beside it`);
