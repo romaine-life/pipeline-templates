@@ -82,7 +82,8 @@
     "nelsong6/jellyfin": {
       "suites": [
         "cluster-service"
-      ]
+      ],
+      "nas": true
     },
     "nelsong6/journal-biking": {
       "suites": [
@@ -155,7 +156,8 @@
     "nelsong6/nas-backup": {
       "suites": [
         "python"
-      ]
+      ],
+      "nas": true
     },
     "nelsong6/ntfy": {
       "suites": [
@@ -176,7 +178,8 @@
     "nelsong6/pcloud-sync": {
       "suites": [
         "python"
-      ]
+      ],
+      "nas": true
     },
     "nelsong6/session-index": {
       "suites": [

@@ -15,10 +15,12 @@ test('unknown settings and unsafe paths fail visibly', () => {
     {suites: [], inputs: {'go.test': ['assets/**']}}, {suites: [], go: {platforms: ['windows-latest']}}, {suites: [], release: {homeSync: true}},
     {suites: ['release'], release: {prefix: 'v0.1'}}, {suites: ['tofu'], tofu: {version: '1.9.0'}}, {suites: ['docs'], docs: {required: ['INDEX.md']}}, {suites: ['web-app'], web: {node: '22'}},
     {suites: ['cluster-service'], cluster: {image: 'forgejo.romaine.life/o/app'}}, {suites: ['web-app'], web: {pinFile: 'k8s/values.yaml'}},
-    {suites: ['web-app'], topics: ['web-static', 'web-image']}]) {
+    {suites: ['web-app'], topics: ['web-static', 'web-image']}, {suites: ['python'], nas: false}, {suites: ['python'], nas: 'yes'}]) {
     assert.throws(() => validate(bad), JSON.stringify(bad));
   }
   assert.deepEqual(validate({suites: ['go'], topics: ['go-test-windows', 'go-test-linux']}).suites, ['go']);
+  // nas: homesvc on the NAS applies the repo's merged default branch (AHT-177).
+  assert.equal(validate({suites: ['python'], nas: true}).nas, true);
 });
 
 test('setting topics are Forgejo topics, never a suite, and the list holds only them', () => {

@@ -3,9 +3,11 @@ import {capture, readJSON, templates} from './lib.mjs';
 import {currentTopics, isSettingTopic, resolve, validTopic} from './topics.mjs';
 import {layout} from './layout.mjs';
 
-// A fleet entry: its suites and its setting topics (topics.mjs); everything else follows from
-// the repository (layout.mjs, conventions.mjs).
-const fields = ['suites', 'topics'];
+// A fleet entry: its suites, its setting topics (topics.mjs), and nas, which says homesvc on
+// the NAS applies the repo's merged default branch there and strip-owner waits for it
+// (at-home-tools and agent-tools, AHT-177); everything else follows from the repository
+// (layout.mjs, conventions.mjs).
+const fields = ['suites', 'topics', 'nas'];
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
 export function currentRepository() {
@@ -41,6 +43,7 @@ export function validate(value, where = 'fleet entry') {
     throw new Error(`${where}: suites must name each suite once (default is always included)`);
   }
   for (const key of Object.keys(value)) if (!fields.includes(key)) throw new Error(`${where}: unknown field ${key}`);
+  if (value.nas !== undefined && value.nas !== true) throw new Error(`${where}: nas is true or left out`);
   const topics = value.topics ?? [];
   if (!Array.isArray(topics) || new Set(topics).size !== topics.length || topics.some(topic => !validTopic(topic) || !isSettingTopic(topic))) {
     throw new Error(`${where}: topics must name each setting topic once (suites are ci- topics, from suites)`);
