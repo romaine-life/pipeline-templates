@@ -26,7 +26,8 @@ child.spawnSync = (command, args, options) => {
     const artifacts = (process.env.PROBE_GORELEASER ? JSON.parse(process.env.PROBE_GORELEASER) : ids.map(id => ({name: id, type: 'Binary', goos: 'linux'})))
       .map(a => ({...a, path: path.join(dist, a.name)}));
     fs.mkdirSync(dist, {recursive: true});
-    for (const a of artifacts) fs.writeFileSync(a.path, 'binary');
+    // Each carries VERSION, as one whose ldflags stamp it does, unless PROBE_UNSTAMPED.
+    for (const a of artifacts) fs.writeFileSync(a.path, `binary ${process.env.PROBE_UNSTAMPED ? '' : process.env.VERSION || ''}`);
     fs.writeFileSync(path.join(dist, 'artifacts.json'), JSON.stringify([{name: 'metadata.json', path: path.join(dist, 'metadata.json'), type: 'Metadata'}, ...artifacts]));
   }
   if (command === 'objdump') stdout = '\tDLL Name: KERNEL32.dll\n';

@@ -6,7 +6,7 @@ export const ignored = ['**/*.md', 'docs/**', 'LICENSE', 'LICENSE.*', 'LICENSE-*
 const everything = ['**'];
 export const inputs = {
   'default.fetches': ['.forgejo/workflows/**', '**/action.yml', '**/action.yaml', '**/Dockerfile*', '**/Containerfile*', '**/*.Dockerfile', '**/Cargo.toml', '**/Cargo.lock'],
-  'default.rules': ['.forgejo/workflows/**', '.forgejo/actions/**'],
+  'default.rules': ['.forgejo/workflows/**', '.forgejo/actions/**', 'go.mod', '*.go', 'cmd/*/*.go', '.github/workflows/forgejo-sync.yml'],
   'go.format': ['**/*.go', 'go.mod'],
   'go.test': everything,
   'rust.format': ['**/*.rs', '**/Cargo.toml', 'rustfmt.toml', '.rustfmt.toml', 'rust-toolchain*'],

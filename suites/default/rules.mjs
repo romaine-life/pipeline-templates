@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url';
 import YAML from 'yaml';
 import {run, templates, tracked} from '../lib.mjs';
 import {tool} from '../tools.mjs';
+import {currentTopics} from '../topics.mjs';
 
 const check = /(?:\b(?:gofmt|actionlint|kubeconform|markdownlint|pytest|ctest|PSScriptAnalyzer)\b|\bgo\s+(?:vet|test)\b|\bcargo\s+(?:fmt|clippy|test|nextest)\b|\bnode\s+[^\n]*--test\b|\bpython[\d.]*\s+[^\n]*-m\s+unittest\b|\b(?:npm|pnpm)\s+(?:test|run\s+(?:lint|check|test))\b|\btofu\s+(?:fmt|validate|plan)\b|\bdotnet\s+(?:test|format)\b|\b(?:check|test|lint|validate|parse)[-/.\w]*\.(?:m?js|py|ps1|sh)\b)/i;
 const prOnly = expression => /github\.event_name\s*==\s*['"]pull_request['"]/.test(expression || '') && !/\|\|/.test(expression || '');
@@ -107,7 +108,24 @@ function bracedLoopWait(source) {
 export function loopWaits(commands) {
   return shellLoopSleep(commands) || pythonLoopSleep(commands) || bracedLoopWait(commands);
 }
-export function violations(text, read) {
+// A command that builds the repository's own Go: `go build`, or `go install` of a local
+// package (one installing a published tool at a version, `pkg@v1`, builds none of it).
+export const goBuild = commands => commands.split('\n').some(line => /\bgo\s+build\b/.test(line) || /\bgo\s+install\b/.test(line) && !/@/.test(line));
+// A Go repository (a root go.mod) builds, tests and releases its Go through the go and release
+// suites. A Forgejo copy of a repository developed on GitHub, which its forgejo-sync workflow
+// fast-forwards, is built where it is developed.
+export function goViolations(topics, files, read) {
+  if (!files.includes('go.mod')) return [];
+  const bad = [];
+  if (!topics.includes('ci-go') && !files.includes('.github/workflows/forgejo-sync.yml')) bad.push('go.mod: a Go repository takes the go suite (fleet.json)');
+  if (topics.includes('ci-release') && !topics.includes('release-go') && !topics.includes('release-module')) {
+    const programs = [...new Set(files.filter(f => /^cmd\/[^/]+\/[^/]+\.go$/.test(f) && !f.endsWith('_test.go')).map(f => f.split('/').slice(0, 2).join('/')))];
+    if (files.some(f => /^[^/]+\.go$/.test(f) && !f.endsWith('_test.go') && /^package main\b/m.test(read(f) || ''))) programs.unshift('.');
+    for (const program of programs) bad.push(`${program}: a Go program the release doesn't build (release-go, and a build for it in .goreleaser.yaml)`);
+  }
+  return bad;
+}
+export function violations(text, read, {go = false} = {}) {
   const document = YAML.parseDocument(text, {uniqueKeys: true});
   if (document.errors.length) return document.errors.map(e => e.message);
   const workflow = document.toJS();
@@ -130,6 +148,7 @@ export function violations(text, read) {
       if (loopWaits(commands)) bad.push(`${name}: loop waits on a runner`);
       if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|(?<![?&])\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
       if (shellLoopRequest(commands)) bad.push(`${name}: request loop holds a runner`);
+      if (go && goBuild(commands)) bad.push(`${name}: builds the repository's Go, which the go and release suites build`);
       const isCheck = check.test(commands) || /\/(?:check-|lint|test)/.test(step.uses || '') || /^(?:check|test|lint|validate|plan|parse)(?:-|$)/i.test(name);
       if (isCheck && !prOnly(job.if) && !prOnly(step.if)) bad.push(`${name}: check must be guarded by github.event_name == 'pull_request'`);
     }
@@ -142,12 +161,17 @@ export function violations(text, read) {
 export const actionlintIgnores = ['unexpected key "enable-openid-connect"', 'unexpected key "cmd" for "services" section', 'found alias node'];
 export async function main() {
   let bad = 0;
-  const files = tracked().filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f));
+  const all = tracked(), go = all.includes('go.mod');
+  const read = p => fs.existsSync(p) && fs.statSync(p).isFile() ? fs.readFileSync(p, 'utf8') : null;
+  const files = all.filter(f => /^\.forgejo\/workflows\/[^/]+\.ya?ml$/.test(f));
   for (const file of files) {
-    const errors = violations(fs.readFileSync(file, 'utf8'), p => fs.existsSync(p) && fs.statSync(p).isFile() ? fs.readFileSync(p, 'utf8') : null);
+    const errors = violations(fs.readFileSync(file, 'utf8'), read, {go});
     for (const error of errors) console.error(`${file}: ${error}`);
     bad += errors.length;
   }
+  const goErrors = goViolations(go ? currentTopics() : [], all, read);
+  for (const error of goErrors) console.error(error);
+  bad += goErrors.length;
   // Forgejo checks a workflow only when it runs it; actionlint finds a context used where
   // none exists, an unknown key or a bad expression on the pull request. Shell and Python
   // inside steps aren't linted here.

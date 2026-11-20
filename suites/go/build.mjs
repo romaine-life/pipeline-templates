@@ -17,6 +17,13 @@ export function mingwRuntimeImports(objdump) {
   if (!names.length) throw new Error('objdump listed no imports');
   return names.filter(name=>/^lib.*\.dll$/i.test(name));
 }
+// Whether a built file carries the release's VERSION. The linker ignores an -X naming a
+// variable that doesn't exist, and a build without -trimpath records its -ldflags text in the
+// binary, so that text is taken out before looking.
+export function stamped(bytes, version) {
+  const escaped=version.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  return bytes.toString('latin1').replace(new RegExp(`-X[=\\s]+[^\\s="]+=${escaped}`,'g'),'').includes(version);
+}
 // GoReleaser builds this job's builds from .goreleaser.yaml. It wants its output folder empty
 // and dist/ may already hold staged dependencies, so it writes to a folder of its own, and the
 // programs and DLLs it lists in artifacts.json move to dist/ (the DLLs' C headers stay behind).
@@ -38,6 +45,7 @@ export async function buildGo(part=process.env.RELEASE_PART || 'go') {
       const asset=path.basename(artifact.path);
       if (fs.existsSync(`dist/${asset}`)) throw new Error(`duplicate Go release asset: ${asset}`);
       fs.copyFileSync(artifact.path,`dist/${asset}`);
+      if (process.env.VERSION && !stamped(fs.readFileSync(`dist/${asset}`),process.env.VERSION)) throw new Error(`${asset} doesn't carry ${process.env.VERSION}: ${goReleaserConfig}'s ldflags for it stamp VERSION into no variable that exists (-X ...version={{ .Env.VERSION }})`);
       if (artifact.type==='C Shared Library') {
         const runtime=mingwRuntimeImports(capture('objdump',['-p',`dist/${asset}`],{maxBuffer:1<<28}));
         if (runtime.length) throw new Error(`${asset} needs ${runtime.join(', ')}, which nothing ships beside it`);

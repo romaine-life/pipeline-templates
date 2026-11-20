@@ -135,6 +135,8 @@ test('a Go release job builds its builds from .goreleaser.yaml, and every progra
   assert.deepEqual(dll.args.filter((_,i)=>dll.args[i-1]==='--id'),['dll'],'the Windows job builds the DLLs');
   assert.deepEqual(dist,['dll.dll']);
   assert.ok(library.trace.some(t=>t.command==='objdump'),"a DLL's imports are checked for MinGW runtime DLLs");
+  const unstamped=probe('go/build.mjs',[],{PROBE_UNSTAMPED:'1'},{},files);
+  assert.notEqual(unstamped.result.status,0);assert.match(unstamped.result.stderr,/probe doesn't carry v0\.1\.1/);
   const unlisted=probe('go/build.mjs',[],{},{},{...files,'cmd/extra/main.go':'package main\n'});
   assert.notEqual(unlisted.result.status,0);assert.match(unlisted.result.stderr,/builds no program from cmd\/extra/);
   assert.notEqual(probe('go/build.mjs').result.status,0,'a Go release needs .goreleaser.yaml');

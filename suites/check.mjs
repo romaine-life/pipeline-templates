@@ -98,9 +98,10 @@ export async function check({platform = process.platform, branch, from} = {}) {
   if (!from) from = base(branch ??= defaultBranch());
   process.env.BASE = from;
   // The repository's topics, read from Forgejo with this PC's sign-in, as the suite action
-  // reads them with the job's token in CI; the scripts below inherit them.
+  // reads them with the job's token in CI; the scripts below inherit them. A Go repository's
+  // are read listed or not: the default suite's rules check it takes the go suite.
   const repository = currentRepository();
-  if (process.env.CI_TOPICS === undefined && fleet()[repository]) process.env.CI_TOPICS = JSON.stringify(await readTopics(repository, {token: localToken()}));
+  if (process.env.CI_TOPICS === undefined && (fleet()[repository] || fs.existsSync('go.mod'))) process.env.CI_TOPICS = JSON.stringify(await readTopics(repository, {token: localToken()}));
   // npm packages from Forgejo, read with the token OpenBao signs for this PC, as CI reads
   // them with the job's own (packages.mjs).
   if (process.env.FORGEJO_PACKAGES_TOKEN === undefined && usesPackages()) process.env.FORGEJO_PACKAGES_TOKEN = await readToken();

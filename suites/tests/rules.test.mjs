@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {violations} from '../default/rules.mjs';
+import {goViolations, violations} from '../default/rules.mjs';
 const valid = `on: [pull_request, push, workflow_dispatch]
 concurrency:
   group: ci-\${{ github.ref }}
@@ -109,4 +109,26 @@ test('a repository workflow Forgejo would refuse fails the rules check', async (
       if (!ok) assert.match(result.stdout + result.stderr, /context "runner" is not allowed here/);
     } finally { fs.rmSync(root, {recursive: true, force: true}); }
   }
+});
+test("a Go repository's own workflow that builds its Go is refused; one without go.mod, or installing a published tool, isn't", () => {
+  const go = {go: true};
+  assert.match(violations(valid, null, go).join('\n'), /build: builds the repository's Go/);
+  assert.match(violations(valid.replace('go build ./cmd/...', 'go install ./cmd/tool'), null, go).join('\n'), /builds the repository's Go/);
+  assert.match(violations(valid.replace('go build ./cmd/...', 'bash scripts/ship.sh'), p => p === 'scripts/ship.sh' ? 'GOOS=windows go build -o x.exe .' : null, go).join('\n'), /builds the repository's Go/);
+  assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'go install golang.org/x/tools/cmd/stringer@v0.30.0'), null, go), []);
+  assert.deepEqual(violations(valid), [], 'nelsong6/forgejo builds upstream Go with no go.mod of its own');
+});
+test('a Go repository takes the go suite, and a released Go program is built by the release', () => {
+  const read = p => ({'main.go': 'package main\n', 'lib.go': 'package lib\n'})[p] ?? null;
+  assert.deepEqual(goViolations([], ['README.md'], read), [], 'no go.mod, no Go rules');
+  assert.deepEqual(goViolations(['ci-go'], ['go.mod', 'lib.go'], read), []);
+  assert.match(goViolations([], ['go.mod', 'lib.go'], read).join('\n'), /go\.mod: a Go repository takes the go suite/);
+  assert.deepEqual(goViolations([], ['go.mod', '.github/workflows/forgejo-sync.yml'], read), [], "a Forgejo copy of a GitHub repository is built on GitHub");
+  const released = ['go.mod', 'cmd/tool/main.go', 'cmd/tool/main_test.go', 'cmd/notes/README.md', 'main.go'];
+  assert.deepEqual(goViolations(['ci-go', 'ci-release', 'release-dotnet'], released, read), [
+    ".: a Go program the release doesn't build (release-go, and a build for it in .goreleaser.yaml)",
+    "cmd/tool: a Go program the release doesn't build (release-go, and a build for it in .goreleaser.yaml)"]);
+  assert.deepEqual(goViolations(['ci-go', 'ci-release', 'release-go'], released, read), []);
+  assert.deepEqual(goViolations(['ci-go', 'ci-release', 'release-module'], ['go.mod', 'lib.go'], read), []);
+  assert.deepEqual(goViolations(['ci-go', 'ci-release', 'release-dotnet'], ['go.mod', 'lib.go'], read), [], 'a library is no program');
 });

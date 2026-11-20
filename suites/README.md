@@ -102,7 +102,9 @@ container, `README.md` the one document the docs suite requires, and each test s
 image (Postgres 18.6, Manticore 29.9.0, GreenMail 2.1.3). And a Go release builds what its `.goreleaser.yaml` lists, through `goreleaser build` (the
 suite keeps versions, upload and home-sync): one Linux job builds the programs, the Windows
 runner the `c-shared` DLLs, and each file GoReleaser builds publishes under the name its
-`binary` gives it. Every program under `cmd/` must be one of its builds, and a Windows
+`binary` gives it. Every program under `cmd/` must be one of its builds, every program and
+DLL must carry the release's `VERSION` (its ldflags' `-X ...version={{ .Env.VERSION }}`
+stamping a variable that exists, since the linker ignores one naming none), and a Windows
 DLL fails if it imports a MinGW runtime DLL (`lib*.dll`), which nothing ships beside it.
 
 ## An image joined to a release
@@ -188,6 +190,11 @@ scripts put the files in place.
    workflows: these rules, and actionlint, so a workflow Forgejo would refuse (a context
    used where it isn't available, an unknown key) fails on the pull request rather than
    when Forgejo first runs it.
+7. A Go repository (a root `go.mod`) builds its Go only through the suites: it takes the `go`
+   suite, none of its own workflows runs `go build` or `go install` of its own packages, and on
+   the release suite each program (under `cmd/`, or a root `package main`) ships through
+   `release-go`, so every one carries its version. A Forgejo copy of a repository developed on
+   GitHub, which its `.github/workflows/forgejo-sync.yml` fast-forwards, is built there.
 
 ## Suites
 

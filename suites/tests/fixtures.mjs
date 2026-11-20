@@ -67,7 +67,7 @@ builds:
   if(!fs.existsSync(`dist/${process.platform==='win32'?'rust_fixture-windows-amd64.dll':'librust_fixture-linux-amd64.so'}`))throw new Error('Rust cdylib was not staged');
   stage('rust');
   if(process.platform==='win32') {
-    write('cmd/ffi/main.go','package main\n\nimport \"C\"\n\n//export Answer\nfunc Answer() C.int { return 42 }\n\nfunc main() {}\n');
+    write('cmd/ffi/main.go','package main\n\nimport \"C\"\n\nvar version string\n\n//export Answer\nfunc Answer() C.int { return 42 }\n\n//export Version\nfunc Version() *C.char { return C.CString(version) }\n\nfunc main() {}\n');
     run('gofmt',['-w','cmd/ffi/main.go']);
     write('.goreleaser.yaml',`${goReleaser}  - id: ffi
     main: ./cmd/ffi
@@ -77,6 +77,7 @@ builds:
     buildmode: c-shared
     env: [CGO_ENABLED=1]
     flags: [-p=4, -trimpath]
+    ldflags: '-s -w -X main.version={{ .Env.VERSION }}'
 `);
     process.env.RELEASE_TOOLCHAIN='go';process.env.RELEASE_TARGET='windows-amd64-c-shared';process.env.RELEASE_PART='go-windows-amd64-c-shared';
     script('release/build.mjs');if(!fs.existsSync('dist/ffi-windows-amd64.dll'))throw new Error('native Go C-shared DLL was not staged');stage('c-shared');

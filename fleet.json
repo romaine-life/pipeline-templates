@@ -617,7 +617,9 @@
         "dotnet-test-windows",
         "go-test-linux",
         "go-test-windows",
-        "release-dotnet"
+        "home-sync",
+        "release-dotnet",
+        "release-go"
       ]
     },
     "romaine-life/spirelens-mcp": {
