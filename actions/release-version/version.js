@@ -146,6 +146,6 @@ if (require.main === module) {
       run: process.env.GITHUB_RUN_NUMBER,
     });
     fs.appendFileSync(process.env.GITHUB_OUTPUT,
-      `version=${result.version}\ntag=${result.tag}\nreserved=${result.reserved}\n`);
+      `version=${result.version}\ntag=${result.tag}\nreserved=${result.reserved}\nnext=${result.next}\n`);
   })().catch(error => { console.error(`::error::${error.message}`); process.exitCode = 1; });
 }

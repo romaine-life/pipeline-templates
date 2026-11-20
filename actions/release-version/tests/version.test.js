@@ -116,3 +116,35 @@ test('without a prefix the series is the newest tag\'s', async () => {
 test('a repo with no tags starts at v0.1.0', async () => {
   assert.equal((await run(forgejo([]), {publish: true, sha: A})).version, 'v0.1.0');
 });
+
+// The action as a workflow runs it: every output action.yml declares is written to
+// GITHUB_OUTPUT, `next` included, which the release suite's PR build stamps (PIPT-53).
+test('the action writes every output it declares', async () => {
+  const http = require('node:http');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const {execFile} = require('node:child_process');
+  const server = http.createServer((req, res) => {
+    res.setHeader('x-total-count', '1');
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(new URL(req.url, 'http://x').searchParams.get('page') === '1' ? [{name: 'v0.1.4', commit: {sha: B}}] : []));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'release-version-'));
+  const output = path.join(dir, 'output');
+  fs.writeFileSync(output, '');
+  try {
+    await new Promise((resolve, reject) => execFile(process.execPath, [path.join(__dirname, '..', 'version.js')], {env: {
+      ...process.env, GITHUB_SERVER_URL: `http://127.0.0.1:${server.address().port}`, GITHUB_OUTPUT: output, GITHUB_RUN_NUMBER: '9',
+      INPUT_PREFIX: 'v0.1', INPUT_REPOSITORY: 'o/r', INPUT_TOKEN: 't', INPUT_PUBLISH: 'false', 'INPUT_PULL-REQUEST': '5'}},
+    (error, stdout, stderr) => error ? reject(new Error(stderr || error.message)) : resolve()));
+    const written = Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map(line => line.split('=')));
+    const declared = [...fs.readFileSync(path.join(__dirname, '..', 'action.yml'), 'utf8').split(/^outputs:$/m)[1].split(/^runs:$/m)[0].matchAll(/^  ([\w-]+):$/gm)].map(m => m[1]);
+    assert.deepEqual(Object.keys(written).sort(), declared.sort());
+    assert.deepEqual(written, {version: 'v0.1.5-pr5.9', tag: '', reserved: 'false', next: 'v0.1.5'});
+  } finally {
+    server.close();
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
