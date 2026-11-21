@@ -146,3 +146,16 @@ test("a PR's image check stamps the tag its merge would take and keeps the image
     assert.equal(jobs.publish.steps.find(step=>step.run===`node _ci/suites/${suite}/image.mjs publish`).env.TOKEN,'${{ secrets.GITHUB_TOKEN }}');
   }
 });
+
+test("a release's joined image is attested by its scope, kept by check-package and published by its merge",()=>{
+  const jobs=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8')).jobs;
+  const attest=jobs.scope.steps.find(step=>step.run==='node _ci/suites/cluster-service/prior-image.mjs attest ${{ steps.scope.outputs.joined-image }}');
+  assert.equal(attest.env.VERSION,'${{ steps.version.outputs.next }}');assert.match(attest.if,/joined-image != ''/);
+  const steps=jobs['check-package'].steps,check=steps.findIndex(step=>step.run==='node _ci/suites/release/image.mjs check'),keep=steps.findIndex(step=>step.uses==='forgejo/upload-artifact@v4');
+  assert.equal(steps[check].env.VERSION,'${{ needs.scope.outputs.check-version }}');
+  assert.ok(check>=0 && keep>check);assert.equal(steps[keep].with.name,'check-image');assert.equal(steps[keep].with.path,'.ci-image/');
+  for(const job of ['finalize','module'])assert.equal(jobs[job].steps.find(step=>step.run==='node _ci/suites/release/image.mjs publish').env.TOKEN,'${{ secrets.GITHUB_TOKEN }}',job);
+  // A module's joined image is checked, and kept, by the cluster-service suite.
+  const cluster=YAML.parse(fs.readFileSync(path.join(suites,'cluster-service/ci.yml'),'utf8')).jobs.scope.steps.find(step=>step.id==='version');
+  assert.doesNotMatch(cluster.if,/joined-image/);assert.match(cluster.if,/cluster-image-check == 'true'/);
+});

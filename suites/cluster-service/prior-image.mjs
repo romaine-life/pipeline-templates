@@ -4,6 +4,8 @@
 // build reads, and the check keeps the image as the run's artifact; the merge, once it has
 // reserved that tag, finds the run, checks the fingerprint, and pushes those exact bytes under
 // the tag, the digest its PR's build made, instead of building again.
+// An image joined to a release does the same: the release suite's scope attests it, its
+// check-package builds and keeps it, and the release's finalize publishes it.
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -55,16 +57,21 @@ export function attest(section,version,{log=console.log}={}) {
   log(marker+JSON.stringify({head:capture('git',['rev-parse','HEAD']),fingerprint:imageFingerprint({section,version})}));
 }
 
+// The suite run whose image check a joined release's merge publishes: a module's image is
+// checked by the cluster-service suite, as a cluster service's own is; any other joined image
+// by the release suite's check-package, with the assembled release beside it.
+export const joinedCheck=release=>release?.module ? {workflow:'cluster-service/ci.yml',job:'check-image'} : {workflow:'release/ci.yml',job:'check-package'};
+
 // The newest run of the merged PR's suite workflow, at any of its commits, whose scope
-// attested this fingerprint, whose image check succeeded, and whose image is still kept for an
-// hour or more.
-export async function findPriorImage({sha=process.env.GITHUB_SHA,workflow,fingerprint,get=request,url=api(),now=Date.now(),probe=zipReadable,log=console.log}) {
+// attested this fingerprint, whose image check (job) succeeded, and whose image is still kept
+// for an hour or more.
+export async function findPriorImage({sha=process.env.GITHUB_SHA,workflow,job:check='check-image',fingerprint,get=request,url=api(),now=Date.now(),probe=zipReadable,log=console.log}) {
   const found=await pullRuns(sha,workflow,get,url,log);
   if(!found)return null;
   const {pull,runs}=found;
   for(const run of runs) {
     const jobs=await get(`${url}/actions/runs/${run.id}/jobs`),scope=jobs.find(job=>job.name==='scope');
-    if(!scope || jobs.find(job=>job.name==='check-image')?.status!=='success')continue;
+    if(!scope || jobs.find(job=>job.name===check)?.status!=='success')continue;
     const image=(await get(`${url}/actions/runs/${run.id}/artifacts`)).find(item=>item.name===artifact && !item.expired && Date.parse(item.expires_at)>now+3600e3);
     if(!image || !await attested(run,scope,fingerprint,get,url,marker))continue;
     if(!await probe(`${url}/actions/artifacts/${image.id}/zip`))throw new Error(`run ${run.id}'s image can't be downloaded with the job's token`);

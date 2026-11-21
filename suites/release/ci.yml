@@ -80,6 +80,12 @@ jobs:
       if: steps.version.outputs.next != ''
       env:
         VERSION: ${{ steps.version.outputs.next }}
+    # The joined image check-package builds with that tag, attested the same way, so the merge
+    # publishes that image too (cluster-service/prior-image.mjs).
+    - run: node _ci/suites/cluster-service/prior-image.mjs attest ${{ steps.scope.outputs.joined-image }}
+      if: steps.version.outputs.next != '' && steps.scope.outputs.joined-image != ''
+      env:
+        VERSION: ${{ steps.version.outputs.next }}
     - run: node _ci/suites/release.mjs scope release
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -139,6 +145,7 @@ jobs:
     - run: node _ci/suites/release/image.mjs publish
       if: needs.scope.outputs.joined-image == 'cluster'
       env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
         IMAGE_BUILD: ${{ needs.scope.outputs.image-build }}
     - run: node _ci/suites/release.mjs source
@@ -327,6 +334,7 @@ jobs:
     - run: node _ci/suites/release/image.mjs publish
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
       env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ needs.reserve.outputs.tag }}
         IMAGE_BUILD: ${{ needs.scope.outputs.image-build }}
     - run: node _ci/suites/release/protocol.mjs stage
@@ -510,6 +518,16 @@ jobs:
         AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
         VERSION: ${{ needs.scope.outputs.check-version }}
     - run: node _ci/suites/release/image.mjs check
+      env:
+        VERSION: ${{ needs.scope.outputs.check-version }}
+    # The joined image the check built, for its merge to publish.
+    - uses: forgejo/upload-artifact@v4
+      with:
+        name: check-image
+        path: .ci-image/
+        retention-days: 7
+        compression-level: 0
+        if-no-files-found: ignore
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop
