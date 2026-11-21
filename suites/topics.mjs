@@ -15,6 +15,8 @@ export const releaseToolchains = ['go', 'rust', 'npm', 'python', 'dotnet', 'cmak
 export const rustBuilds = {
   'windows-amd64': 'x86_64-pc-windows-msvc', 'windows-arm64': 'aarch64-pc-windows-msvc',
   'linux-amd64': 'x86_64-unknown-linux-gnu', 'linux-arm64': 'aarch64-unknown-linux-gnu',
+  // A Game Boy Advance ROM, built with agb (rust/gba.mjs).
+  gba: 'thumbv4t-none-eabi',
 };
 const lints = ['typos', 'machete', 'audit'];
 export const serviceNames = Object.keys(serviceImages);

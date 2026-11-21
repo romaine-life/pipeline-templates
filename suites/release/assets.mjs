@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {run} from '../lib.mjs';
 import {zipDirectory} from './zip.mjs';
+import {rustBuilds} from '../topics.mjs';
 
 // A Rust binary built for a target publishes under its platform: tuimail-x86_64-pc-windows-msvc.exe
 // as tuimail-windows-amd64.exe. Anything else publishes under its own name.
@@ -29,17 +30,25 @@ export function packageAssets({kind=process.env.RELEASE_TOOLCHAIN,target=process
     }
   }
   try {
-    select(root);
-    for(const entry of fs.readdirSync(root,{withFileTypes:true})) {
-      if(claimed.has(entry.name))continue;
-      const file=path.join(root,entry.name);
-      if(entry.isFile())fs.copyFileSync(file,destination(entry.name));
-      else if(entry.isDirectory()) {
-        const remaining=path.join(temp,'remaining',entry.name);
-        fs.cpSync(file,remaining,{recursive:true,filter:source=>!claimed.has(path.relative(root,source).replaceAll('\\','/'))});
-        function populated(dir){return fs.readdirSync(dir,{withFileTypes:true}).some(item=>item.isFile() || item.isDirectory() && populated(path.join(dir,item.name)));}
-        if(populated(remaining))pack(remaining,kind==='npm'?`${entry.name}-web.tar.gz`:`${entry.name}-${process.platform==='win32'?'windows':'linux'}.${process.platform==='win32'?'zip':'tar.gz'}`);
-      } else throw new Error('release assets must be regular files');
+    // A GBA ROM publishes as one ZIP named for it, holding the ROM and its part's release/assets
+    // files, which the emulator loads beside it (power-lines.zip: power-lines.gba, strings.lua).
+    if(kind==='rust' && target===rustBuilds.gba) {
+      const roms=fs.readdirSync(root).filter(name=>name.endsWith('.gba'));
+      if(roms.length!==1)throw new Error(`a GBA release part publishes one ROM; its build left ${roms.length}`);
+      fs.writeFileSync(destination(`${path.basename(roms[0],'.gba')}.zip`),zipDirectory(root));
+    } else {
+      select(root);
+      for(const entry of fs.readdirSync(root,{withFileTypes:true})) {
+        if(claimed.has(entry.name))continue;
+        const file=path.join(root,entry.name);
+        if(entry.isFile())fs.copyFileSync(file,destination(entry.name));
+        else if(entry.isDirectory()) {
+          const remaining=path.join(temp,'remaining',entry.name);
+          fs.cpSync(file,remaining,{recursive:true,filter:source=>!claimed.has(path.relative(root,source).replaceAll('\\','/'))});
+          function populated(dir){return fs.readdirSync(dir,{withFileTypes:true}).some(item=>item.isFile() || item.isDirectory() && populated(path.join(dir,item.name)));}
+          if(populated(remaining))pack(remaining,kind==='npm'?`${entry.name}-web.tar.gz`:`${entry.name}-${process.platform==='win32'?'windows':'linux'}.${process.platform==='win32'?'zip':'tar.gz'}`);
+        } else throw new Error('release assets must be regular files');
+      }
     }
     if(!names.size)throw new Error('release builder produced no assets');
     fs.rmSync(root,{recursive:true,force:true});fs.cpSync(out,root,{recursive:true});

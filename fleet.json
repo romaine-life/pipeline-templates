@@ -577,7 +577,13 @@
     },
     "romaine-life/power-lines-gba": {
       "suites": [
-        "rust"
+        "rust",
+        "release"
+      ],
+      "topics": [
+        "home-sync",
+        "release-rust",
+        "rust-build-gba"
       ]
     },
     "romaine-life/recorder": {

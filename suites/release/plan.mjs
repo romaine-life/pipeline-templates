@@ -1,6 +1,7 @@
 import {config} from '../config.mjs';
 import {output} from '../lib.mjs';
 import {goParts} from '../go/goreleaser.mjs';
+import {rustBuilds} from '../topics.mjs';
 // A CMake, .NET or Python release builds where its tests run: on Windows when they run on
 // Windows alone (its -test-windows topic without -test-linux), else on Linux.
 export const buildRunner=(cfg,kind)=>{const platforms=cfg[kind]?.platforms || [];return platforms.length===1 && platforms[0]==='windows-latest' ? 'windows-latest' : 'ubuntu-latest';};
@@ -17,7 +18,9 @@ export function releasePlan(cfg=config(),goBuilds) {
   const include=files ? [{id:'files',toolchain:'files',target:'',features:'',noDefault:false,runner:'ubuntu-latest'}] : [];
   for (const kind of kinds) {
     if (kind==='rust') {
-      for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,features:(part.features || []).join(','),noDefault:part.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});
+      // installTarget is the target whose standard library rustup installs: a GBA ROM builds its
+      // own (rust/gba.mjs), and rustup ships none for it.
+      for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,installTarget:part.target===rustBuilds.gba ? '' : part.target,features:(part.features || []).join(','),noDefault:part.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});
     } else if(kind==='go') {
       for(const part of goParts(goBuilds))include.push({id:part.part,toolchain:kind,target:part.target,features:'',noDefault:false,runner:part.runner});
     } else include.push({id:kind,toolchain:kind,target:'',features:'',noDefault:false,runner:buildRunner(cfg,kind)});

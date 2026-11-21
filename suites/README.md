@@ -48,7 +48,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `release-source` | A documentation repository cuts a source release |
 | `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
-| `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64` | The Rust release targets; with none, Linux x86_64 |
+| `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64`, `rust-build-gba` | The Rust release targets (`gba` is a Game Boy Advance ROM); with none, Linux x86_64 |
 | `version-from-manifest` | The version series comes from the root manifest's version; for a release that builds nothing, from its pinned download's ([What a release downloads](#what-a-release-downloads)) |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
@@ -88,10 +88,24 @@ default features, for a workspace that ships a different program per platform; `
 through zig, which another architecture than the runner's x86_64 needs. Windows ARM64 builds
 with the Windows runner's LLVM clang.
 
+A Game Boy Advance ROM (`rust-build-gba`, target `thumbv4t-none-eabi`) is an agb crate as agb's
+template lays it out: the folder whose `.cargo/config.toml` builds for that target and builds the
+standard library there (`[unstable] build-std`), a workspace of its own, since Cargo reads that
+file in the folder it runs in and the setting would reach every crate of one workspace
+(`rust/gba.mjs`). Cargo builds it in that folder, on the root's toolchain (a nightly with
+`rust-src`), and agb-gbafix, at the agb version the crate's `Cargo.lock` holds, makes each
+program a ROM titled with its name in capitals (`power-lines` as `POWER LINES`). The rust suite
+runs rustfmt in that folder and clippy there for the GBA, as the release builds it; a GBA
+program runs only on the console, so it has no host tests.
+
 A release publishes what its build leaves at the top of `dist/` under its own names (CMake
 installs there, `release/assets/<part>/` adds files beside them), a Rust binary under its
 platform (`tuimail-x86_64-pc-windows-msvc.exe` as `tuimail-windows-amd64.exe`) and a folder as
-`<folder>-windows.zip` or `<folder>-linux.tar.gz`, with `SHA256SUMS` listing every file. A .NET
+`<folder>-windows.zip` or `<folder>-linux.tar.gz`, with `SHA256SUMS` listing every file. A GBA
+ROM publishes with its part's `release/assets/rust-thumbv4t-none-eabi/` files as one
+`<program>.zip`, since the emulator loads them together (power-lines-gba's `power-lines.zip`:
+the ROM and its mGBA script); like every ZIP a release publishes, it is signed by at Terminal's
+certificate in `<program>.zip.signature.json`, which home-sync checks. A .NET
 release publishes each project that is neither a test project nor referenced by another. A
 consumer that wants other names (home-sync) renames on install.
 

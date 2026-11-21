@@ -52,7 +52,7 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () =
 test('toolchain scripts execute standard commands and propagate failures', () => {
   for (const [script,expected,cfg,files] of [
     ['go/format.mjs',['git','gofmt'],{}],['go/test.mjs',['go','go','go'],{}],['go/build.mjs',['go','go','goreleaser'],{},{'.goreleaser.yaml':goReleaser([['probe','.',['linux_amd64_v1']]])}],
-    ['rust/format.mjs',['cargo'],{}],['rust/test.mjs',['rustc','cargo','cargo'],{}],['rust/build.mjs',['rustc','cargo','cargo'],{}],
+    ['rust/format.mjs',['cargo','git'],{}],['rust/test.mjs',['rustc','git','cargo','cargo'],{}],['rust/build.mjs',['rustc','cargo','cargo'],{}],
     ['web-app/test.mjs',process.platform === 'win32' ? ['npm.cmd','npm.cmd','npm.cmd'] : ['npm','npm','npm'],{}],
     ['powershell/files.mjs',['git'],{}],['docs/validate.mjs',['git','git','git'],{}],
     ['tofu/plan.mjs',['tofu','tofu','tofu','tofu'],{}],['tofu/apply.mjs',['tofu','tofu'],{}],
@@ -76,6 +76,46 @@ test('toolchain scripts execute standard commands and propagate failures', () =>
   const {result} = probe('go/test.mjs',[],{PROBE_FAIL:'go'});
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/go exited 9/);
+});
+// An agb crate as agb's template lays it out, in its own folder beside the root workspace.
+const gbaCrate = {
+  'game/.cargo/config.toml': '[unstable]\nbuild-std = ["core", "alloc"]\n\n[build]\ntarget = "thumbv4t-none-eabi"\n',
+  'game/Cargo.toml': '[package]\nname = "power-lines"\nversion = "0.1.0"\n',
+  'game/Cargo.lock': 'version = 4\n\n[[package]]\nname = "agb"\nversion = "0.25.0"\n\n[[package]]\nname = "power-lines"\nversion = "0.1.0"\n',
+};
+const gbaEnv = {PROBE_TRACKED:'Cargo.toml,game/.cargo/config.toml,game/Cargo.toml,game/Cargo.lock',PROBE_CARGO_BIN:'power-lines'};
+test('a GBA crate is formatted and linted in its own folder, for the GBA, beside the root workspace', () => {
+  const format = probe('rust/format.mjs',[],gbaEnv,{},gbaCrate);
+  assert.equal(format.result.status,0,format.result.stderr);
+  assert.deepEqual(format.trace.filter(t=>t.command==='cargo').map(t=>[t.args[0],t.cwd]),[['fmt',undefined],['fmt','game']]);
+  const lint = probe('rust/test.mjs',[],gbaEnv,{},gbaCrate);
+  assert.equal(lint.result.status,0,lint.result.stderr);
+  assert.deepEqual(lint.trace.filter(t=>t.command==='cargo').map(t=>[t.args[0],t.cwd]),[['clippy',undefined],['test',undefined],['clippy','game']]);
+  assert.ok(lint.trace.at(-1).args.includes('--release'),'the game is linted as its release builds it');
+  // A repository whose root is the agb crate has no host workspace to test.
+  const root = probe('rust/test.mjs',[],{...gbaEnv,PROBE_TRACKED:'.cargo/config.toml'},{},{'.cargo/config.toml':gbaCrate['game/.cargo/config.toml']});
+  assert.equal(root.result.status,0,root.result.stderr);
+  assert.deepEqual(root.trace.filter(t=>t.command==='cargo').map(t=>[t.args[0],t.cwd]),[['clippy','.']]);
+});
+test('a GBA release builds its agb crate in its folder and makes each program a ROM with agb-gbafix at its agb version', () => {
+  const env = {...gbaEnv,RELEASE_TOOLCHAIN:'rust',RELEASE_TARGET:'thumbv4t-none-eabi',RELEASE_PART:'rust-thumbv4t-none-eabi'};
+  const cfg = {suites:['release'],release:{toolchains:['rust'],rustTargets:[{target:'thumbv4t-none-eabi'}]}};
+  let dist;
+  const {result,trace} = probe('rust/build.mjs',[],env,cfg,gbaCrate,root=>{dist=fs.readdirSync(path.join(root,'dist'));});
+  assert.equal(result.status,0,result.stderr);
+  const build = trace.find(t=>t.command==='cargo' && t.args[0]==='build');
+  assert.equal(build.cwd,'game',"cargo builds where the crate's .cargo/config.toml builds the standard library");
+  assert.deepEqual(build.args.slice(build.args.indexOf('--target'),build.args.indexOf('--target')+2),['--target','thumbv4t-none-eabi']);
+  const install = trace.find(t=>t.command==='cargo' && t.args[0]==='install');
+  assert.ok(install.args.includes('agb-gbafix@0.25.0'),'agb-gbafix is the release of the agb the crate locks');
+  assert.notEqual(install.cwd,'game','agb-gbafix is installed outside the GBA crate, whose config would build it for the GBA');
+  const gbafix = trace.find(t=>path.basename(t.command).startsWith('agb-gbafix'));
+  assert.match(gbafix.args[0].replaceAll('\\','/'),/\/thumbv4t-none-eabi\/release\/power-lines$/);
+  assert.deepEqual(gbafix.args.slice(1),['--title','POWER LINES','-o',path.join('dist','power-lines.gba')]);
+  assert.deepEqual(dist,['power-lines.gba']);
+  const none = probe('rust/build.mjs',[],{...env,PROBE_TRACKED:'Cargo.toml'},cfg);
+  assert.notEqual(none.result.status,0);
+  assert.match(none.result.stderr,/the folder whose \.cargo\/config\.toml builds thumbv4t-none-eabi; this repository has none/);
 });
 test('PRs cannot apply infrastructure or propose pins', () => {
   for (const script of ['tofu/apply.mjs','cluster-service/pin.mjs']) {
