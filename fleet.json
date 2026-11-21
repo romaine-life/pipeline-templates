@@ -681,10 +681,12 @@
     },
     "romaine-life/tuimail": {
       "suites": [
+        "cluster-service",
         "release",
         "rust"
       ],
       "topics": [
+        "cluster-image",
         "home-sync",
         "release-rust",
         "rust-audit",
