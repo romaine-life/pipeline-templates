@@ -56,6 +56,9 @@ child.spawnSync = (command, args, options) => {
   // agb-gbafix writes the ROM its -o names.
   if (path.basename(command).startsWith('agb-gbafix')) fs.writeFileSync(path.resolve(options.cwd || '.', args[args.indexOf('-o') + 1]), 'rom');
   if (command === 'docker' && args[0] === 'image') stdout = JSON.stringify([`${process.env.PROBE_IMAGE || 'forgejo.romaine.life/test/probe'}@sha256:${'b'.repeat(64)}`]);
+  // An image's ID, which the containerd image store makes the digest a push gives it.
+  if (command === 'docker' && args[0] === 'image' && args.includes('{{.Id}}')) stdout = `sha256:${process.env.PROBE_IMAGE_ID || 'b'.repeat(64)}`;
+  if (command === 'docker' && args[0] === 'save') fs.writeFileSync(path.resolve(options.cwd || '.', args[args.indexOf('-o') + 1]), 'image');
   if (command === 'kustomize' || command === 'helm') stdout = `kind: Pod\nspec:\n  containers:\n    - image: forgejo.romaine.life/test/probe@sha256:${'b'.repeat(64)}\n`;
   return {status:0,stdout};
 };
