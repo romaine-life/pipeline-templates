@@ -6,6 +6,7 @@ import {inputs,relevant} from './input-patterns.mjs';
 import {found} from './fingerprints.mjs';
 import {ownPackage} from './packages.mjs';
 import {ownModule} from './go/modules.mjs';
+import {pinnedSeries} from './release/snapshots.mjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 export {inputs,matches,relevant} from './input-patterns.mjs';
@@ -66,9 +67,11 @@ export async function scope(suite) {
   // The cluster suite checks the image on a PR unless a joined release's package check does;
   // a module's release has no package to check, so its joined image is checked here.
   output('cluster-image-check', !cfg.release?.image || cfg.release?.module === true);
-  // A release numbers on from its newest tag (actions/release-version), or on its manifest's version.
-  output('prefix', '');
-  output('prefix-from', cfg.release?.fromManifest ? releaseManifest() : '');
+  // A release numbers on from its newest tag (actions/release-version), or on its manifest's
+  // version; one that builds nothing, on the version its pinned download reads as.
+  const pinned = pinnedSeries(cfg);
+  output('prefix', pinned || '');
+  output('prefix-from', !pinned && cfg.release?.fromManifest ? releaseManifest() : '');
   output('suffix', cfg.release?.suffix || '');
   output('node', nodeVersion());
   output('tofu', tofuVersion);

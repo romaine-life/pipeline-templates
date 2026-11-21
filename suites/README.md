@@ -49,7 +49,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
 | `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64` | The Rust release targets; with none, Linux x86_64 |
-| `version-from-manifest` | The version series comes from the root manifest's version |
+| `version-from-manifest` | The version series comes from the root manifest's version; for a release that builds nothing, from its pinned download's ([What a release downloads](#what-a-release-downloads)) |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
 | `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`) |
@@ -140,8 +140,32 @@ in a layer only the check runs, for an image that runs a release binary it doesn
 What a release packs beside its build from elsewhere (shows' libmpv) is its repository's
 `release/dependencies.json` (`suites/layout.mjs`): a list of `{url, sha256 or lock,
 destination}`, each from Artifact Keeper or Forgejo; `extract` takes one file out of a
-downloaded archive, a 7z included on a Windows build. The release downloads each once, checks
-its SHA-256, and fails on a mismatch.
+downloaded archive, a 7z included (Windows' tar reads it, 7-Zip on Linux), and a `*` in its
+path stands for any one name there, such as an archive's one top folder named for its build.
+A lock file is exactly `<tag> <sha256>`, its tag filling the url's `{tag}`. The release
+downloads each once, checks its SHA-256, and fails on a mismatch.
+
+A release that builds nothing (no release toolchain and no `release-external`) is its
+downloads: they and its `release/assets/files/` are its one part, on Linux, signed and
+published like a build's.
+
+A source that keeps only its newest file under one name (mGBA's development build, which S3
+serves only as `mGBA-build-latest-win64.7z`) can't be pinned at its address, which moves. Its
+entry names that address as `latest`, with a `lock` and no `url`: the release reads the copy
+the lock pins from Artifact Keeper's hosted `snapshots` repository, at
+`<owner>/<repo>/<tag>/<file>`. `version`, a pattern with groups on one entry of that lock,
+names the copy: the groups joined by dots, as they read everywhere in the file that entry
+takes (`(\d+\.\d+)-(\d+)-[0-9a-f]{7,}` reads mGBA.exe's `0.11-9187-e6c1715` as
+`0.11.9187`), and the release checks its file still reads so; without one, the copy is named by
+the start of its SHA-256. With `version-from-manifest`, a release that builds nothing numbers
+on that version, `v0.11.9187.N`.
+
+A pin moves through the dependency take-up, `Suite release dependencies`, run from the
+Actions tab (`release/snapshots.mjs`): it downloads each `latest` file, and when it differs
+from the pin, copies it to its snapshot address (never replacing a copy already there) and
+proposes the lock that pins it as a take-up PR, whose merge releases it. Its job publishes with
+its own token, so the repository needs its line in nelsong6/artifact-keeper's
+`k8s/publishers.txt`: `snapshots <owner>/<repo> <Forgejo id>`.
 
 ## npm packages on Forgejo
 

@@ -10,8 +10,11 @@ export function releasePlan(cfg=config(),goBuilds) {
   if(release.module)return {matrix:{include:[]},local:false,external:[],homeSync:false,image:''};
   const kinds=release.toolchains || [];
   if(kinds.includes('rust') && release.rustTargets?.length===0)throw new Error('release.rustTargets must be nonempty when Rust is declared');
-  if ((!kinds.length && !release.external?.length) || kinds.includes('assets')) throw new Error('release.toolchains must declare the builders, not a cross-workflow assets placeholder');
-  const include=[];
+  // A release that builds nothing (mGBA's) publishes what it downloads (release/dependencies.json)
+  // and its release/assets/files/: one part, on Linux.
+  const files=!kinds.length && !release.external?.length && release.dependencies?.length>0;
+  if ((!kinds.length && !release.external?.length && !files) || kinds.includes('assets')) throw new Error('release.toolchains must declare the builders, not a cross-workflow assets placeholder');
+  const include=files ? [{id:'files',toolchain:'files',target:'',features:'',noDefault:false,runner:'ubuntu-latest'}] : [];
   for (const kind of kinds) {
     if (kind==='rust') {
       for (const part of release.rustTargets || [{target:'x86_64-unknown-linux-gnu'}]) include.push({id:`rust-${part.target}`,toolchain:kind,target:part.target,features:(part.features || []).join(','),noDefault:part.noDefaultFeatures ?? false,runner:part.target.endsWith('windows-msvc') ? 'windows-latest' : 'ubuntu-latest'});

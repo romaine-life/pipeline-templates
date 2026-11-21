@@ -11,8 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {zipSync} from 'fflate';
-import {hash, request} from '../lib.mjs';
-import {jobToken} from '../packages.mjs';
+import {hash, jobToken, request} from '../lib.mjs';
 import {providerType} from '../topics.mjs';
 
 export const artifactKeeper = 'https://artifacts.home.romaine.life';

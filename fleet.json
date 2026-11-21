@@ -554,6 +554,15 @@
         "go-race"
       ]
     },
+    "romaine-life/mgba": {
+      "suites": [
+        "release"
+      ],
+      "topics": [
+        "home-sync",
+        "version-from-manifest"
+      ]
+    },
     "romaine-life/my-homepage": {
       "suites": [
         "cluster-service",

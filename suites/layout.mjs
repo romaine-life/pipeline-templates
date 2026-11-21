@@ -70,21 +70,49 @@ export function packages(files, read = readFile) {
 
 // What a release downloads and packs beside its build (shows' libmpv): the repository's
 // release/dependencies.json, a list of {url, sha256 or lock, destination}, each from Artifact
-// Keeper or Forgejo; extract takes one file out of a downloaded archive (PIPT-32).
+// Keeper or Forgejo; extract takes one file out of a downloaded archive, a `*` in its path
+// standing for any one name there (an archive's one top folder) (PIPT-32).
+//
+// A source that keeps only its newest file under one name (mGBA's development build) is
+// `latest`, that fixed address, in place of url: the release reads the copy its lock pins from
+// Artifact Keeper's hosted snapshots repository, at `<owner>/<repo>/<tag>/<file>`, which the
+// dependency take-up puts there (release/snapshots.mjs). `version`, a pattern on one entry of
+// that lock, names the copy: its groups, joined by dots, as they read in the file that entry
+// takes, and a release that builds nothing numbers on it (version-from-manifest).
 export const downloadsFile = 'release/dependencies.json';
-export function downloads(text, toolchains = []) {
+const hosts = ['artifacts.home.romaine.life', 'forgejo.romaine.life'];
+export const snapshots = 'https://artifacts.home.romaine.life/general/snapshots';
+export const snapshotURL = (repo, latest) => `${snapshots}/${repo}/{tag}/${new URL(latest).pathname.split('/').pop()}`;
+export function downloads(text, toolchains = [], repo) {
   const value = JSON.parse(text);
   if (!Array.isArray(value)) throw new Error(`${downloadsFile} must be a list`);
+  const sources = new Map(), versions = new Set();
   for (const dependency of value) {
-    if(Object.keys(dependency).some(k=>!['toolchain','targets','url','sha256','lock','destination','extract'].includes(k)))throw new Error('unknown release dependency field');
+    if(Object.keys(dependency).some(k=>!['toolchain','targets','url','latest','version','sha256','lock','destination','extract'].includes(k)))throw new Error('unknown release dependency field');
     if(dependency.extract!==undefined)safePath(dependency.extract);
     if(dependency.toolchain && !toolchains.includes(dependency.toolchain))throw new Error('dependency toolchain is not declared');
     safePath(dependency.destination);
     if(dependency.targets && (!Array.isArray(dependency.targets) || !dependency.targets.length || new Set(dependency.targets).size!==dependency.targets.length || dependency.targets.some(t=>!/^[-\w]+$/.test(t))))throw new Error('dependency.targets must be unique target names');
     if (dependency.lock) safePath(dependency.lock);
     if (!dependency.lock && !/^[0-9a-f]{64}$/.test(dependency.sha256 || '')) throw new Error('release dependency needs a lock file or sha256');
+    if (dependency.latest !== undefined) {
+      if (dependency.url !== undefined || !dependency.lock) throw new Error('a latest dependency takes a lock, and its url is its snapshot');
+      const latest = new URL(dependency.latest);
+      if (latest.protocol!=='https:' || !hosts.includes(latest.hostname) || !latest.pathname.split('/').pop()) throw new Error('a latest dependency is a file on Artifact Keeper or Forgejo');
+      if (!repo) throw new Error('a latest dependency is read for a repository');
+      dependency.url = snapshotURL(repo, dependency.latest);
+    } else if (dependency.version !== undefined) throw new Error('version names the snapshot of a latest dependency');
+    if (dependency.lock) {
+      if (sources.has(dependency.lock) && sources.get(dependency.lock) !== (dependency.latest ?? dependency.url)) throw new Error(`the entries locked by ${dependency.lock} download different files`);
+      sources.set(dependency.lock, dependency.latest ?? dependency.url);
+    }
+    if (dependency.version !== undefined) {
+      if (typeof dependency.version !== 'string' || !new RegExp(dependency.version).source || new RegExp(`${dependency.version}|`).exec('').length < 2) throw new Error('version is a pattern with groups');
+      if (versions.has(dependency.lock)) throw new Error(`more than one entry gives ${dependency.lock} its version`);
+      versions.add(dependency.lock);
+    }
     const url=new URL(dependency.url.replace('{tag}','version'));
-    if (url.protocol!=='https:' || !['artifacts.home.romaine.life','forgejo.romaine.life'].includes(url.hostname)) throw new Error('release dependencies come from Artifact Keeper or Forgejo');
+    if (url.protocol!=='https:' || !hosts.includes(url.hostname)) throw new Error('release dependencies come from Artifact Keeper or Forgejo');
   }
   return value;
 }
@@ -117,7 +145,7 @@ export function layout(cfg, repo, {files, read = readFile} = {}) {
   if (cfg.release?.rustTargets) cfg.release.rustTargets = rustTargets(cfg.release.rustTargets, read('Cargo.toml'));
   if (cfg.suites?.includes('release')) {
     const text = read(downloadsFile);
-    if (text) cfg.release = {...cfg.release, dependencies: downloads(text, cfg.release?.toolchains)};
+    if (text) cfg.release = {...cfg.release, dependencies: downloads(text, cfg.release?.toolchains, repo)};
   }
   const cluster = cfg.suites?.includes('cluster-service'), npm = cfg.suites?.includes('web-app') || cfg.release?.toolchains?.includes('npm');
   if (!cluster && !cfg.cluster?.image && !cfg.web?.image && !npm) return cfg;

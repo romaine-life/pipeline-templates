@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {capture, post, request, requirePublish, run, tracked} from './lib.mjs';
+import {capture, jobToken, post, request, requirePublish, run, tracked} from './lib.mjs';
 import {currentRepository, fleet} from './config.mjs';
 import {proposeDependencies, pushEnv} from './deps-pr.mjs';
 
@@ -25,14 +25,8 @@ export const audiences = {read: 'u:1:5a0cac97-e87c-4848-95ba-6ec9fa7af23f', publ
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const shell = process.platform === 'win32';
 
-// A CI job's own token for an audience (the job sets enable-openid-connect).
-export async function jobToken(audience, env = process.env) {
-  if (!env.ACTIONS_ID_TOKEN_REQUEST_URL) throw new Error('the job needs enable-openid-connect: true to sign in for packages');
-  const response = await fetch(`${env.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encodeURIComponent(audience)}`, {
-    headers: {Authorization: `bearer ${env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`}, signal: AbortSignal.timeout(30000)});
-  if (!response.ok) throw new Error(`job token: HTTP ${response.status}`);
-  return (await response.json()).value;
-}
+// A CI job's own token for an audience (lib.mjs).
+export {jobToken};
 
 // A token that reads packages: the job's in CI; on a home PC, OpenBao's for its role.
 export async function readToken(env = process.env) {
@@ -171,26 +165,31 @@ export function moved(before, after) {
 }
 
 // Takes the newest version of every package the repository gets from Forgejo, each pinned
-// exactly, and proposes it as one take-up PR (web-app/dependencies.yml, release/dependencies.yml).
+// exactly, and the newest file of every download whose source keeps only that one
+// (release/snapshots.mjs), and proposes them as one take-up PR (web-app/dependencies.yml,
+// release/dependencies.yml).
 export async function takeUp() {
   requirePublish();
   const token = process.env.TOKEN;
   if (!token) throw new Error('missing PIPELINE_DISPATCH_TOKEN');
-  process.env.FORGEJO_PACKAGES_TOKEN ??= await readToken();
   const files = [], before = {};
-  for (const file of tracked().filter(f => path.posix.basename(f) === 'package.json' && !f.split('/').includes('node_modules'))) {
-    const dir = path.posix.dirname(file), names = forgejoDependencies(dir);
-    if (!names.length) continue;
+  const dirs = tracked().filter(f => path.posix.basename(f) === 'package.json' && !f.split('/').includes('node_modules'))
+    .map(file => ({file, dir: path.posix.dirname(file)})).map(item => ({...item, names: forgejoDependencies(item.dir)})).filter(item => item.names.length);
+  if (dirs.length) process.env.FORGEJO_PACKAGES_TOKEN ??= await readToken();
+  for (const {file, dir, names} of dirs) {
     before[file] = JSON.parse(fs.readFileSync(file, 'utf8'));
     run(npm, ['install', '--package-lock-only', '--ignore-scripts', '--save-exact', '--no-audit', '--no-fund', ...names.map(name => `${name}@latest`)], {cwd: dir, shell});
     files.push(file, path.posix.join(dir, 'package-lock.json'));
   }
-  if (!files.length) throw new Error('no package.json here takes a package from Forgejo');
+  const {takeUpSnapshots} = await import('./release/snapshots.mjs');
+  const pinned = await takeUpSnapshots({token});
+  if (!files.length && !pinned.locks.length) throw new Error('nothing here takes a package from Forgejo or pins a latest download');
+  files.push(...pinned.locks);
   const changed = capture('git', ['status', '--porcelain', '--', ...files]);
-  if (!changed) { console.log('Every package from Forgejo is current'); return; }
-  const names = moved(before, Object.fromEntries(Object.keys(before).map(file => [file, JSON.parse(fs.readFileSync(file, 'utf8'))]))).join(', ') || 'the packages from Forgejo';
-  await proposeDependencies({files, title: 'Take newer packages', message: `Take the newest ${names}`,
-    summary: `Takes the newest ${names}.`, token, env: pushEnv(token)});
+  if (!changed) { console.log('Every package from Forgejo and every pinned download is current'); return; }
+  const names = [...moved(before, Object.fromEntries(Object.keys(before).map(file => [file, JSON.parse(fs.readFileSync(file, 'utf8'))]))), ...pinned.moved].join(', ') || 'the packages from Forgejo';
+  await proposeDependencies({files, title: pinned.moved.length && !Object.keys(before).length ? `Pin the newest ${pinned.moved.join(', ')}` : 'Take newer packages',
+    message: `Take the newest ${names}`, summary: `Takes the newest ${names}.`, token, env: pushEnv(token)});
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
