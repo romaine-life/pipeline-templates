@@ -52,7 +52,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `version-from-manifest` | The version series comes from the root manifest's version |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
-| `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`) |
+| `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`). On a pull request that changes what the release reads, it builds the part too, stamped with the tag its merge would take, and keeps the files ([below](#a-release-external-part-on-a-pull-request)), which the merge publishes instead of dispatching it |
 | `release-tofu-provider` | The repository, `terraform-provider-<type>`, is an OpenTofu provider: its release publishes it to Artifact Keeper ([OpenTofu providers](#opentofu-providers-on-artifact-keeper)) |
 
 ### What the repository's name and files decide
@@ -148,6 +148,32 @@ copies in) changed since the release that built the image the pin file runs; oth
 release keeps that image, and its pin PR moves only the pin fields, so the pod isn't
 restarted. On a PR the image's `--self-test` runs with the assembled release at `/ci/dist`,
 in a layer only the check runs, for an image that runs a release binary it doesn't hold.
+
+## A release-external part on a pull request
+
+A merge publishes what its pull request built of a `release-external` part, as it does the
+suite's own builds (rule 1, PIPT-55). On a pull request that changes what the release reads
+(`node _ci/suites/inputs.mjs release`, its `build` output), the repository's `build.yml`
+builds the part as the release would:
+
+- It stamps the tag the merge would take: `./_ci/actions/release-version` with
+  `publish: 'false'` and the scope's `prefix`, `prefix-from` and `suffix`, its `next` output in
+  place of the reserved `release_tag` (at-terminal's MSIX is `at-terminal_1.25.N.0_x64.msix`
+  on the pull request too).
+- It ends in the step a release ends in, `node _ci/suites/release/complete-external.mjs`,
+  with `VERSION` that tag. On a pull request that step packages `dist/` as a release would
+  (a folder as `<folder>-windows.zip`) and writes the part's fingerprint to its log: the
+  files the release reads (`build.yml` among them), the tag, the repository's settings, and
+  the pipeline-templates files the workflow runs (each action it uses from `_ci` and each
+  script a step runs from `_ci/suites`, with what they reach).
+- It keeps `dist/` as the run's artifact, named by that step's `artifact` output
+  (`check-release-build`), with `forgejo/upload-artifact`.
+
+The merge's `reserve` job, once it holds the tag, looks for the newest of the merged pull
+request's `build.yml` runs in which a job that succeeded attested that fingerprint and that
+still holds the files; when it finds one, the release dispatches nothing and `finalize`
+publishes those files, with the log saying whose they are. Any other merge dispatches
+`build.yml` as before, as does one whose lookup fails.
 
 ## What a release downloads
 
@@ -249,7 +275,9 @@ A new version is a change to `version` and the lock, made the same way.
    release build stamps the tag its merge would take, and the merge that reserves that tag
    with the same inputs (every file a release reads, the pipeline-templates files the build
    runs, the settings and the parts) publishes the PR's files rather than compiling them again
-   (`release/prior-build.mjs`); kept a week, they're built again after that.
+   (`release/prior-build.mjs`); kept a week, they're built again after that. A
+   `release-external` part's PR build does the same, and its merge dispatches no `build.yml`
+   ([A release-external part on a pull request](#a-release-external-part-on-a-pull-request)).
 2. A check runs only when files it reads changed (`input-patterns.mjs`). The tests, and
    whether a merge cuts a release, read every file but documentation (Markdown, `docs/`,
    `LICENSE`, `COPYING`, `NOTICE`), `k8s/` (an image-pin PR changes it, and a pin must never

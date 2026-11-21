@@ -55,17 +55,23 @@ export async function reserve() {
   rel=await release();
   for(const asset of rel.assets || [])if(asset.name==='ci-release-plan.json')await request(`${api()}/releases/${rel.id}/assets/${asset.id}`,{method:'DELETE',allow404:true});
   await status(plan,'pending','Building the declared release parts');
-  // An external part is the repository's own workflow (topics.mjs), dispatched on its default
-  // branch with the reserved tag.
-  for(const part of plan.external) {
-    if(value.requests[part.id] || value.receipts[part.id])continue;
+  output('published',false);
+}
+// An external part is the repository's own workflow (topics.mjs), dispatched on its default
+// branch with the reserved tag, unless the merged pull request's run of it built these exact
+// inputs (reused, prior-build.mjs), whose files the release's finalize job publishes instead.
+export async function dispatchExternal(reused=[]) {
+  requirePublish();
+  const rel=await release(),value=state(rel);
+  if(!rel.draft)return;
+  for(const part of value.plan.external) {
+    if(reused.includes(part.id) || value.requests[part.id] || value.receipts[part.id])continue;
     const token=process.env.DISPATCH_TOKEN;
     if(!token)throw new Error('external release build needs its dispatch token');
     const remote=api(),repo=await request(remote,{token});
     await post(`${remote}/actions/workflows/${encodeURIComponent(part.workflow)}/dispatches`,{ref:repo.default_branch,inputs:{release_tag:tag(),source_sha:source(),release_repository:process.env.GITHUB_REPOSITORY,part_id:part.id,callback_workflow:'release/ci.yml',suites_ref:process.env.SUITES_REF || 'main'}},{token});
     value.requests[part.id]=true;await save(rel,value);
   }
-  output('published',false);
 }
 function verifyReceipt(rel,value,receipt) {
   const plan=value.plan,id=receipt.id;
@@ -86,11 +92,12 @@ export async function acceptReceipt(receipt) {
   if(previous && JSON.stringify(normalized(previous))===JSON.stringify(normalized(receipt)))return;
   value.receipts[receipt.id]=normalized(receipt);await save(rel,value);
 }
-export async function stagePart(id,files,{deferReceipt=false}={}) {
+export async function stagePart(id,files,{deferReceipt=false,reused=false}={}) {
   const rel=await release(),value=state(rel),plan=value.plan;
   if(!rel.draft)throw new Error('cannot upload a part to a published release');
   if(id==='local' && !plan.local || id!=='local' && !plan.external.some(p=>p.id===id))throw new Error('undeclared external release part');
-  if(id!=='local' && !deferReceipt)throw new Error('external receipts must arrive through the serialized Forgejo callback');
+  // A reused part's files come from the merged PR's run, staged by the release's own finalize job.
+  if(id!=='local' && !deferReceipt && !reused)throw new Error('external receipts must arrive through the serialized Forgejo callback');
   // A part's files are what it built: no part may take a name another part's receipt holds.
   const taken=new Set(Object.entries(value.receipts).filter(([part])=>part!==id).flatMap(([,part])=>part.files.map(f=>f.name))),manifest=[];
   for(const file of files) {
@@ -164,7 +171,8 @@ export async function materializeAsset(name,destination) {
 }
 if(process.argv[1]?.replaceAll('\\','/').endsWith('/release/protocol.mjs')) {
   if(process.argv[2]==='reserve')await reserve();
+  else if(process.argv[2]==='dispatch')await dispatchExternal(Object.keys(JSON.parse(process.env.PRIOR_EXTERNAL || '{}')));
   else if(process.argv[2]==='stage')await stagePart('local',fs.readdirSync('dist').map(f=>path.join('dist',f)));
   else if(process.argv[2]==='finalize')await finalize(process.env.COMPLETED_PART || '',process.env.COMPLETION || 'success',process.env.COMPLETED_RECEIPT?JSON.parse(process.env.COMPLETED_RECEIPT):undefined);
-  else throw new Error('protocol.mjs reserve|stage|finalize');
+  else throw new Error('protocol.mjs reserve|dispatch|stage|finalize');
 }

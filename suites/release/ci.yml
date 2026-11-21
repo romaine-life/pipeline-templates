@@ -188,16 +188,26 @@ jobs:
         VERSION: ${{ steps.version.outputs.version }}
         DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
       id: draft
+    # The merged PR's runs that built these exact inputs as this tag: their files are published
+    # instead of building the local parts or dispatching an external part (release/prior-build.mjs).
     - run: node _ci/suites/release/prior-build.mjs find
       id: prior
-      if: needs.scope.outputs.has-local == 'true' && steps.draft.outputs.published == 'false'
+      if: steps.draft.outputs.published == 'false'
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.tag }}
+    - run: node _ci/suites/release/protocol.mjs dispatch
+      if: steps.draft.outputs.published == 'false'
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.version.outputs.version }}
+        DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIOR_EXTERNAL: ${{ steps.prior.outputs.prior-external }}
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       published: ${{ steps.draft.outputs.published }}
       prior-run: ${{ steps.prior.outputs.prior-run }}
+      prior-external: ${{ steps.prior.outputs.prior-external }}
   build:
     enable-openid-connect: true
     name: build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})
@@ -327,6 +337,12 @@ jobs:
         COMPLETED_RECEIPT: ${{ inputs.receipt }}
         COMPLETION: ${{ inputs.completion }}
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
+    - run: node _ci/suites/release/prior-build.mjs external
+      if: '!inputs.release-tag && needs.reserve.outputs.prior-external != '''''
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ needs.reserve.outputs.tag }}
+        PRIOR_EXTERNAL: ${{ needs.reserve.outputs.prior-external }}
     - run: node _ci/suites/release/protocol.mjs finalize
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
