@@ -3,7 +3,7 @@ import {capture, output} from './lib.mjs';
 import {config} from './config.mjs';
 import {nodeVersion,pythonVersion,releaseManifest,tofuVersion} from './conventions.mjs';
 import {inputs,relevant} from './input-patterns.mjs';
-import {found} from './fingerprints.mjs';
+import {found,packageCheck} from './fingerprints.mjs';
 import {ownPackage} from './packages.mjs';
 import {ownModule} from './go/modules.mjs';
 import path from 'node:path';
@@ -40,6 +40,15 @@ export async function scope(suite) {
     if(job==='release.package') {
       const {packagingScope}=await import('./release/inputs.mjs');
       output('package',files.length>0 && packagingScope(files,cfg) && needed(job));
+      continue;
+    }
+    // Each npm package's tests run when its own inputs changed (packageCheck), as a job of
+    // check-test's matrix. With none to run the job is skipped; its matrix still names them all.
+    if(job==='web-app.test') {
+      const packages=cfg.web?.packages || ['.'],run=[];
+      for(const dir of packages){const npm=packageCheck(dir);if(relevant(files,job,npm.found,npm.own) && needed(job,dir))run.push(dir);}
+      output('test',run.length>0);
+      output('test-packages',JSON.stringify({package:run.length?run:packages}));
       continue;
     }
     const disabled=job==='cluster-service.image' && cfg.cluster?.smoke===false || ['rust.typos','rust.machete','rust.audit'].includes(job) && !cfg.rust?.lints?.includes(job.split('.')[1]);

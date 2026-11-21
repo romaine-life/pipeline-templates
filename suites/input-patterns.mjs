@@ -30,6 +30,11 @@ export const inputs = {
   'release.package': ['.goreleaser.yaml','release/assets/**','ci/build/**','ci/package/**','scripts/build*','scripts/package*','packaging/**','installer/**','**/*.manifest','**/*.appxmanifest','**/*.syso','**/*.rc','**/*.ico','**/*.wxs','**/*.wxi','**/*.nsi','**/*.iss']
 };
 export const broad = Object.keys(inputs).filter(check => inputs[check] === everything);
+// The web app's tests are a check per npm package (layout.mjs): one at the root reads the whole
+// repository, one in a folder of its own reads that folder, the root's Node version
+// (conventions.mjs) and the folders it references elsewhere (dependencies.mjs,
+// packageReferences), all but their documentation, as the root's would.
+export const packageInputs = (dir, references = []) => dir === '.' ? everything : [`${dir}/**`, '.nvmrc', '.node-version', ...references.map(name => `${name}/**`)];
 // Tests, .gitignore and the repository's workflows (which call the suites, which build it)
 // can't change a shipped binary, so a merge that changes only those cuts no release. A
 // workflow that builds a release part itself counts (releaseInputs).
@@ -48,13 +53,14 @@ export function matches(file, glob) {
 }
 // Whether a file is an input to a check: one its patterns name, outside `ignored` for a broad
 // check, or one of `found`, the inputs read from the repository (a Go embed, a linked doc, a
-// Dockerfile's COPY source, a render path), which count wherever they are.
-export function input(file, job, found = []) {
+// Dockerfile's COPY source, a render path), which count wherever they are. `own` stands for the
+// check's patterns where its variant reads less (an npm package's folder, packageInputs).
+export function input(file, job, found = [], own = inputs[job]) {
   if (!inputs[job]) throw new Error(`unknown check: ${job}`);
   if (found.some(p => matches(file, p))) return true;
-  return inputs[job].some(p => matches(file, p)) && !ignoredBy(job).some(p => matches(file, p));
+  return own.some(p => matches(file, p)) && !ignoredBy(job).some(p => matches(file, p));
 }
-export function relevant(files, job, found = []) {
+export function relevant(files, job, found = [], own = inputs[job]) {
   if (!inputs[job]) throw new Error(`unknown check: ${job}`);
-  return files.some(file => input(file, job, found));
+  return files.some(file => input(file, job, found, own));
 }

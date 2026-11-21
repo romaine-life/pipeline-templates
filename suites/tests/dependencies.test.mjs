@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {dockerSources, embedded, docLinks, localLinks, imageInputs} from '../dependencies.mjs';
+import {dockerSources, embedded, docLinks, localLinks, imageInputs, packageReferences} from '../dependencies.mjs';
 import {joinedImageChanged} from '../release.mjs';
 test('image inputs come from named COPY sources, excluding prior build stages', () => {
   assert.deepEqual(dockerSources('FROM scratch\nCOPY go.mod go.sum ./\nCOPY ["internal", "internal"]\nCOPY --from=builder /app /app'), ['go.mod','go.mod/**','go.sum','go.sum/**','internal','internal/**']);
@@ -50,4 +50,21 @@ test('embedded assets and linked local files are dependencies, including missing
     assert.ok(embedded([go,rust]).rust.some(p=>p.endsWith('missing.txt')));
     assert.ok(docLinks([doc]).some(p=>p.endsWith('missing.png')));
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+// What a package in a folder of its own reads elsewhere, as crenellation's frontend reads romlab/
+// and its backend's tests build the frontend (CREN-1).
+test("an npm package's references outside its folder come from its sources, scripts, dependencies and tsconfig", () => {
+  const files = {
+    'web/package.json': JSON.stringify({scripts: {lint: 'tsc && sh -n ../bin/check', test: 'npm run unit', unit: 'node --test --import=../shared/hooks.mjs', pretest: 'node ../tools/prepare.mjs', dev: 'vite ../unrelated'},
+      dependencies: {lib: 'file:../lib', react: '^19.0.0'}}),
+    'web/tsconfig.json': '{\n  // comments, as tsc reads them\n  "extends": "../tsconfig.base.json"\n}\n',
+    'web/src/a.test.ts': "import x from '../../shared/util';\nimport './local';\nexport * from \"../../vendor/b.js\";\nconst m = await import('../../shared/lazy.mjs');\nconst here = dirname(fileURLToPath(import.meta.url));\nreadFileSync(join(here, '..', '..', 'romlab', 'names.json'));\nreadFileSync(path.resolve(here, '../../romlab/out/replay.txt'));\nreadFileSync(join(here, 'rom.bin'));\n",
+    'web/src/b.cjs': "require('../../cjs/dep.cjs'); fs.readFileSync(path.join(__dirname, '../../fixtures'));\nnew URL('../../assets/logo.png', import.meta.url);\nreadFileSync(join(import.meta.dirname, '..', '..', 'data'));\n",
+    'web/src/c.ts': "import 'react';\nimport y from '../../../outside-the-repository';\n",
+    'other/x.ts': "import z from '../web/src/c';\n",
+  };
+  const read = file => files[file] ?? null;
+  assert.deepEqual(packageReferences('web', Object.keys(files), read), ['assets/logo.png', 'bin/check', 'cjs/dep.cjs', 'data', 'fixtures', 'lib', 'romlab/names.json', 'romlab/out/replay.txt', 'shared/hooks.mjs', 'shared/lazy.mjs', 'shared/util', 'tools/prepare.mjs', 'tsconfig.base.json', 'vendor/b.js']);
+  // A package at the root reads the whole repository already.
+  assert.deepEqual(packageReferences('.', Object.keys(files), read), []);
 });

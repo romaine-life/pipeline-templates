@@ -85,7 +85,7 @@ test('every Windows suite command and PowerShell composite step suppresses profi
   }
   for(const suite of fs.readdirSync(suites,{withFileTypes:true}).filter(d=>d.isDirectory() && fs.existsSync(path.join(suites,d.name,'ci.yml')))) {
     const workflow=YAML.parse(fs.readFileSync(path.join(suites,suite.name,'ci.yml'),'utf8'));
-    for(const [name,job] of Object.entries(workflow.jobs))if(String(job['runs-on']).includes('windows') || job.strategy?.matrix)for(const step of job.steps || [])if(step.run)safe(step.shell || job.defaults?.run?.shell || workflow.defaults?.run?.shell,`${suite.name}/${name}`);
+    for(const [name,job] of Object.entries(workflow.jobs))if(/windows|matrix\./.test(String(job['runs-on'])))for(const step of job.steps || [])if(step.run)safe(step.shell || job.defaults?.run?.shell || workflow.defaults?.run?.shell,`${suite.name}/${name}`);
   }
   const actions=path.join(suites,'../actions');
   for(const dir of fs.readdirSync(actions)) {
@@ -101,6 +101,12 @@ test('matrix display names and cache provenance identify only toolchain and targ
     const workflow=YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8'));
     for(const runner of ['ubuntu-latest','windows-latest'])assert.equal(workflowJobName(workflow,runner==='windows-latest'?'check-test-windows':'check-test-linux'),nativeJob(`${suite}.test`,runner));
   }
+  // A web app's tests are a job per npm package, named for its folder.
+  const web=YAML.parse(fs.readFileSync(path.join(suites,'web-app/ci.yml'),'utf8'));
+  assert.equal(web.jobs['check-test'].strategy.matrix,'${{ fromJSON(needs.scope.outputs.test-packages) }}');
+  assert.equal(nativeJob('web-app.test','frontend'),'check-test (frontend)');
+  assert.equal(workflowJobName(web,'check-test',{package:'.'}),'check-test (.)');
+  assert.throws(()=>workflowJobName(web,'check-test'),/needs its matrix values/);
   const release=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8'));
   assert.equal(release.jobs.build.name,'build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})');
   assert.equal(release.jobs['check-build'].name,'check-build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})');
