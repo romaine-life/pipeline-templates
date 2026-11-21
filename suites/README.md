@@ -261,6 +261,12 @@ A new version is a change to `version` and the lock, made the same way.
    the release suite each program (under `cmd/`, or a root `package main`) ships through
    `release-go`, so every one carries its version. A Forgejo copy of a repository developed on
    GitHub, which its `.github/workflows/forgejo-sync.yml` fast-forwards, is built there.
+8. Every release goes through the release suite, whatever the repository's language (PIPT-54):
+   none of a repository's own workflows reserves a version (`release-version` publishing; with
+   `publish: 'false'` it only names the version a build would take), uses a release action,
+   runs a release tool's create, edit, upload or delete, or writes to a release through the
+   API, in a step or a script it runs. A part the release suite can't build is the
+   repository's `build.yml` under `release-external`, which the suite dispatches and completes.
 
 ## Suites
 

@@ -132,3 +132,25 @@ test('a Go repository takes the go suite, and a released Go program is built by 
   assert.deepEqual(goViolations(['ci-go', 'ci-release', 'release-module'], ['go.mod', 'lib.go'], read), []);
   assert.deepEqual(goViolations(['ci-go', 'ci-release', 'release-dotnet'], ['go.mod', 'lib.go'], read), [], 'a library is no program');
 });
+test("a repository's own workflow never cuts a release, whatever its language", () => {
+  const step = s => valid.replace('      - run: go build ./cmd/...', s);
+  const cut = [
+    '      - uses: romaine-life/pipeline-templates/actions/release-version@main\n        with:\n          publish: "true"',
+    '      - uses: ./_ci/actions/release-version',
+    '      - uses: softprops/action-gh-release@v2',
+    '      - run: gh release create v1.2.3 dist/*',
+    '      - run: Invoke-RestMethod "$api/releases" -Method Post -Body $body',
+    '      - run: |\n          Invoke-RestMethod "$api/releases/$id/assets?name=x" `\n            -Method Post -Form @{attachment = $f}',
+    '      - run: |\n          curl -X POST \\\n            "$API/repos/o/r/releases" -d "{}"',
+    '      - run: |\n          curl -fsS -H "Authorization: token $T" -F attachment=@x.exe "$API/releases/7/assets"'
+  ];
+  for (const s of cut) assert.match(violations(step(s)).join('\n'), /build: cuts a release/, s);
+  assert.match(violations(step('      - run: ./ci/ship.ps1'), p => p === 'ci/ship.ps1' ? 'Invoke-RestMethod "$api/releases" -Method Post' : null).join('\n'), /cuts a release/, 'a script the step runs counts');
+  const reads = [
+    '      - uses: ./_ci/actions/release-version\n        with:\n          publish: "false"',
+    '      - run: curl -fsSL https://artifacts.home.romaine.life/general/github/x/y/releases/download/v1/y.tar.gz | tar -xz',
+    '      - run: Invoke-RestMethod "$api/releases/latest" -Headers $h',
+    '      - run: node _ci/suites/release/complete-external.mjs'
+  ];
+  for (const s of reads) assert.doesNotMatch(violations(step(s)).join('\n'), /cuts a release/, s);
+});

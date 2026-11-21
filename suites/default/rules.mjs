@@ -125,6 +125,22 @@ export function goViolations(topics, files, read) {
   }
   return bad;
 }
+// A step that cuts a release, which only the release suite does: one that reserves a version
+// (release-version publishing; with publish 'false' it only names the version a build would
+// take), a release action, a release tool's create, edit, upload or delete, or a write to
+// Forgejo's or GitHub's release API. A part the suite can't build is the repository's
+// build.yml under release-external, which the suite dispatches and completes with its own
+// scripts.
+const releaseActions = /(?:^|\/)(?:release-version|action-gh-release|create-release|release-action|upload-release-asset|gitea-release-action|forgejo-release)(?:@|$)/;
+const releaseTool = /\b(?:gh\s+release\s+(?:create|edit|upload|delete)|tea\s+releases?\s+(?:create|edit|delete)|goreleaser\s+release)\b/;
+const releaseWrite = /(?:-Method\s+['"]?(?:Post|Put|Patch|Delete)|-X\s*['"]?(?:POST|PUT|PATCH|DELETE)|--request\s+['"]?(?:POST|PUT|PATCH|DELETE)|\bmethod\s*:\s*['"](?:POST|PUT|PATCH|DELETE)|\b(?:curl|wget)\b[^\n]*\s(?:-d|--data[-\w]*|-F|--form|-T|--upload-file)\s)/i;
+export function cutsRelease(step, commands) {
+  const action = (step.uses || '').split('@')[0];
+  if (releaseActions.test(action) && !(action.endsWith('release-version') && String(step.with?.publish) === 'false')) return true;
+  // A command continued over lines (shell's \, PowerShell's `) is one command.
+  const joined = commands.replace(/[\\`]\r?\n/g, ' ');
+  return releaseTool.test(joined) || joined.split('\n').some(line => /\/releases\b/.test(line) && releaseWrite.test(line));
+}
 export function violations(text, read, {go = false} = {}) {
   const document = YAML.parseDocument(text, {uniqueKeys: true});
   if (document.errors.length) return document.errors.map(e => e.message);
@@ -149,6 +165,7 @@ export function violations(text, read, {go = false} = {}) {
       if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|(?<![?&])\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
       if (shellLoopRequest(commands)) bad.push(`${name}: request loop holds a runner`);
       if (go && goBuild(commands)) bad.push(`${name}: builds the repository's Go, which the go and release suites build`);
+      if (cutsRelease(step, commands)) bad.push(`${name}: cuts a release, which only the release suite does (a part it can't build is build.yml under release-external)`);
       const isCheck = check.test(commands) || /\/(?:check-|lint|test)/.test(step.uses || '') || /^(?:check|test|lint|validate|plan|parse)(?:-|$)/i.test(name);
       if (isCheck && !prOnly(job.if) && !prOnly(step.if)) bad.push(`${name}: check must be guarded by github.event_name == 'pull_request'`);
     }
