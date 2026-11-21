@@ -132,3 +132,17 @@ test('a release dispatches its downstream workflows once: publish does it, or th
   assert.ok(jobs.publish.steps.some(step=>step.run==='node _ci/suites/release.mjs publish'));
   assert.match(jobs.dispatch.if,/home-sync == 'true'/);
 });
+
+test("a PR's image check stamps the tag its merge would take and keeps the image for that merge to publish",()=>{
+  for(const [suite,kind] of [['web-app','web'],['cluster-service','cluster']]) {
+    const jobs=YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8')).jobs;
+    const version=jobs.scope.steps.find(step=>step.id==='version');
+    assert.equal(version.uses,'./_ci/actions/release-version',suite);assert.match(version.if,/github.event_name == 'pull_request'/);
+    assert.equal(jobs.scope.steps.find(step=>step.run===`node _ci/suites/cluster-service/prior-image.mjs attest ${kind}`).env.VERSION,'${{ steps.version.outputs.next }}');
+    assert.equal(jobs.scope.outputs['check-version'],'${{ steps.version.outputs.next }}');
+    const steps=jobs['check-image'].steps,check=steps.findIndex(step=>step.run===`node _ci/suites/${suite}/image.mjs check`),keep=steps.findIndex(step=>step.uses==='forgejo/upload-artifact@v4');
+    assert.equal(steps[check].env.VERSION,'${{ needs.scope.outputs.check-version }}');
+    assert.ok(check>=0 && keep>check,suite);assert.equal(steps[keep].with.name,'check-image');assert.equal(steps[keep].with.path,'.ci-image/');
+    assert.equal(jobs.publish.steps.find(step=>step.run===`node _ci/suites/${suite}/image.mjs publish`).env.TOKEN,'${{ secrets.GITHUB_TOKEN }}');
+  }
+});

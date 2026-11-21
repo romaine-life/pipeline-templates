@@ -126,12 +126,26 @@ test('PRs cannot apply infrastructure or propose pins', () => {
 });
 test('image checks smoke once, publication skips smoke and queues the pin without polling', () => {
   const cfg = {suites:['cluster-service']}, tracked = {PROBE_TRACKED:'k8s/deployment.yaml'};
-  let check = probe('cluster-service/image.mjs',['check'],tracked,cfg);
+  let check = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:''},cfg);
   assert.equal(check.result.status,0,check.result.stderr);
   assert.deepEqual(check.trace.filter(t=>t.command==='docker').map(t=>t.args[0]),['build','run','image']);
   const built=check.trace.find(t=>t.args?.[0]==='build').args.at(-2);
   assert.deepEqual(check.trace.at(-1).args,['image','rm',built],'the job removes the image it built');
+  // Stamped with the tag its merge would take, the check keeps the image it built for that merge (PIPT-56).
+  let record;
+  check = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:'v0.1.2'},cfg,{Dockerfile:'FROM scratch\nARG APP_VERSION\n'},root=>{record=JSON.parse(fs.readFileSync(path.join(root,'.ci-image/image.json'),'utf8'));});
+  assert.equal(check.result.status,0,check.result.stderr);
+  const build=check.trace.find(t=>t.args?.[0]==='build');
+  assert.ok(build.args.includes('APP_VERSION=v0.1.2'));
+  assert.deepEqual(check.trace.filter(t=>t.command==='docker').map(t=>t.args[0]),['build','run','image','save','image']);
+  assert.deepEqual(record,{name:build.args.at(-2),id:`sha256:${'b'.repeat(64)}`,version:'v0.1.2'});
+  // An image that stamps its commit is built again on the merge, so nothing is kept.
+  check = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:'v0.1.2'},cfg,{Dockerfile:'FROM scratch\nARG SOURCE_SHA\n'});
+  assert.equal(check.trace.some(t=>t.command==='docker' && t.args[0]==='save'),false);
+  // A merge that merged no PR builds its image.
   const publish = probe('cluster-service/image.mjs',['publish'],tracked,cfg);
+  assert.ok(publish.trace.some(t=>t.command==='docker' && t.args[0]==='build'));
+  assert.match(publish.result.stdout,/merged no pull request; building/);
   assert.equal(publish.result.status,0,publish.result.stderr);
   assert.deepEqual(publish.trace.filter(t=>t.command==='docker').at(-1).args.slice(0,2),['image','rm']);
   assert.equal(publish.trace.filter(t=>t.command==='docker').at(-1).args.length,4,'the job removes its image and the registry tag');

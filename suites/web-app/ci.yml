@@ -39,6 +39,20 @@ jobs:
       env:
         BASE: ${{ github.event.pull_request.base.sha }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # A PR's image check stamps the tag its merge would take, and the scope attests what that
+    # build reads, so a merge that reserves the tag with the same inputs publishes the PR's
+    # image (cluster-service/prior-image.mjs).
+    - uses: ./_ci/actions/release-version
+      id: version
+      if: github.event_name == 'pull_request' && steps.scope.outputs.image == 'true' && steps.scope.outputs.has-image == 'true' && steps.scope.outputs.joined-image == ''
+      with:
+        prefix: ${{ steps.scope.outputs.prefix }}
+        prefix-from: ${{ steps.scope.outputs.prefix-from }}
+        suffix: ${{ steps.scope.outputs.suffix }}
+    - run: node _ci/suites/cluster-service/prior-image.mjs attest web
+      if: steps.version.outputs.next != ''
+      env:
+        VERSION: ${{ steps.version.outputs.next }}
     - run: node _ci/suites/release.mjs scope web-app
       id: release
       env:
@@ -72,6 +86,7 @@ jobs:
       build: ${{ steps.release.outputs.build }}
       joined-image: ${{ steps.scope.outputs.joined-image }}
       has-services: ${{ steps.scope.outputs.has-services }}
+      check-version: ${{ steps.version.outputs.next }}
   # Each npm package's tests are a check of their own, run when that package's inputs changed.
   check-test:
     enable-openid-connect: true
@@ -128,6 +143,16 @@ jobs:
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
     - run: node _ci/suites/web-app/image.mjs check
+      env:
+        VERSION: ${{ needs.scope.outputs.check-version }}
+    # The image the check built, for its merge to publish.
+    - uses: forgejo/upload-artifact@v4
+      with:
+        name: check-image
+        path: .ci-image/
+        retention-days: 7
+        compression-level: 0
+        if-no-files-found: ignore
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop

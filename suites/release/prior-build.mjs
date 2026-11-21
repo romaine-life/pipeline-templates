@@ -41,7 +41,8 @@ export function workflowSuiteInputs(workflow,{entries=templateTree(),read=readTe
   const scripts=steps.flatMap(step=>[...String(step.run || '').matchAll(/(?<![\w/.-])(?:\.\/)?_ci\/(suites\/[\w./-]+\.mjs)/g)].map(match=>match[1]));
   return {files:followed(steps,scripts,byPath,read)};
 }
-function followed(steps,scripts,byPath,read) {
+// skip: scripts that only carry a build's output, which the build doesn't run.
+export function followed(steps,scripts,byPath,read,skip=[]) {
   const files=new Set(['suites/package-lock.json','actions/pins.txt','actions/package.json'].filter(file=>byPath.has(file)));
   const tested=file=>/(^|\/)tests?\//.test(file);
   for(const step of steps) {
@@ -51,7 +52,7 @@ function followed(steps,scripts,byPath,read) {
   const pending=[...scripts];
   while(pending.length) {
     const file=pending.pop();
-    if(!byPath.has(file) || files.has(file))continue;
+    if(!byPath.has(file) || files.has(file) || skip.includes(file))continue;
     files.add(file);
     for(const [,,literal] of read(byPath.get(file)).matchAll(/(['"`])([^'"`$\n]+)\1/g)) {
       const candidates=literal.startsWith('.') ? [path.posix.join(path.posix.dirname(file),literal)] : [`suites/${literal}`,literal];
@@ -62,7 +63,7 @@ function followed(steps,scripts,byPath,read) {
   }
   return [...files].sort().map(file=>({path:file,oid:byPath.get(file)}));
 }
-function templateTree() {
+export function templateTree() {
   return capture('git',['-C',templates,'ls-tree','-r','--full-tree','HEAD']).split('\n').filter(Boolean).map(line=>{
     const [meta,file]=line.split('\t');return {path:file,oid:meta.split(' ')[2]};
   });
@@ -95,13 +96,13 @@ export function externalFingerprint({cfg,part,version,entries=tree(),repository=
 export function attest(fingerprint,head=capture('git',['rev-parse','HEAD'])) {
   console.log(marker+JSON.stringify({head,fingerprint}));
 }
-async function attested(run,job,fingerprint,get,url) {
+export async function attested(run,job,fingerprint,get,url,mark=marker) {
   for(let attempt=job.attempt || 1;attempt>=1;attempt--) {
-    const log=await get(`${url}/actions/jobs/${job.id}/logs?attempt=${attempt}&q=${encodeURIComponent(marker)}&format=ndjson`,{text:true,allow404:true});
+    const log=await get(`${url}/actions/jobs/${job.id}/logs?attempt=${attempt}&q=${encodeURIComponent(mark)}&format=ndjson`,{text:true,allow404:true});
     for(const line of (log || '').split('\n').filter(Boolean)) {
       const content=JSON.parse(line).content || '';
-      if(!content.startsWith(marker))continue;
-      const proof=JSON.parse(content.slice(marker.length));
+      if(!content.startsWith(mark))continue;
+      const proof=JSON.parse(content.slice(mark.length));
       if(proof.head===run.commit_sha && proof.fingerprint===fingerprint)return true;
     }
   }
@@ -109,7 +110,7 @@ async function attested(run,job,fingerprint,get,url) {
 }
 
 // The merged PR's runs of a workflow, at any of its commits, newest first.
-async function pullRuns(sha,workflow,get,url,log) {
+export async function pullRuns(sha,workflow,get,url,log) {
   const pull=await get(`${url}/commits/${sha}/pull`,{allow404:true});
   if(!pull?.number || !pull.merged){log(`${sha} merged no pull request; building`);return null;}
   const heads=[];
@@ -170,7 +171,7 @@ export async function findPriorExternal({sha=process.env.GITHUB_SHA,fingerprint,
   log(`No ${part.workflow} run of pull request #${pull.number} built release part ${part.id} from these exact inputs as this release; dispatching it`);
   return null;
 }
-async function zipReadable(address) {
+export async function zipReadable(address) {
   const response=await fetch(address,{headers:{Authorization:`token ${process.env.TOKEN}`,Range:'bytes=0-0'},signal:AbortSignal.timeout(30000)});
   await response.body?.cancel();
   return response.ok;
