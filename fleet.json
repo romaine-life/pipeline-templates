@@ -147,9 +147,11 @@
     },
     "nelsong6/music-core": {
       "suites": [
+        "release",
         "rust"
       ],
       "topics": [
+        "release-external",
         "rust-test-windows"
       ]
     },
