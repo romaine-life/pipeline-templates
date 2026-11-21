@@ -183,7 +183,11 @@ export async function takeUp() {
   }
   const {takeUpSnapshots} = await import('./release/snapshots.mjs');
   const pinned = await takeUpSnapshots({token});
-  if (!files.length && !pinned.locks.length) throw new Error('nothing here takes a package from Forgejo or pins a latest download');
+  if (!files.length && !pinned.locks.length) {
+    // A push that changed release/dependencies.json starts the take-up whatever it holds.
+    if (process.env.GITHUB_EVENT_NAME === 'push') { console.log('Nothing here takes a package from Forgejo or pins a latest download'); return; }
+    throw new Error('nothing here takes a package from Forgejo or pins a latest download');
+  }
   files.push(...pinned.locks);
   const changed = capture('git', ['status', '--porcelain', '--', ...files]);
   if (!changed) { console.log('Every package from Forgejo and every pinned download is current'); return; }

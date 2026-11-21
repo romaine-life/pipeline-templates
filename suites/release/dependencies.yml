@@ -1,6 +1,12 @@
 name: Suite release dependencies
+# The take-ups: a release of a package this repository uses dispatches it (packages.mjs), and
+# so does a run from the Actions tab, which also pins the newest file of each latest download
+# (release/snapshots.mjs); a push that changes release/dependencies.json pins what it adds.
 'on':
   workflow_dispatch: null
+  push:
+    paths:
+    - release/dependencies.json
 concurrency:
   group: suite-release-dependencies-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

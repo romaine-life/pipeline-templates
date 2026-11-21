@@ -161,7 +161,8 @@ the start of its SHA-256. With `version-from-manifest`, a release that builds no
 on that version, `v0.11.9187.N`.
 
 A pin moves through the dependency take-up, `Suite release dependencies`, run from the
-Actions tab (`release/snapshots.mjs`): it downloads each `latest` file, and when it differs
+Actions tab, and on a push that changes `release/dependencies.json`, which pins a `latest` entry
+it adds (`release/snapshots.mjs`): it downloads each `latest` file, and when it differs
 from the pin, copies it to its snapshot address (never replacing a copy already there) and
 proposes the lock that pins it as a take-up PR, whose merge releases it. Its job publishes with
 its own token, so the repository needs its line in nelsong6/artifact-keeper's
