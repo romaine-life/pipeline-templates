@@ -374,6 +374,17 @@
         "release-module"
       ]
     },
+    "romaine-life/crenellation": {
+      "suites": [
+        "cluster-service",
+        "tofu",
+        "web-app"
+      ],
+      "topics": [
+        "service-postgres",
+        "web-image"
+      ]
+    },
     "romaine-life/eight-queens": {
       "suites": [
         "tofu",
