@@ -5,12 +5,18 @@ import {tool} from '../tools.mjs';
 import {config} from '../config.mjs';
 import {cargoCache} from './cache.mjs';
 import {rustEnvironment} from './environment.mjs';
+import {buildRoms, gbaTarget} from './gba.mjs';
 rustEnvironment();
 cargoCache(`release-${process.platform}`);
 const target=process.env.RELEASE_TARGET;
 const features=(process.env.RELEASE_FEATURES || '').split(',').filter(Boolean);
 const noDefault=process.env.RELEASE_NO_DEFAULT==='true';
 const part=(config().release?.rustTargets || []).find(item=>item.target===target);
+// A GBA ROM builds in its agb crate's own folder and becomes a ROM there (gba.mjs).
+if(target===gbaTarget) {
+  buildRoms({part,features,noDefault});
+  process.exit(0);
+}
 let build='build',buildTarget=target;
 if(part?.glibc) {
   // cargo-zigbuild with zig as C toolchain and linker: it links another architecture, and holds

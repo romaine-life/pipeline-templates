@@ -233,7 +233,7 @@ jobs:
     - uses: ./_ci/actions/rust-toolchain
       with:
         toolchain: project
-        targets: ${{ matrix.target }}
+        targets: ${{ matrix.installTarget }}
       if: matrix.toolchain == 'rust'
     - uses: ./_ci/actions/setup-node
       with:
@@ -429,7 +429,7 @@ jobs:
     - uses: ./_ci/actions/rust-toolchain
       with:
         toolchain: project
-        targets: ${{ matrix.target }}
+        targets: ${{ matrix.installTarget }}
       if: matrix.toolchain == 'rust'
     - uses: ./_ci/actions/setup-node
       with:

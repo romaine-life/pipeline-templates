@@ -5,7 +5,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 const log = value => fs.appendFileSync(process.env.PROBE_LOG, `${JSON.stringify(value)}\n`);
 child.spawnSync = (command, args, options) => {
-  log({command, args, goos:options.env?.GOOS,goarch:options.env?.GOARCH,input: options.input ? '<stdin>' : undefined});
+  log({command, args, cwd:options.cwd, goos:options.env?.GOOS,goarch:options.env?.GOARCH,input: options.input ? '<stdin>' : undefined});
   if (process.env.PROBE_FAIL === command) return {status: 9, stdout: ''};
   // The registry refuses the first docker login (the job's own token), and takes the next.
   if (process.env.PROBE_REFUSE_LOGIN && command === 'docker' && args[0] === 'login' && !globalThis.refusedLogin) {
@@ -43,10 +43,18 @@ child.spawnSync = (command, args, options) => {
   }
   if (command === 'objdump') stdout = '\tDLL Name: KERNEL32.dll\n';
   if (command === 'cargo' && args[0] === 'build') {
-    fs.mkdirSync(path.join(process.env.CARGO_TARGET_DIR,'release'),{recursive:true});
-    fs.writeFileSync(path.join(process.env.CARGO_TARGET_DIR,'release',`probe${process.platform === 'win32' ? '.exe' : ''}`), 'binary');
+    // A GBA build (--target thumbv4t-none-eabi) leaves its program, an ELF with no extension,
+    // under its target; the host build under release/.
+    const gba = args.includes('thumbv4t-none-eabi'), directory = path.join(process.env.CARGO_TARGET_DIR, ...(gba ? ['thumbv4t-none-eabi'] : []), 'release');
+    fs.mkdirSync(directory,{recursive:true});
+    fs.writeFileSync(path.join(directory,`${process.env.PROBE_CARGO_BIN || 'probe'}${process.platform === 'win32' && !gba ? '.exe' : ''}`), 'binary');
   }
-  if (command === 'cargo' && args[0] === 'metadata') stdout = JSON.stringify({workspace_members:['probe'],packages:[{id:'probe',targets:[{name:'probe',kind:['bin']}]}]});
+  if (command === 'cargo' && args[0] === 'metadata') {
+    const name = process.env.PROBE_CARGO_BIN || 'probe';
+    stdout = JSON.stringify({workspace_members:[name],packages:[{id:name,name,targets:[{name,kind:['bin']}]}]});
+  }
+  // agb-gbafix writes the ROM its -o names.
+  if (path.basename(command).startsWith('agb-gbafix')) fs.writeFileSync(path.resolve(options.cwd || '.', args[args.indexOf('-o') + 1]), 'rom');
   if (command === 'docker' && args[0] === 'image') stdout = JSON.stringify([`${process.env.PROBE_IMAGE || 'forgejo.romaine.life/test/probe'}@sha256:${'b'.repeat(64)}`]);
   if (command === 'kustomize' || command === 'helm') stdout = `kind: Pod\nspec:\n  containers:\n    - image: forgejo.romaine.life/test/probe@sha256:${'b'.repeat(64)}\n`;
   return {status:0,stdout};
