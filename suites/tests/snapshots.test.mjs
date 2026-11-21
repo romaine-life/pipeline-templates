@@ -96,7 +96,7 @@ test('the take-up copies a new newest file to its snapshot and pins it; a curren
   assert.deepEqual(result.moved,[],'the pin is current');assert.equal(puts.length,1);
 
   // The release reads the pinned copy, checks the version it names, and packs the files.
-  fleetEntry({suites:['release']},'romaine-life/mgba');
+  process.env.GITHUB_REPOSITORY='romaine-life/mgba';fleetEntry({suites:['release']},'romaine-life/mgba');
   fs.writeFileSync('release/dependencies.json',JSON.stringify(local));
   await dependencies('files');
   assert.deepEqual(fs.readdirSync('dist').sort(),['mGBA-LICENSE.txt','mGBA.exe']);

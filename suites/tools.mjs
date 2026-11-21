@@ -48,8 +48,8 @@ export const tools = {
   // C toolchain and linker cargo-zigbuild drives. Zig ships on PyPI as a wheel holding it whole.
   zig: ['0.17.0', 'https://artifacts.home.romaine.life/pypi/pypi/simple/ziglang/ziglang-0.17.0.post0-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl', 'c9528d6a2cdf56a701bb8cafbc9967f59d88ecc8bb42b87ec2f9693418f69ce3', 'package/ziglang/zig', true],
   cargoZigbuild: ['0.24.0', `${mirror}/github/rust-cross/cargo-zigbuild/releases/download/v0.24.0/cargo-zigbuild-x86_64-unknown-linux-musl.tar.xz`, '52be2cb85ad3875682564a29bac1832b2ab3db68b1c504765c92d5249cc9b96f', 'cargo-zigbuild-x86_64-unknown-linux-musl/cargo-zigbuild'],
-  // A 7z release dependency on Linux (mGBA's development build): GNU tar reads no 7z, Windows' does.
-  sevenZip: ['23.01+dfsg-11', 'https://artifacts.home.romaine.life/debian/ubuntu/pool/universe/7/7zip/7zip_23.01+dfsg-11_amd64.deb', '0f79450d81e64326a862a8645ae1613890e486115101e51e41ca07d929388d87', 'usr/bin/7zz'],
+  // A 7z release dependency on Linux (mGBA's development build): GNU tar reads no 7z, Windows' does. 7zr is 7-Zip's standalone 7z-only program.
+  sevenZip: ['23.01+dfsg-11', 'https://artifacts.home.romaine.life/debian/ubuntu/pool/universe/7/7zip/7zip_23.01+dfsg-11_amd64.deb', '0f79450d81e64326a862a8645ae1613890e486115101e51e41ca07d929388d87', 'usr/lib/7zip/7zr'],
   osslsigncode: ['2.8-2', 'https://artifacts.home.romaine.life/debian/ubuntu/pool/universe/o/osslsigncode/osslsigncode_2.8-2_amd64.deb', '1aee7be603102633e80b4c67cd939bba2e16a62813e4a3035696727783f632b0', 'usr/bin/osslsigncode']
 };
 // Windows' own tar (bsdtar) reads zips and tarballs; a GNU tar earlier on PATH, as in Git
