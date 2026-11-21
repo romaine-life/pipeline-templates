@@ -15,6 +15,7 @@ import {localToken, readTopics} from './topics.mjs';
 import {changed, scope} from './inputs.mjs';
 import {runOwn} from './own-workflows.mjs';
 import {readToken, usesPackages} from './packages.mjs';
+import {forgejoGitDependency} from './rust/environment.mjs';
 
 // Check jobs a PC doesn't run; the pull request runs them.
 export const ciOnly = {
@@ -105,6 +106,9 @@ export async function check({platform = process.platform, branch, from} = {}) {
   // npm packages from Forgejo, read with the token OpenBao signs for this PC, as CI reads
   // them with the job's own (packages.mjs).
   if (process.env.FORGEJO_PACKAGES_TOKEN === undefined && usesPackages()) process.env.FORGEJO_PACKAGES_TOKEN = await readToken();
+  // A Rust crate on Forgejo (a git dependency in Cargo.lock), fetched with this PC's sign-in, as
+  // CI fetches it with the pipeline's token (rust/environment.mjs).
+  if (process.env.PRIVATE_GIT_TOKEN === undefined && forgejoGitDependency()) process.env.PRIVATE_GIT_TOKEN = localToken();
   const cfg = config();
   const failed = [], skipped = [];
   let ran = 0;
