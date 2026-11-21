@@ -107,3 +107,21 @@ test('merging main into a PR preserves fingerprints when main changed no check i
     assert.equal(await fingerprint('go.test','ubuntu-latest',{},'a'.repeat(40)),before);
   } finally {process.chdir(cwd);fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test("an npm package's fingerprint follows its own folder and what it references, however large its sources",async()=>{
+  const cwd=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),'fingerprints-npm-'));
+  try {
+    process.chdir(dir);run('git',['init','-b','main']);
+    const write=(file,text)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,text);};
+    const commit=()=>{run('git',['add','.']);run('git',['-c','user.name=fixture','-c','user.email=fixture@example.invalid','commit','-qm','fixture']);};
+    write('web/package.json','{"scripts":{"test":"vitest run"}}');write('api/package.json','{"scripts":{"test":"node --test"}}');
+    // A generated source past spawnSync's default 1 MB buffer (crenellation's decompiled.ts is 8 MB).
+    write('web/src/big.ts',`import data from '../../lab/data.json';\n${'// generated\n'.repeat(200000)}`);
+    write('lab/data.json','{}');write('lab/notes.md','notes');write('api/server.js','');commit();
+    const fp=variant=>fingerprint('web-app.test',variant,{version:1},'a'.repeat(40));
+    const web=await fp('web'),api=await fp('api');
+    write('api/server.js','changed');commit();assert.equal(await fp('web'),web);assert.notEqual(await fp('api'),api);
+    write('lab/notes.md','changed');commit();assert.equal(await fp('web'),web);
+    write('lab/data.json','{"a":1}');commit();assert.notEqual(await fp('web'),web);
+  } finally {process.chdir(cwd);fs.rmSync(dir,{recursive:true,force:true});}
+});

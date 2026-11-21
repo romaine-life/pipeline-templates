@@ -53,6 +53,7 @@ jobs:
       service-test: ${{ steps.scope.outputs.service-test }}
       parse-legacy: ${{ steps.scope.outputs.parse-legacy }}
       test: ${{ steps.scope.outputs.test }}
+      test-packages: ${{ steps.scope.outputs.test-packages }}
       platforms: ${{ steps.scope.outputs.platforms }}
       windows-powershell: ${{ steps.scope.outputs.windows-powershell }}
       source-release: ${{ steps.scope.outputs.source-release }}
@@ -71,9 +72,13 @@ jobs:
       build: ${{ steps.release.outputs.build }}
       joined-image: ${{ steps.scope.outputs.joined-image }}
       has-services: ${{ steps.scope.outputs.has-services }}
+  # Each npm package's tests are a check of their own, run when that package's inputs changed.
   check-test:
     enable-openid-connect: true
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.scope.outputs.test-packages) }}
     steps:
     # A repo whose tests compare with the base branch (web-history) gets full history, which
     # brings origin/<base>: the checkout drops its credentials, so nothing can fetch it later.
@@ -97,6 +102,8 @@ jobs:
       with:
         node-version: ${{ needs.scope.outputs.node }}
     - run: node _ci/suites/web-app/test.mjs
+      env:
+        TEST_PACKAGE: ${{ matrix.package }}
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop

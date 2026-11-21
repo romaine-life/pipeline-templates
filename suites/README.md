@@ -78,7 +78,8 @@ A cluster service or web app is configured by its name and layout, not the list 
   to the second), or the PR the release's commit merged, `prNumber`, `prTitle`, `prUrl`.
   The pin PR links the work package that PR links.
 - Its npm packages are each `package.json` at the root or one directory down with a `test`
-  script.
+  script. Each package's lint and tests are a check of their own, `check-test (<folder>)`
+  (`.` for the root's).
 
 A Rust release builds each target its `rust-build-` topic names, with the values the root
 `Cargo.toml` gives it under `[workspace.metadata.pipeline-templates.targets.<target>]` (a single
@@ -310,6 +311,14 @@ A new version is a change to `version` and the lock, made the same way.
    tests (`*_test.go`, `testdata/`, `tests/`, `test/`, `Tests/`, `benches/`, `*.test.*`,
    `*.spec.*`), `.gitignore` and `.forgejo/workflows/`, which can't change what it ships (a
    workflow an external release part builds with counts).
+   A web app's npm package in a folder of its own is tested when that folder changed, or the
+   root's `.nvmrc` or `.node-version`, or what the package references outside it: a relative
+   module its sources import (`import`, `export ... from`, `import()`, `require()`, `new
+   URL(..., import.meta.url)`), a path they join onto their own folder (`__dirname`,
+   `import.meta.dirname`, or a name given `dirname(fileURLToPath(import.meta.url))`), a `../`
+   path in a script `npm run lint` or `npm test` runs, a `file:` dependency or its tsconfig's
+   `extends` (`dependencies.mjs`); crenellation's frontend reads `romlab/names.curated.json`,
+   and its backend's tests build the frontend.
    The other checks, the PR's release packaging among them, read their tool's files. Go
    embeds, Rust includes, Dockerfile `COPY` sources and linked docs count wherever they
    are. No repository adds patterns of its own.
