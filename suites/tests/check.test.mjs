@@ -28,10 +28,14 @@ test('the jobs a change starts are the ones whose scope outputs it sets, on thei
   assert.deepEqual(names(plan('go', go, {}, 'win32')), ['go/check-format', 'go/check-test-linux (skip)', 'go/check-test-windows']);
   assert.deepEqual(names(plan('go', go, {}, 'linux')), ['go/check-format', 'go/check-test-linux', 'go/check-test-windows (skip)']);
   assert.deepEqual(names(plan('go', {...go, format: 'false', 'test-windows': 'false'}, {}, 'linux')), ['go/check-test-linux']);
-  assert.deepEqual(names(plan('web-app', {test: 'true'}, {service: {postgres: 'postgres@sha256:0'}})), ['web-app/check-test (skip)']);
-  const [services] = plan('web-app', {test: 'true'}, {});
-  assert.deepEqual(services.steps.map(s => [path.basename(s.args[0]), s.args.slice(1), s.always]),
-    [['services.mjs', ['start'], false], ['test.mjs', [], false], ['services.mjs', ['stop'], true]]);
+  // A web app's tests are a job per npm package whose inputs changed, each with its folder.
+  const web = {test: 'true', 'test-packages': JSON.stringify({package: ['backend', 'frontend']})};
+  assert.deepEqual(names(plan('web-app', web, {service: {postgres: 'postgres@sha256:0'}})), ['web-app/check-test (backend) (skip)', 'web-app/check-test (frontend) (skip)']);
+  const [backend, frontend] = plan('web-app', web, {});
+  assert.deepEqual(backend.steps.map(s => [path.basename(s.args[0]), s.args.slice(1), s.env, s.always]),
+    [['services.mjs', ['start'], {}, false], ['test.mjs', [], {TEST_PACKAGE: 'backend'}, false], ['services.mjs', ['stop'], {}, true]]);
+  assert.equal(frontend.name, 'web-app/check-test (frontend)');
+  assert.deepEqual(frontend.steps[1].env, {TEST_PACKAGE: 'frontend'});
   assert.equal(plan('release', {build: 'true', 'has-local': 'true'}, {}).every(j => j.skip), true);
 });
 

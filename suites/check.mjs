@@ -51,20 +51,41 @@ export function command(step) {
   return {file: /^powershell\b/.test(step.shell || '') ? 'powershell' : 'pwsh', args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', file, ...args]};
 }
 
+// The jobs of a check job's matrix, when a scope output gives it (web-app's check-test, one per
+// npm package): each one's values, which its steps' `${{ matrix.<key> }}` env reads.
+export function matrixJobs(job, outputs) {
+  if (job.strategy?.matrix === undefined) return [null];
+  const from = String(job.strategy.matrix).match(/^\$\{\{\s*fromJSON\(needs\.scope\.outputs\.([\w-]+)\)\s*\}\}$/);
+  if (!from) throw new Error(`ci-check can't read the job matrix: ${job.strategy.matrix}`);
+  const {include, ...axes} = JSON.parse(outputs[from[1]] || '{}');
+  if (include && Object.keys(axes).length) throw new Error(`ci-check can't read a matrix with both axes and include: ${outputs[from[1]]}`);
+  if (include) return include;
+  let jobs = [{}];
+  for (const [key, values] of Object.entries(axes)) jobs = jobs.flatMap(partial => values.map(value => ({...partial, [key]: value})));
+  return jobs;
+}
+const matrixEnv = (step, values) => Object.fromEntries(Object.entries(step.env || {}).flatMap(([key, value]) => {
+  const name = String(value).match(/^\$\{\{\s*matrix\.([\w-]+)\s*\}\}$/)?.[1];
+  return name && values ? [[key, String(values[name] ?? '')]] : [];
+}));
+
 // The suite's check jobs this change starts, each with its commands or why a PC skips it.
 export function plan(suite, outputs, cfg, platform = process.platform) {
   const workflow = YAML.parse(fs.readFileSync(path.join(suites, suite, 'ci.yml'), 'utf8'));
   const jobs = [];
   for (const [id, job] of Object.entries(workflow.jobs)) {
     if (!id.startsWith('check-')) continue;
-    const name = `${suite}/${id}`, terms = condition(job.if);
+    const terms = condition(job.if);
     if (!terms.every(t => (outputs[t.name] ?? '') === t.value)) continue;
     const on = job['runs-on'] === 'windows-latest' ? 'win32' : 'linux';
     const services = job.steps.some(s => /suites\/services\.mjs start/.test(s.run || ''));
-    if (ciOnly[name]) jobs.push({name, skip: ciOnly[name]});
-    else if (terms.some(t => pinned.has(t.name)) && on !== platform) jobs.push({name, skip: `runs on ${job['runs-on']}`});
-    else if (services && Object.keys(cfg.service || {}).length) jobs.push({name, skip: "its test services run on the runner's Docker network"});
-    else jobs.push({name, steps: job.steps.filter(s => s.run).map(s => ({...command(s), always: s.if === 'always()'}))});
+    if (ciOnly[`${suite}/${id}`]) { jobs.push({name: `${suite}/${id}`, skip: ciOnly[`${suite}/${id}`]}); continue; }
+    for (const values of matrixJobs(job, outputs)) {
+      const name = `${suite}/${id}${values && Object.keys(values).length ? ` (${Object.values(values).join(', ')})` : ''}`;
+      if (terms.some(t => pinned.has(t.name)) && on !== platform) jobs.push({name, skip: `runs on ${job['runs-on']}`});
+      else if (services && Object.keys(cfg.service || {}).length) jobs.push({name, skip: "its test services run on the runner's Docker network"});
+      else jobs.push({name, steps: job.steps.filter(s => s.run).map(s => ({...command(s), env: matrixEnv(s, values), always: s.if === 'always()'}))});
+    }
   }
   return jobs;
 }
@@ -120,7 +141,7 @@ export async function check({platform = process.platform, branch, from} = {}) {
       let error;
       for (const step of job.steps) {
         if (error && !step.always) continue;
-        try { run(step.file, step.args); } catch (e) { error ??= e; }
+        try { run(step.file, step.args, {env: step.env}); } catch (e) { error ??= e; }
       }
       if (error) failed.push(`${job.name}: ${error.message}`);
     }
