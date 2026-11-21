@@ -132,6 +132,26 @@ jobs:
             self.assertEqual(out[f"actions/{name}/action.yml"], [])
             self.assertEqual([n for n, _ in out["actions/other/action.yml"]], [4])
 
+    def test_names_caches_whose_failed_save_passes(self):
+        workflow = """\
+jobs:
+  a:
+    steps:
+      - uses: actions/cache@v4
+      - uses: actions/cache/save@v4
+      - uses: actions/cache/restore@v4
+      - uses: romaine-life/pipeline-templates/actions/cache-save@main
+"""
+        out, code = self.run_on({".forgejo/workflows/ci.yml": workflow})
+        found = out[".forgejo/workflows/ci.yml"]
+        self.assertEqual([n for n, _ in found], [4, 5])
+        self.assertIn("cache-save@main", found[0][1])
+        self.assertEqual(code, 1)
+        action = "runs:\n  using: composite\n  steps:\n    - uses: actions/cache/save@v4\n"
+        out, _ = self.run_on({"actions/cache-save/action.yml": action, "actions/other/action.yml": action})
+        self.assertEqual(out["actions/cache-save/action.yml"], [])
+        self.assertEqual([n for n, _ in out["actions/other/action.yml"]], [4])
+
     def test_names_tofu_init_in_a_job_without_home_cache(self):
         workflow = """\
 jobs:

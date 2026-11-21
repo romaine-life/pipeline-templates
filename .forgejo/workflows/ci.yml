@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       home-cache: ${{ steps.diff.outputs.home-cache }}
+      cache-save: ${{ steps.diff.outputs.cache-save }}
       setup: ${{ steps.diff.outputs.setup }}
       actionlint: ${{ steps.diff.outputs.actionlint }}
       suites: ${{ steps.diff.outputs.suites }}
@@ -435,6 +436,44 @@ jobs:
           $cargo = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $cargo 'config.toml') -Pattern 'artifacts.home.romaine.life/cargo/crates')) { throw 'cargo config' }
           if (-not (Select-String -Quiet -LiteralPath (Join-Path $env:APPDATA 'NuGet\NuGet.Config') -Pattern 'artifacts.home.romaine.life/nuget')) { throw 'NuGet config' }
+
+  # actions/cache-save on both runners: a cache that saved passes, and a save that stored
+  # nothing (a path that isn't there, which actions/cache/save only warns about) fails.
+  cache-save:
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.cache-save == 'true'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Something to cache
+        if: runner.os != 'Windows'
+        shell: bash
+        run: mkdir -p cache-save-probe && echo "$GITHUB_RUN_ID" > cache-save-probe/run
+      - name: Something to cache
+        if: runner.os == 'Windows'
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+        run: New-Item -ItemType Directory -Force cache-save-probe | Out-Null; Set-Content cache-save-probe/run $env:GITHUB_RUN_ID
+      - uses: ./actions/cache-save
+        with:
+          path: cache-save-probe
+          key: cache-save-probe-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - id: missing
+        continue-on-error: true
+        uses: ./actions/cache-save
+        with:
+          path: cache-save-not-there
+          key: cache-save-missing-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: The save that stored nothing failed
+        if: steps.missing.outcome != 'failure' && runner.os != 'Windows'
+        shell: bash
+        run: echo "a save that stored nothing ended ${{ steps.missing.outcome }}"; exit 1
+      - name: The save that stored nothing failed
+        if: steps.missing.outcome != 'failure' && runner.os == 'Windows'
+        shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+        run: throw "a save that stored nothing ended ${{ steps.missing.outcome }}"
 
   # The setup actions on the cluster runner: each installs through Artifact Keeper,
   # and the tool it put on PATH is the one that runs. setup-python nests

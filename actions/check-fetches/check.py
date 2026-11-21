@@ -17,6 +17,9 @@ that reaches past them:
 - a setup action that downloads its tool from the internet, used directly where
   pipeline-templates has one that installs it through Artifact Keeper (setup-helm without
   its downloadBaseURL), and actions/setup-go, whose install has no lock (PIPT-5);
+- actions/cache and actions/cache/save, which only warn when a save fails, so a job passes
+  having cached nothing (SES-199): restore with actions/cache/restore and save with
+  pipeline-templates' cache-save, which fails the job when the cache isn't saved;
 - `tofu init` or `tofu providers` in a job with no home-cache step, which points tofu at
   Artifact Keeper's provider mirror;
 - a Cargo git dependency (Cargo.toml `git =`, Cargo.lock `git+`) on a host not at home.
@@ -46,7 +49,8 @@ OWN = "forgejo.romaine.life/"
 IMAGE_KEY = re.compile(r"^\s*(-\s+)?(image|container):\s*['\"]?(?P<ref>[^\s'\"#]+)['\"]?\s*(#.*)?$")
 DOCKER_SCHEME = re.compile(r"docker://(?P<ref>[^\s'\"#]+)")
 DOCKER_CMD = re.compile(r"\bdocker\s+(?:container\s+|image\s+)?(?P<verb>run|create|pull)\b(?P<rest>.*)")
-# Setup actions that download their tool from the internet, and what to use instead.
+# Setup actions that download their tool from the internet, and the actions whose failures
+# pass silently, and what to use instead.
 TEMPLATES = "romaine-life/pipeline-templates/actions/"
 SETUP = {
     "actions/setup-node": TEMPLATES + "setup-node@main",
@@ -57,12 +61,16 @@ SETUP = {
     "opentofu/setup-opentofu": TEMPLATES + "setup-opentofu@main",
     "dtolnay/rust-toolchain": TEMPLATES + "rust-toolchain@main",
     "azure/setup-kubectl": "a curl of artifacts.home.romaine.life/general/k8s-dl/release/<v>/... checked against its .sha256",
+    "actions/cache": "actions/cache/restore@v4, and " + TEMPLATES + "cache-save@main as the job's last step",
+    "actions/cache/save": TEMPLATES + "cache-save@main",
 }
 # Why each is refused, where it isn't that it downloads from the internet.
-WHY = {"actions/setup-go": "it installs Go with no lock, so jobs taking a new version at once can delete it under each other"}
+CACHE_WHY = "a failed save is only a warning, so the job passes having cached nothing"
+WHY = {"actions/setup-go": "it installs Go with no lock, so jobs taking a new version at once can delete it under each other",
+       "actions/cache": CACHE_WHY, "actions/cache/save": CACHE_WHY}
 # The setup actions pipeline-templates' own wrappers nest, by the wrapper's folder.
 WRAPS = {"setup-node": {"actions/setup-node"}, "setup-go": {"actions/setup-go"}, "setup-uv": {"astral-sh/setup-uv"},
-         "setup-python": {"astral-sh/setup-uv"}}
+         "setup-python": {"astral-sh/setup-uv"}, "cache-save": {"actions/cache/save"}}
 TOFU = re.compile(r"(^|[\s;&|(\"'])tofu\s+(\"?-chdir=\S+\s+)?(init|providers)\b")
 HOME_CACHE = re.compile(r"(^|/)actions/home-cache(@|$)")
 JOB = re.compile(r"^  [A-Za-z0-9_-]+:\s*$")
@@ -320,9 +328,9 @@ def main(argv):
             print(f"{path.relative_to(root).as_posix()}:{number}: {why}")
             bad += 1
     if bad:
-        print(f"{bad} line(s) fetch from the internet or run an unpinned image (pipeline-templates actions/check-fetches)")
+        print(f"{bad} line(s) fetch from the internet, run an unpinned image or use an action whose failures pass (pipeline-templates actions/check-fetches)")
         return 1
-    print("no workflow, action, Dockerfile or Cargo manifest fetches from the internet, and every image is pinned")
+    print("no workflow, action, Dockerfile or Cargo manifest fetches from the internet, every image is pinned, and every cache save is checked")
     return 0
 
 

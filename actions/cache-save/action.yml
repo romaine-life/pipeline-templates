@@ -1,0 +1,30 @@
+name: cache-save
+description: >-
+  Saves a cache and fails the job when it isn't saved. actions/cache, and actions/cache/save,
+  only warn when a save fails, so a job can pass while it caches nothing and every run builds
+  from scratch: every Windows build did, because upstairspc's tar had no gzip or zstd it
+  could run (SES-199). Restore with actions/cache/restore@v4 where actions/cache stood, and
+  make this the job's last step, with the same path and key.
+inputs:
+  path:
+    description: The files and folders to cache, as actions/cache takes them.
+    required: true
+  key:
+    description: The key to save them under, the restore step's `key`.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/save@v4
+      with:
+        path: ${{ inputs.path }}
+        key: ${{ inputs.key }}
+    # Either the save above stored it, or an earlier job already had: a key that exists can't
+    # be saved again. A failed save leaves only a warning in the log above.
+    - name: The cache is saved under its key
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ inputs.path }}
+        key: ${{ inputs.key }}
+        lookup-only: true
+        fail-on-cache-miss: true

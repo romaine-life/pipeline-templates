@@ -2,6 +2,9 @@
   "home-cache": [
     "actions/home-cache/**"
   ],
+  "cache-save": [
+    "actions/cache-save/**"
+  ],
   "setup": [
     "actions/setup-*/**",
     "actions/rust-toolchain/**",

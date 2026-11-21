@@ -42,6 +42,11 @@ serving what it holds when a source is down (FORGEJO-25). Composite actions:
   120 by default). It reads the container's state, then waits on Docker's health events, never
   a retry loop, and fails at once on an unhealthy result or an exit, with the container's last
   health output and log lines.
+- `romaine-life/pipeline-templates/actions/cache-save@main`: the job's last step, with the
+  `path` and `key` its `actions/cache/restore@v4` step restored. It saves the cache and fails
+  the job when nothing is saved under that key. `actions/cache` and `actions/cache/save` only
+  warn when a save fails, so the job passed having cached nothing; every Windows build did,
+  rebuilding from scratch each run (SES-199). check-fetches refuses both.
 - `romaine-life/pipeline-templates/actions/azure-cli@main`: puts the Azure CLI on PATH,
   installed from PyPI through Artifact Keeper into the runner's tool cache, for a job that
   calls `az`. Its version is set in the action and moves when there's a reason to.
