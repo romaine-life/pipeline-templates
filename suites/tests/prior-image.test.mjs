@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {zipSync} from 'fflate';
 import {run} from '../lib.mjs';
-import {download,findPriorImage,imageFingerprint,imageSuiteInputs,reusable,stampsCommit} from '../cluster-service/prior-image.mjs';
+import {download,findPriorImage,imageFingerprint,imageSuiteInputs,joinedCheck,reusable,stampsCommit} from '../cluster-service/prior-image.mjs';
 
 test('an image fingerprint follows its Dockerfile, what it copies, the version it stamps and the suite files that build it',()=>{
   const cwd=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),'prior-image-'));
@@ -89,6 +89,19 @@ test('a merge builds its image when no run matches: other inputs or version, a f
   assert.equal(await find(one({logs:{1000:proof('h1','f')}})),null,'a proof for another head');
   assert.equal(await find(forgejo({pull:{}})),null);
   await assert.rejects(find(one(),{probe:async()=>false}),/can't be downloaded/);
+});
+
+test("a joined image's merge takes the release run whose check-package kept it",async()=>{
+  assert.deepEqual(joinedCheck({toolchains:['go'],image:'web'}),{workflow:'release/ci.yml',job:'check-package'});
+  assert.deepEqual(joinedCheck({module:true,image:'cluster'}),{workflow:'cluster-service/ci.yml',job:'check-image'});
+  const release=({status='success',...over}={})=>forgejo({jobs:{12:[{id:1200,name:'scope',attempt:1,status:'success'},{id:1201,name:'check-package',status}]},artifacts:{12:kept(12)},logs:{1200:proof('h2','f')},...over});
+  const joined=(f,over={})=>find(f,{workflow:'release/ci.yml',job:'check-package',...over});
+  const prior=await joined(release());
+  assert.equal(prior.run,12);assert.equal(prior.artifact.id,12000);
+  assert.equal(await joined(release({status:'failure'})),null,'a failed package check');
+  assert.equal(await joined(release({logs:{1200:proof('h2','f','CI_BUILD_V1 ')}})),null,"the release build's proof is not the image's");
+  // A release run has no check-image job: the job a lookup names is the check it requires.
+  assert.equal(await find(release(),{workflow:'release/ci.yml'}),null);
 });
 
 test("the merge takes the kept image and what the PR's check recorded of it",async()=>{

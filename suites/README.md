@@ -149,13 +149,20 @@ copies in) changed since the release that built the image the pin file runs; oth
 release keeps that image, and its pin PR moves only the pin fields, so the pod isn't
 restarted. On a PR the image's `--self-test` runs with the assembled release at `/ci/dist`,
 in a layer only the check runs, for an image that runs a release binary it doesn't hold.
+A joined image is built once, on its PR, as a service's own image is ([An image's PR
+build](#an-images-pr-build)): the release's `check-package` builds it with the tag its merge
+would take and keeps it, the release's scope attests its fingerprint, and the merge's
+`finalize`, building it, pushes the PR's image instead, the same digest. A module's joined
+image (fzt-frontend) is checked and kept by the `cluster-service` suite's image check, and its
+`module` job publishes it.
 
 ## An image's PR build
 
-A cluster service's or web app's own image (`cluster-image` or `web-image`, not joined to a
-release) is built once, on its PR (`cluster-service/prior-image.mjs`). The PR's image check
-builds it with the tag its merge would take as `APP_VERSION`, runs its self-test, and keeps it
-as the run's `check-image` artifact (the image as `docker save` writes it, and its ID), for a
+A cluster service's or web app's own image (`cluster-image` or `web-image`) is built once, on
+its PR (`cluster-service/prior-image.mjs`), and so is an image [joined to a
+release](#an-image-joined-to-a-release), whose check is the release's `check-package`. The
+PR's image check builds it with the tag its merge would take as `APP_VERSION`, runs its
+self-test, and keeps it as the run's `check-image` artifact (the image as `docker save` writes it, and its ID), for a
 week; the scope attests a fingerprint of what that build reads: the `Dockerfile`,
 `.dockerignore` and what the `Dockerfile` copies, where it builds and the image's name, the
 version it stamps, and the pipeline-templates files `image.mjs` runs. The merge, once it has
@@ -165,7 +172,7 @@ runners' Docker keeps images in containerd's store, so an image's ID is the dige
 gives it, and the merge checks the pushed digest is the one the PR built. With no such run (a
 direct push, another release took the tag first, the image expired) the merge builds it, as
 it would anyway. An image whose `Dockerfile` declares `ARG SOURCE_SHA` stamps the commit,
-which only the merge makes, so it is built on the merge (landing-page).
+which only the merge makes, so it is built on the merge (landing-page, tuimail).
 
 ## A release-external part on a pull request
 
@@ -321,8 +328,9 @@ A new version is a change to `version` and the lock, made the same way.
    (`release/prior-build.mjs`); kept a week, they're built again after that. A
    `release-external` part's PR build does the same, and its merge dispatches no `build.yml`
    ([A release-external part on a pull request](#a-release-external-part-on-a-pull-request)).
-   A cluster or web app's image check does the same: the merge pushes the PR's image, the
-   same digest, under its tag ([An image's PR build](#an-images-pr-build)).
+   A cluster or web app's image check does the same, a release's joined image included: the
+   merge pushes the PR's image, the same digest, under its tag ([An image's PR
+   build](#an-images-pr-build)).
 2. A check runs only when files it reads changed (`input-patterns.mjs`). The tests, and
    whether a merge cuts a release, read every file but documentation (Markdown, `docs/`,
    `LICENSE`, `COPYING`, `NOTICE`), `k8s/` (an image-pin PR changes it, and a pin must never
