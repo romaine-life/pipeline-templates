@@ -6,9 +6,9 @@ import os from 'node:os';
 import {pathToFileURL} from 'node:url';
 import crypto from 'node:crypto';
 
-// workflow: the suite workflow whose PR run's image a merge publishes (prior-image.mjs); a
-// joined release's image passes none and is built on the merge.
-export async function imageOperation(cfg, mode, login, {workflow} = {}) {
+// workflow: the suite workflow whose PR run's image a merge publishes (prior-image.mjs), and
+// job, that run's image check (check-image by default; a joined release's is check-package).
+export async function imageOperation(cfg, mode, login, {workflow, job} = {}) {
 const repo = (process.env.GITHUB_REPOSITORY || path.basename(process.cwd())).replace(/[^\w.-]/g, '-');
 // Its own name, since two jobs of one run can build the same commit on one runner; the job
 // removes what it tagged when it ends, so images don't pile up in the runner's Docker.
@@ -22,7 +22,7 @@ const prior = await import('./prior-image.mjs');
 let reused = null;
 if (mode === 'publish' && build && workflow && prior.reusable(cfg, process.env.VERSION)) {
   try {
-    const found = await prior.findPriorImage({workflow, fingerprint: prior.imageFingerprint({section: cfg, version: process.env.VERSION})});
+    const found = await prior.findPriorImage({workflow, job, fingerprint: prior.imageFingerprint({section: cfg, version: process.env.VERSION})});
     if (found) {
       const record = await prior.download(found);
       run('docker', ['load', '-i', path.join(prior.kept, 'image.tar')]);

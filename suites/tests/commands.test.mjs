@@ -124,6 +124,18 @@ test('PRs cannot apply infrastructure or propose pins', () => {
     assert.equal(trace.length,0);
   }
 });
+test("a release's joined image check keeps the image it built for its merge, which looks for the PR's release run", () => {
+  const cfg = {suites:['cluster-service','release'],release:{toolchains:['go'],image:'cluster'}}, tracked = {PROBE_TRACKED:'k8s/deployment.yaml'};
+  let record;
+  const check = probe('release/image.mjs',['check'],{...tracked,VERSION:'v0.1.2'},cfg,{Dockerfile:'FROM scratch\nARG APP_VERSION\n'},root=>{record=JSON.parse(fs.readFileSync(path.join(root,'.ci-image/image.json'),'utf8'));});
+  assert.equal(check.result.status,0,check.result.stderr);
+  assert.ok(check.trace.find(t=>t.args?.[0]==='build').args.includes('APP_VERSION=v0.1.2'));
+  assert.equal(record.version,'v0.1.2');
+  const publish = probe('release/image.mjs',['publish'],{...tracked,IMAGE_BUILD:'true'},cfg,{Dockerfile:'FROM scratch\nARG APP_VERSION\n'});
+  assert.equal(publish.result.status,0,publish.result.stderr);
+  assert.match(publish.result.stdout,/merged no pull request; building/);
+  assert.ok(publish.trace.some(t=>t.command==='docker' && t.args[0]==='build'));
+});
 test('image checks smoke once, publication skips smoke and queues the pin without polling', () => {
   const cfg = {suites:['cluster-service']}, tracked = {PROBE_TRACKED:'k8s/deployment.yaml'};
   let check = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:''},cfg);

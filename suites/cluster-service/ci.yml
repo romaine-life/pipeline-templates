@@ -41,7 +41,7 @@ jobs:
     # image (cluster-service/prior-image.mjs).
     - uses: ./_ci/actions/release-version
       id: version
-      if: github.event_name == 'pull_request' && steps.scope.outputs.image == 'true' && steps.scope.outputs.cluster-image-check == 'true' && steps.scope.outputs.joined-image == ''
+      if: github.event_name == 'pull_request' && steps.scope.outputs.image == 'true' && steps.scope.outputs.cluster-image-check == 'true'
       with:
         prefix: ${{ steps.scope.outputs.prefix }}
         prefix-from: ${{ steps.scope.outputs.prefix-from }}
