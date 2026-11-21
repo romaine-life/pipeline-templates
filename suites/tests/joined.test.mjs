@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {reserve,stagePart,finalize,materializeAsset} from '../release/protocol.mjs';
+import {reserve,dispatchExternal,stagePart,finalize,materializeAsset} from '../release/protocol.mjs';
 import {deployJoined} from '../release/deploy.mjs';
 import {releasePlan} from '../release/plan.mjs';
 import {completeExternal} from '../release/complete-external.mjs';
@@ -41,7 +41,7 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
       else result=rel;
       return Response.json(result);
     };
-    await reserve();await reserve();assert.equal(dispatches,1);assert.equal(rel.prerelease,true);
+    await reserve();await dispatchExternal();await reserve();await dispatchExternal();assert.equal(dispatches,1);assert.equal(rel.prerelease,true);
     assert.equal(await finalize(),false);
     fs.writeFileSync('macos.tar.gz','macOS binary');
     fs.mkdirSync('dist');fs.copyFileSync('macos.tar.gz','dist/macos.tar.gz');
@@ -66,11 +66,20 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
     // A release built only by the repository's build.yml publishes whatever files it uploaded.
     rel=null;data.clear();id=0;
     fleetEntry(({version:1,release:{toolchains:[],external:[{id:'build',workflow:'build.yml'}]}}));
-    await reserve();assert.equal(await finalize(),false);
+    await reserve();await dispatchExternal();assert.equal(await finalize(),false);
     fs.writeFileSync('app.cer','certificate');
     completionReceipt=await stagePart('build',['macos.tar.gz','app.cer'],{deferReceipt:true});assert.equal(await finalize('build','success',completionReceipt),true);
     assert.deepEqual(rel.assets.map(a=>a.name).filter(n=>n!=='SHA256SUMS').sort(),['app.cer','macos.tar.gz']);
     await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
+    // A part the merged PR's build.yml run already built isn't dispatched: finalize stages that
+    // run's files itself and the release completes in the same run, with no callback.
+    rel=null;data.clear();id=0;
+    const before=dispatches;
+    await reserve();await dispatchExternal(['build']);assert.equal(dispatches,before);
+    await assert.rejects(stagePart('build',['macos.tar.gz']),/serialized Forgejo callback/);
+    await stagePart('build',['macos.tar.gz','app.cer'],{reused:true});assert.equal(await finalize(),true);
+    assert.deepEqual(rel.assets.map(a=>a.name).filter(n=>n!=='SHA256SUMS').sort(),['app.cer','macos.tar.gz']);
+    await dispatchExternal();assert.equal(dispatches,before,'a part whose files are staged is never dispatched');
     fleetEntry(({version:1,release:{image:'web'},web:{image:true}}));
     const calls=[];
     await deployJoined(async(...args)=>calls.push(args),(...args)=>calls.push(args));
