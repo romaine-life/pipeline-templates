@@ -2,5 +2,6 @@ self-hosted-runner:
   labels:
     - linux
     - nas
+    - cluster
     # upstairspc's one-job runner for at-terminal's build, which shares one kept folder.
     - at-terminal
