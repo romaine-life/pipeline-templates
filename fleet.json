@@ -583,6 +583,17 @@
         "web-image"
       ]
     },
+    "romaine-life/ozzy-mari-extravaganza": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "topics": [
+        "go-test-windows",
+        "home-sync",
+        "release-go"
+      ]
+    },
     "romaine-life/power-lines-gba": {
       "suites": [
         "rust",
