@@ -483,7 +483,7 @@ jobs:
     if: github.event_name == 'pull_request' && needs.changes.outputs.setup == 'true'
     runs-on:
       - ubuntu-latest
-      - nas
+      - cluster
     steps:
       - uses: actions/checkout@v4
       - uses: ./actions/home-cache
@@ -583,7 +583,7 @@ jobs:
           AT_TERMINAL_PFX: ${{ secrets.AT_TERMINAL_PFX }}
           AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
           CI_FIXTURE_DOCKER: '1'
-    name: setup-linux (nas)
+    name: setup-linux (cluster)
 
   setup-windows:
     needs: changes
