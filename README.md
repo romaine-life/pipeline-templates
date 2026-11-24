@@ -147,9 +147,14 @@ shared suites, including joined releases across toolchains.
 
 ## Home sync
 
-The reusable `.forgejo/workflows/home-sync.yml` publishes a release's draft, then makes one
-SSH attempt at each home PC and waits on none. An awake PC's forced command starts its
-home-sync task. A PC that doesn't answer is asleep, off or away, which isn't a failure:
-at-home-tools' home-sync task runs on every resume from sleep and at sign-in, so it takes
-the release then. The treadmill, the one PC with a wake address, is sent a wake packet
-through the NAS when it doesn't answer, and its resume starts the run.
+The reusable `.forgejo/workflows/home-sync.yml` publishes a release's draft, then delivers
+it to every home PC and waits for each result (AHT-183). Each PC's forced SSH command is its
+home-sync run (at-home-tools' `home-sync --task-run`): the job prints that run's progress
+under the PC's name, and a run that fails fails the release. A PC that doesn't answer fails
+the release too, unless `home-sync/checked-out.json` lists it as away; a checked-out PC that
+does answer still takes the release, and one that doesn't takes it from its own next
+home-sync run. Checking a PC out or in is a PR to that file, which the job reads from main.
+The treadmill, the one PC with a wake address, is sent a wake packet through the NAS when it
+doesn't answer and is tried every 15 seconds for 3 minutes. Each PC is told when the release
+asked (`since <time>`), so a run that started after that, such as the one the treadmill's
+wake starts, is reported as the release's run instead of being followed by a second.

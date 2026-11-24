@@ -56,7 +56,8 @@ jobs:
     runs-on: [linux, cluster]
     container:
       image: artifacts.home.romaine.life/ghcr/catthehacker/ubuntu:act-24.04@sha256:19619a010b204f44c5340bff7d39b68551109fe6a56a53f75201ea91e05d4270
-    timeout-minutes: 4
+    # Each PC's home-sync run, a new release's install included, and the treadmill's wake.
+    timeout-minutes: 30
     steps:
       - name: Update the NAS home-profile checkout
         if: inputs.update-home-checkout
@@ -106,7 +107,7 @@ jobs:
           })().catch(error => { console.error(error.message); process.exitCode = 1; });
           JS
 
-      - name: Start the awake PCs; wake the treadmill
+      - name: Deliver to every PC and wait for each result
         # machine/state.json's sshUser and wakeMac in shell-config-profile-home.
         # Update this inventory when a PC changes.
         env:
@@ -115,33 +116,49 @@ jobs:
              {"name":"upstairspc","user":"upstairspc"},
              {"name":"treadmill","user":"nelsontreadmill","mac":"E8:FF:1E:D8:9B:FB"},
              {"name":"nelsonlaptop","user":"nelsonlaptopuser"}]
+          CHECKED_OUT: ${{ github.server_url }}/romaine-life/pipeline-templates/raw/branch/main/home-sync/checked-out.json
         run: |
           node <<'JS'
-          // One SSH attempt per PC and no waiting on any (PIPT-12). An awake PC's forced
-          // command starts its home-sync task and returns at once. A PC that doesn't answer
-          // is asleep, off or away: its home-sync task runs on every resume from sleep and at
-          // sign-in (at-home-tools), so it takes the release then and this run doesn't fail.
-          // A PC with a wake address is woken, and its resume starts that run.
+          // The release delivers to each PC itself and is complete only when every PC has
+          // taken it (AHT-183). A PC's forced command is its home-sync run (--task-run): it
+          // prints the run's progress and its exit code is that PC's result. A PC that
+          // doesn't answer fails the release, unless home-sync/checked-out.json lists it as
+          // away; a checked-out PC that answers still takes the release. The treadmill,
+          // asleep, is woken and tried again until it answers.
+          // waits: each PC's home-sync run, and a woken PC coming up (AHT-183).
+          //
+          // Each PC is told when the release asked ("since <time>", now, after the publish
+          // step): a run there that started later already has the release, so the PC
+          // reports that run (the one the treadmill's wake starts) rather than a second.
           const {spawn} = require('node:child_process');
           const fs = require('node:fs');
+          const {setTimeout: pause} = require('node:timers/promises');
           const key = '/certs/client/home-sync/id_ed25519';
           const hosts = '/certs/client/home-sync/known_hosts';
-          fs.accessSync(key, fs.constants.R_OK);
-          fs.accessSync(hosts, fs.constants.R_OK);
-          const start = Date.now();
-          function ssh(name, destination) {
+          const wakeTries = 12, wakeGap = 15000;
+          const since = `since ${new Date().toISOString()}`;
+          function ssh(name, destination, ...command) {
             return new Promise((resolve, reject) => {
-              // No remote command: sshd forces the one authorized command.
+              // sshd forces the one authorized command, which reads any command given as
+              // SSH_ORIGINAL_COMMAND. Keepalives end
+              // the wait within a minute if a PC drops off mid-run.
               const child = spawn('ssh', ['-T', '-i', key, '-o', 'IdentitiesOnly=yes',
                 '-o', 'BatchMode=yes', '-o', `UserKnownHostsFile=${hosts}`,
-                '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5',
-                '-o', 'ConnectionAttempts=1', destination]);
-              let output = '';
-              child.stdout.on('data', b => output += b);
-              child.stderr.on('data', b => output += b);
+                '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10',
+                '-o', 'ConnectionAttempts=1', '-o', 'ServerAliveInterval=15',
+                '-o', 'ServerAliveCountMax=4', destination, ...command]);
+              let output = '', partial = '';
+              const print = text => {
+                output += text;
+                const lines = (partial + text).split(/\r?\n/);
+                partial = lines.pop();
+                for (const line of lines) if (line.trim()) console.log(`${name}: ${line}`);
+              };
+              child.stdout.on('data', print);
+              child.stderr.on('data', print);
               child.on('error', reject);
               child.on('close', code => {
-                console.log(`${name}: ${Date.now() - start} ms; ${output.trim()}`);
+                if (partial.trim()) console.log(`${name}: ${partial}`);
                 if (code === 0) return resolve();
                 const error = new Error(`${name}: SSH exit ${code}`);
                 error.unreachable = code === 255 && /timed out|No route to host|Could not resolve hostname|Network is unreachable/.test(output);
@@ -149,29 +166,45 @@ jobs:
               });
             });
           }
-          async function trigger(pc) {
+          async function deliver(pc, away) {
             try {
-              await ssh(pc.name, `${pc.user}@${pc.name}`);
-              return;
+              return await ssh(pc.name, `${pc.user}@${pc.name}`, since);
             } catch (error) {
-              // A refused key or a failed command is a real failure; only silence is sleep.
+              // A refused key or a failed run is a real failure; only silence is absence.
               if (!error.unreachable) throw error;
+              if (away.includes(pc.name)) {
+                console.log(`${pc.name}: checked out and not reachable, so it takes the release when it next runs home-sync`);
+                return;
+              }
+              if (!pc.mac) throw new Error(`${pc.name}: not reachable, and it isn't checked out (home-sync/checked-out.json)`);
             }
-            if (!pc.mac) {
-              console.log(`${pc.name}: not reachable, so it runs home-sync itself when it next resumes or signs in`);
-              return;
-            }
-            // Asked only of a PC that didn't answer, so a woken PC runs home-sync once, from
-            // its resume. Docker's bridge drops LAN broadcasts; the NAS key entry forces only
+            // Docker's bridge drops LAN broadcasts; the NAS key entry forces only
             // sudo /usr/syno/sbin/synonet --wake E8:FF:1E:D8:9B:FB eth0.
             await ssh(`${pc.name} wake ${pc.mac}`, 'Nelson@nas');
-            console.log(`${pc.name}: asleep, so it was sent a wake packet and runs home-sync itself as it resumes`);
+            console.log(`${pc.name}: asleep, so it was sent a wake packet`);
+            for (let tries = 1; ; tries++) {
+              await pause(wakeGap);
+              try {
+                return await ssh(pc.name, `${pc.user}@${pc.name}`, since);
+              } catch (error) {
+                if (!error.unreachable) throw error;
+                if (tries === wakeTries) throw new Error(`${pc.name}: still not reachable ${wakeTries * wakeGap / 60000} minutes after its wake packet`);
+              }
+            }
           }
-          Promise.allSettled(JSON.parse(process.env.MACHINES).map(trigger)).then(results => {
+          (async () => {
+            fs.accessSync(key, fs.constants.R_OK);
+            fs.accessSync(hosts, fs.constants.R_OK);
+            const pcs = JSON.parse(process.env.MACHINES);
+            const response = await fetch(process.env.CHECKED_OUT, {signal: AbortSignal.timeout(30000)});
+            if (!response.ok) throw new Error(`checked-out PCs: HTTP ${response.status}`);
+            const away = await response.json();
+            for (const name of away) if (!pcs.some(pc => pc.name === name)) throw new Error(`checked-out.json names ${name}, which isn't a home PC`);
+            const results = await Promise.allSettled(pcs.map(pc => deliver(pc, away)));
             for (const result of results) if (result.status === 'rejected') {
               console.error(result.reason.message); process.exitCode = 1;
             }
-          });
+          })().catch(error => { console.error(error.message); process.exitCode = 1; });
           JS
 
   # A job of its own, after the release is published: a cleanup that fails shows as this
