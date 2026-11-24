@@ -30,7 +30,11 @@ export const tools = {
   },
   kubeconform: {
     linux:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz`, '9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883', 'kubeconform'],
-    win32:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-windows-amd64.zip`, 'e3f56102bcf4f50b034a567e2482a1c5330799983ddd655952310211aef73d93', 'kubeconform.exe']
+    // The release's Windows build is netgo: its resolver asks the network adapters' DNS servers
+    // and skips the Windows name rules, where Tailscale sends home.romaine.life when the PC is away
+    // from home, so it couldn't reach the schemas there (AHT-184). Built from the release's
+    // source with Go's default resolver, it asks Windows. Go comes from PATH.
+    win32:['0.8.0', `${mirror}/github/yannh/kubeconform/archive/refs/tags/v0.8.0.tar.gz`, 'c345de9c3207f2d24628c64fe3cb9bed55c4248b12c181efe81ee907d6c994f2', 'built/kubeconform.exe', {go: 'kubeconform-0.8.0/cmd/kubeconform'}]
   },
   actionlint: {
     linux:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz`, '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757', 'actionlint'],
@@ -70,6 +74,17 @@ export async function tool(name) {
   try {
     const archive = path.join(temp, 'tool.tar.gz');
     fs.writeFileSync(archive, bytes);
+    if (fullPackage?.go) {
+      // A source archive with its modules vendored, so the build fetches nothing.
+      run(tar, ['-xf', archive, '-C', temp]);
+      const built = path.join(temp, path.basename(binary));
+      run('go', ['build', '-p', '4', '-mod=vendor', '-trimpath', '-ldflags=-s -w', '-o', built, '.'],
+        {cwd: path.join(temp, fullPackage.go), env: {CGO_ENABLED: '0', GOFLAGS: '', GOTOOLCHAIN: 'local'}});
+      fs.mkdirSync(path.dirname(executable), {recursive: true});
+      try { fs.renameSync(built, executable); }
+      catch (error) { if (!fs.existsSync(executable)) throw error; }
+      return executable;
+    }
     if (fullPackage) {
       const packageDir=path.join(temp,'package');fs.mkdirSync(packageDir);
       if(url.endsWith('.whl') && process.platform==='linux')run('unzip',['-q',archive,'-d',packageDir]);

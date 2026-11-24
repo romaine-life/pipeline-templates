@@ -52,7 +52,7 @@ function renderTo(executable, args, file) {
   const out = fs.openSync(file, 'w');
   try { run(executable, args, {stdio: ['ignore', out, 'inherit']}); } finally { fs.closeSync(out); }
 }
-const digests = file => run('python3', [path.join(templates, 'actions/check-image-digests/check.py'), file]);
+const digests = file => run(process.platform === 'win32' ? 'python' : 'python3', [path.join(templates, 'actions/check-image-digests/check.py'), file]);
 
 export async function main() {
   const renders = config().cluster?.renders || [];
