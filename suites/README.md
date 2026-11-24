@@ -327,7 +327,10 @@ A new version is a change to `version` and the lock, made the same way.
 3. Builds keep their caches on the runners (Go, Cargo per repository and toolchain,
    tools, OpenTofu providers).
 4. No job holds a runner while it waits on something else; test services start on the
-   job's own Docker network and are ready on Docker's health events.
+   job's own Docker network and are ready on Docker's health events. The one exception
+   is a release's delivery to the home PCs (`home-sync.yml`, AHT-183), whose job is to
+   wait for each PC's result: its step says so on a line of its own, `// waits: <why>`,
+   which the rules check accepts in place of the loop it would otherwise refuse.
 5. A new push cancels the out-of-date PR run; a run on the default branch is never
    cancelled.
 6. `default` runs `check-fetches` and the rules check over a repository's own remaining

@@ -86,8 +86,8 @@ export function shellLoopRequest(text) {
 // an error message) aren't the script's loops.
 function bracedLoopWait(source) {
   const text = source.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''");
-  const helpers = [...text.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>[^\n;]*(?<![\w.$])setTimeout\b|\bfunction\s+([\w$]+)\s*\([^)]*\)\s*\{[^\n]*(?<![\w.$])setTimeout\b|\bsetTimeout\s+as\s+([\w$]+)/g)]
-    .map(m => m[1] ?? m[2] ?? m[3]);
+  const helpers = [...text.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>[^\n;]*(?<![\w.$])setTimeout\b|\bfunction\s+([\w$]+)\s*\([^)]*\)\s*\{[^\n]*(?<![\w.$])setTimeout\b|\bsetTimeout\s+as\s+([\w$]+)|\{[^}]*\bsetTimeout\s*:\s*([\w$]+)/g)]
+    .map(m => m[1] ?? m[2] ?? m[3] ?? m[4]);
   const waits = ['setTimeout', 'setInterval', ...helpers].map(w => w.replace(/\$/g, '\\$')).join('|');
   // A loop's header waits for its body's brace; a braceless body ends at the statement's
   // semicolon, outside the header's parentheses.
@@ -105,6 +105,10 @@ function bracedLoopWait(source) {
   }
   return false;
 }
+// A step whose waiting is its job says why on a line of its own, `# waits: <why>` or
+// `// waits: <why>`: the release's delivery to the home PCs, which waits for each PC's
+// result and for a woken PC to answer (AHT-183), is the one.
+export const waitsOnPurpose = commands => /^[ \t]*(?:#|\/\/)[ \t]*waits:[ \t]*\S/m.test(commands);
 export function loopWaits(commands) {
   return shellLoopSleep(commands) || pythonLoopSleep(commands) || bracedLoopWait(commands);
 }
@@ -161,7 +165,7 @@ export function violations(text, read, {go = false} = {}) {
   for (const [name, job] of Object.entries(workflow.jobs || {})) {
     for (const step of job.steps || []) {
       const commands = scriptText(step.run || '', read);
-      if (loopWaits(commands)) bad.push(`${name}: loop waits on a runner`);
+      if (loopWaits(commands) && !waitsOnPurpose(step.run || "")) bad.push(`${name}: loop waits on a runner`);
       if (/\bgh\s+(?:run\s+watch|pr\s+checks\b.*--watch)|ConnectionAttempts\s*[= ]\s*(?:[2-9]|\d{2,})|(?<![?&])\b(?:poll|wait-for-merge|wait-for-dns)\b/i.test(commands)) bad.push(`${name}: polling holds a runner`);
       if (shellLoopRequest(commands)) bad.push(`${name}: request loop holds a runner`);
       if (go && goBuild(commands)) bad.push(`${name}: builds the repository's Go, which the go and release suites build`);
