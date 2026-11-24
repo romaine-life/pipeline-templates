@@ -27,6 +27,11 @@
         "version-from-manifest"
       ]
     },
+    "nelsong6/avatar-pack": {
+      "suites": [
+        "go"
+      ]
+    },
     "nelsong6/avatars": {
       "suites": [
         "cluster-service",
