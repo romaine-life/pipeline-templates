@@ -109,13 +109,16 @@ jobs:
 
       - name: Deliver to every PC and wait for each result
         # machine/state.json's sshUser and wakeMac in shell-config-profile-home.
-        # Update this inventory when a PC changes.
+        # Update this inventory when a PC changes. A PC with a `host` is reached at that
+        # address, its Tailscale one: the laptop, wherever it is, through the runner's
+        # tailnet node (nelsong6/forgejo, release-runner). Its host key is still checked
+        # under its name.
         env:
           MACHINES: >-
             [{"name":"nelsonpc","user":"nelson"},
              {"name":"upstairspc","user":"upstairspc"},
              {"name":"treadmill","user":"nelsontreadmill","mac":"E8:FF:1E:D8:9B:FB"},
-             {"name":"nelsonlaptop","user":"nelsonlaptopuser"}]
+             {"name":"nelsonlaptop","user":"nelsonlaptopuser","host":"100.100.110.91"}]
           CHECKED_OUT: ${{ github.server_url }}/romaine-life/pipeline-templates/raw/branch/main/home-sync/checked-out.json
         run: |
           node <<'JS'
@@ -137,7 +140,7 @@ jobs:
           const hosts = '/certs/client/home-sync/known_hosts';
           const wakeTries = 12, wakeGap = 15000;
           const since = `since ${new Date().toISOString()}`;
-          function ssh(name, destination, ...command) {
+          function ssh(name, destination, command, alias) {
             return new Promise((resolve, reject) => {
               // sshd forces the one authorized command, which reads any command given as
               // SSH_ORIGINAL_COMMAND. Keepalives end
@@ -146,7 +149,8 @@ jobs:
                 '-o', 'BatchMode=yes', '-o', `UserKnownHostsFile=${hosts}`,
                 '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10',
                 '-o', 'ConnectionAttempts=1', '-o', 'ServerAliveInterval=15',
-                '-o', 'ServerAliveCountMax=4', destination, ...command]);
+                '-o', 'ServerAliveCountMax=4', ...(alias ? ['-o', `HostKeyAlias=${alias}`] : []),
+                destination, ...(command ? [command] : [])]);
               let output = '', partial = '';
               const print = text => {
                 output += text;
@@ -168,7 +172,7 @@ jobs:
           }
           async function deliver(pc, away) {
             try {
-              return await ssh(pc.name, `${pc.user}@${pc.name}`, since);
+              return await ssh(pc.name, `${pc.user}@${pc.host ?? pc.name}`, since, pc.host && pc.name);
             } catch (error) {
               // A refused key or a failed run is a real failure; only silence is absence.
               if (!error.unreachable) throw error;
@@ -185,7 +189,7 @@ jobs:
             for (let tries = 1; ; tries++) {
               await pause(wakeGap);
               try {
-                return await ssh(pc.name, `${pc.user}@${pc.name}`, since);
+                return await ssh(pc.name, `${pc.user}@${pc.host ?? pc.name}`, since, pc.host && pc.name);
               } catch (error) {
                 if (!error.unreachable) throw error;
                 if (tries === wakeTries) throw new Error(`${pc.name}: still not reachable ${wakeTries * wakeGap / 60000} minutes after its wake packet`);
