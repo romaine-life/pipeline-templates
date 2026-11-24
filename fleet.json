@@ -585,6 +585,16 @@
         "release-go"
       ]
     },
+    "romaine-life/pokemon-generator": {
+      "suites": [
+        "cluster-service",
+        "go",
+        "web-app"
+      ],
+      "topics": [
+        "web-image"
+      ]
+    },
     "romaine-life/power-lines-gba": {
       "suites": [
         "rust",
