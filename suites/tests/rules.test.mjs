@@ -47,6 +47,13 @@ test('comment lines are neither commands nor references to scripts', () => {
   assert.deepEqual(violations(valid.replace('go build ./cmd/...', 'scripts/serve.sh'), p => sources[p] ?? null), []);
   assert.match(violations(valid.replace('go build ./cmd/...', 'bash deploy.sh'), p => sources[p] ?? null).join('\n'), /loop waits/);
 });
+test('a step that waits on purpose says why', () => {
+  const loop = 'for n in 1 2; do sleep 30; done';
+  assert.match(violations(valid.replace('go build ./cmd/...', loop)).join('\n'), /loop waits/);
+  const script = why => valid.replace('go build ./cmd/...', `|\n          # waits:${why}\n          ${loop}`);
+  assert.doesNotMatch(violations(script(' each PC reports its run')).join('\n'), /loop waits/);
+  assert.match(violations(script('')).join('\n'), /loop waits/);
+});
 test('a sleep counts as a poll only inside a loop', async () => {
   const {loopWaits} = await import('../default/rules.mjs');
   for (const [commands, polls] of [
@@ -62,6 +69,7 @@ test('a sleep counts as a poll only inside a loop', async () => {
     ['for (let i = 0; i < 30; i++) {\n  if (await ready()) break;\n  await new Promise(r => setTimeout(r, 1000));\n}', true],
     ['const sleep = ms => new Promise(r => setTimeout(r, ms));\nwhile (!(await ready())) { await sleep(1000); }', true],
     ["import {setTimeout as delay} from 'node:timers/promises';\nfor (;;) { await delay(500); }", true],
+    ["const {setTimeout: pause} = require('node:timers/promises');\nfor (let i = 1; ; i++) { await pause(500); }", true],
     ['socket.setTimeout(3000, () => socket.destroy());\nfor (const port of ports) { await probe(port); }', false],
     ['const deadline = setTimeout(() => reject(new Error("late")), 240000);\nfor (const line of lines) { if (line) resolve(); }', false],
     ['while (queue.length) { await handle(queue.shift()); }\nrequest.setTimeout(300000, () => request.destroy());', false],

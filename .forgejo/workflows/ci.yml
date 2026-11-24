@@ -153,7 +153,7 @@ jobs:
           })().catch(error => { console.error(error); process.exitCode = 1; });
           JS
 
-      - name: Check each PC gets one SSH attempt and a silent PC is left to its resume
+      - name: Check each PC's delivery waits for its result and only a checked-out PC may be absent
         run: |
           node <<'JS'
           const assert = require('node:assert/strict');
@@ -161,54 +161,85 @@ jobs:
           const vm = require('node:vm');
           const {EventEmitter} = require('node:events');
           const yaml = fs.readFileSync('.forgejo/workflows/home-sync.yml', 'utf8').replaceAll('\r', '');
-          const section = yaml.slice(yaml.indexOf('- name: Start the awake PCs; wake the treadmill'));
-          const inventory = section.match(/MACHINES: >-\n([\s\S]*?)\n\s+run: \|/);
+          const section = yaml.slice(yaml.indexOf('- name: Deliver to every PC and wait for each result'));
+          const inventory = section.match(/MACHINES: >-\n([\s\S]*?)\n\s+CHECKED_OUT:/);
           assert.ok(inventory, 'test must read the real inventory');
           const pcs = JSON.parse(inventory[1]);
+          assert.deepEqual(JSON.parse(fs.readFileSync('home-sync/checked-out.json', 'utf8')).filter(n => !pcs.some(pc => pc.name === n)), [], 'checked-out.json names only home PCs');
           const match = section.match(/node <<'JS'\n([\s\S]*?)\n\s+JS/);
           assert.ok(match, 'test must run the real PC step');
           const code = match[1].replace(/^ {10}/gm, '');
+          // The step's pause between tries, made instant.
+          const timers = {setTimeout: () => Promise.resolve()};
+          // The destination follows the last option; a PC's call adds the release's time.
+          const dest = args => args[args.indexOf('ServerAliveCountMax=4') + 1];
           const silent = [255, 'ssh: connect to host pc port 22: Connection timed out'];
+          // An answer list is used in order, its last answer repeating.
           const cases = [
-            {name: 'every PC awake', answers: {}, exit: undefined, wakes: 0},
-            {name: 'every PC silent', answers: {all: silent}, exit: undefined, wakes: 1,
-              logs: [/treadmill: asleep, so it was sent a wake packet/, /nelsonlaptop: not reachable, so it runs home-sync itself/]},
-            {name: 'a refused key', answers: {'nelson@nelsonpc': [255, 'Permission denied (publickey).']}, exit: 1, wakes: 0},
-            {name: 'the treadmill refuses its host key and is not woken', answers: {'nelsontreadmill@treadmill': [255, 'Host key verification failed.']}, exit: 1, wakes: 0},
-            {name: 'a forced command that fails', answers: {'upstairspc@upstairspc': [1, 'ERROR: The system cannot find the file specified.']}, exit: 1, wakes: 0},
-            {name: 'a failed wake', answers: {'nelsontreadmill@treadmill': [255, 'No route to host'], 'Nelson@nas': [1, 'synonet failed']}, exit: 1, wakes: 1}
+            {name: 'every PC delivers', answers: {'nelson@nelsonpc': [[0, 'step: tools\nup to date\n']]}, exit: undefined, wakes: 0,
+              logs: [/nelsonpc: step: tools/, /nelsonpc: up to date/]},
+            {name: 'a silent PC that is not checked out fails the release', answers: {'upstairspc@upstairspc': [silent]}, exit: 1, wakes: 0,
+              logs: [/upstairspc: not reachable, and it isn't checked out/]},
+            {name: 'a checked-out silent PC is left for later', away: ['nelsonlaptop'], answers: {'nelsonlaptopuser@nelsonlaptop': [silent]}, exit: undefined, wakes: 0,
+              logs: [/nelsonlaptop: checked out and not reachable/]},
+            {name: 'a checked-out PC that answers still takes the release', away: ['nelsonlaptop'], answers: {}, exit: undefined, wakes: 0},
+            {name: 'the treadmill is woken and delivered to once it answers', answers: {'nelsontreadmill@treadmill': [silent, silent, [0, 'up to date']]}, exit: undefined, wakes: 1,
+              tries: {treadmill: 3}, logs: [/treadmill: asleep, so it was sent a wake packet/, /treadmill: up to date/]},
+            {name: 'a treadmill that never answers fails after its tries', answers: {'nelsontreadmill@treadmill': [silent]}, exit: 1, wakes: 1,
+              tries: {treadmill: 13}, logs: [/treadmill: still not reachable 3 minutes after its wake packet/]},
+            {name: 'a refused key', answers: {'nelson@nelsonpc': [[255, 'Permission denied (publickey).']]}, exit: 1, wakes: 0},
+            {name: 'the treadmill refuses its host key and is not woken', answers: {'nelsontreadmill@treadmill': [[255, 'Host key verification failed.']]}, exit: 1, wakes: 0},
+            {name: 'a PC whose home-sync run fails', answers: {'upstairspc@upstairspc': [[1, 'error: step tools failed']]}, exit: 1, wakes: 0},
+            {name: 'a failed wake', answers: {'nelsontreadmill@treadmill': [[255, 'No route to host']], 'Nelson@nas': [[1, 'synonet failed']]}, exit: 1, wakes: 1},
+            {name: 'an unknown checked-out PC', away: ['oldpc'], answers: {}, exit: 1, wakes: 0, tries: {all: 0}},
+            {name: 'the checked-out list cannot be read', listStatus: 500, answers: {}, exit: 1, wakes: 0, tries: {all: 0}}
           ];
           (async () => {
             for (const current of cases) {
-              const calls = [], logs = [];
-              const proc = {env: {MACHINES: inventory[1]}, exitCode: undefined};
+              const calls = [], logs = [], used = {};
+              const proc = {env: {MACHINES: inventory[1], CHECKED_OUT: 'checked-out list'}, exitCode: undefined};
               const spawn = (command, args) => {
                 assert.equal(command, 'ssh');
-                const destination = args.at(-1);
+                const destination = dest(args);
                 calls.push(args);
+                const list = current.answers[destination] ?? [[0, '']];
+                const n = used[destination] = (used[destination] ?? 0) + 1;
+                const [status, text] = list[Math.min(n, list.length) - 1];
                 const child = new EventEmitter();
                 child.stdout = new EventEmitter();
                 child.stderr = new EventEmitter();
-                const [status, text] = current.answers[destination] ?? (destination === 'Nelson@nas' ? undefined : current.answers.all) ?? [0, ''];
-                setImmediate(() => { if (text) child.stderr.emit('data', Buffer.from(text)); child.emit('close', status); });
+                setImmediate(() => { if (text) (status ? child.stderr : child.stdout).emit('data', Buffer.from(text)); child.emit('close', status); });
                 return child;
               };
+              // The step's last expression is its promise, settled once every PC is done.
               await vm.runInNewContext(code, {
-                process: proc,
+                process: proc, AbortSignal, Promise,
                 console: {log: line => logs.push(line), error: line => logs.push(line)},
+                async fetch(url) {
+                  assert.equal(url, proc.env.CHECKED_OUT);
+                  return {ok: !current.listStatus, status: current.listStatus ?? 200, json: async () => current.away ?? []};
+                },
                 require(name) {
                   if (name === 'node:child_process') return {spawn};
+                  if (name === 'node:timers/promises') return timers;
                   assert.equal(name, 'node:fs');
                   return {accessSync() {}, constants: fs.constants};
                 }
               });
-              const wakes = calls.filter(args => args.at(-1) === 'Nelson@nas');
+              const wakes = calls.filter(args => dest(args) === 'Nelson@nas');
               assert.equal(wakes.length, current.wakes, `${current.name}: wake packets`);
-              assert.equal(calls.length - wakes.length, pcs.length, `${current.name}: one SSH attempt per PC`);
-              for (const pc of pcs) assert.equal(calls.filter(args => args.at(-1) === `${pc.user}@${pc.name}`).length, 1, `${current.name}: ${pc.name}`);
-              if (wakes.length) assert.ok(calls.indexOf(wakes[0]) > calls.findIndex(args => args.at(-1) === 'nelsontreadmill@treadmill'), 'a wake follows the silent attempt');
+              for (const pc of pcs) {
+                const want = current.tries?.[pc.name] ?? current.tries?.all ?? 1;
+                assert.equal(calls.filter(args => dest(args) === `${pc.user}@${pc.name}`).length, want, `${current.name}: ${pc.name} tries`);
+              }
+              if (wakes.length) assert.ok(calls.indexOf(wakes[0]) > calls.findIndex(args => dest(args) === 'nelsontreadmill@treadmill'), 'a wake follows the silent attempt');
               for (const args of calls) {
-                for (const option of ['ConnectionAttempts=1', 'ConnectTimeout=5', 'StrictHostKeyChecking=yes', 'BatchMode=yes']) assert.ok(args.includes(option), `${current.name}: ${option}`);
+                for (const args of calls) {
+                const command = args.slice(args.indexOf('ServerAliveCountMax=4') + 2);
+                if (dest(args) === 'Nelson@nas') assert.equal(command.length, 0, 'the wake sends no command');
+                else assert.match(command.join(' '), /^since \d{4}-\d\d-\d\dT[\d:.]+Z$/, `${current.name}: the release's time`);
+              }
+              for (const option of ['ConnectionAttempts=1', 'StrictHostKeyChecking=yes', 'BatchMode=yes', 'ServerAliveInterval=15']) assert.ok(args.includes(option), `${current.name}: ${option}`);
               }
               assert.equal(proc.exitCode, current.exit, `${current.name}: ${logs.join('\n')}`);
               for (const pattern of current.logs || []) assert.match(logs.join('\n'), pattern, current.name);
