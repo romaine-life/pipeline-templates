@@ -38,8 +38,7 @@
         "go"
       ],
       "topics": [
-        "cluster-image",
-        "service-postgres"
+        "cluster-image"
       ]
     },
     "nelsong6/emulation-screensaver": {
