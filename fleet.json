@@ -731,6 +731,16 @@
         "web-image"
       ]
     },
+    "romaine-life/terraform-provider-forgejo": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "topics": [
+        "release-go",
+        "release-tofu-provider"
+      ]
+    },
     "romaine-life/terraform-provider-openproject": {
       "suites": [
         "go",
