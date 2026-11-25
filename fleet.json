@@ -389,6 +389,16 @@
         "web-image"
       ]
     },
+    "romaine-life/dungeon-crawler": {
+      "suites": [
+        "cluster-service",
+        "go",
+        "web-app"
+      ],
+      "topics": [
+        "web-image"
+      ]
+    },
     "romaine-life/eight-queens": {
       "suites": [
         "tofu",
