@@ -5,16 +5,6 @@
         "cluster-service"
       ]
     },
-    "nelsong6/at-terminal": {
-      "suites": [
-        "release"
-      ],
-      "topics": [
-        "home-sync",
-        "release-external",
-        "version-four-part"
-      ]
-    },
     "nelsong6/at-tmux": {
       "suites": [
         "cmake",
@@ -337,7 +327,7 @@
         "cmake-test-windows"
       ]
     },
-    "romaine-life/at-terminal-rio": {
+    "romaine-life/at-terminal": {
       "suites": [
         "release",
         "rust"
