@@ -40,13 +40,6 @@ terraform {
       source  = "artifacts.home.romaine.life/romaine-life/forgejo"
       version = "1.7.1"
     }
-    # Upstream svalabs/forgejo, while openbao's and infra-bootstrap's state still record its
-    # address for the variables they made before the fork: each declares it beside the fork
-    # until an apply has moved them, and then it leaves the set.
-    svalabs-forgejo = {
-      source  = "svalabs/forgejo"
-      version = "1.7.0"
-    }
     openproject = {
       source  = "artifacts.home.romaine.life/romaine-life/openproject"
       version = "0.1.0"

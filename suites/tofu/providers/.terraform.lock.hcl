@@ -81,12 +81,3 @@ provider "registry.opentofu.org/integrations/github" {
     "zh:de9f455ef342cc38fb76bce844bfcd376fb81a4b9f9bc2fae023ff99efdf1338",
   ]
 }
-
-provider "registry.opentofu.org/svalabs/forgejo" {
-  version     = "1.7.0"
-  constraints = "1.7.0"
-  hashes = [
-    "h1:54ExnIP9L0j4XivMN7pE10FRIhRg4m/kgk2/2EHBD14=",
-    "zh:1234b9b826c205be582fca1c93c51b6220dbcba67cff46cecad1aa9ce90fa056",
-  ]
-}

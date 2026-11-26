@@ -29,14 +29,15 @@ export function configuredSources(dir) {
 }
 
 // Every repository runs with the shared provider set's lock (providers/providers.tf), which
-// only CI writes (IB-3), cut to the providers it uses. A repository whose checkout still has
-// its own lock keeps it until its PR drops it with its version pins.
+// only CI writes (IB-3), cut to the providers it uses. A repository's own lock is refused:
+// one written by hand could hold what the set doesn't (PIPT-59).
 export function useSharedLock({from = lockFile, dir = 'tofu'} = {}) {
   const to = path.join(dir, '.terraform.lock.hcl');
-  if (fs.existsSync(to)) return false;
   fs.mkdirSync(dir, {recursive: true});
-  fs.writeFileSync(to, lockFor(fs.readFileSync(from, 'utf8'), configuredSources(dir)));
-  return true;
+  const lock = lockFor(fs.readFileSync(from, 'utf8'), configuredSources(dir));
+  // The suite's own earlier step in this checkout (a plan before an apply) leaves this same lock.
+  if (fs.existsSync(to) && fs.readFileSync(to, 'utf8') !== lock) throw new Error(`${to.replaceAll(path.sep, '/')} is this repository's own lock: the tofu suite gives every repository the shared provider set's (pipeline-templates suites/tofu/providers), so delete it and the version pins in required_providers`);
+  fs.writeFileSync(to, lock);
 }
 export function init() {
   process.env.TF_PLUGIN_CACHE_DIR = kept(`tofu-providers/${(process.env.GITHUB_REPOSITORY || path.basename(process.cwd())).replace(/[^\w.-]/g, '-')}`);

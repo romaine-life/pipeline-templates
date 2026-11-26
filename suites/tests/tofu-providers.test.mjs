@@ -29,7 +29,7 @@ test('the lock is made through the mirror that holds each provider, for linux_am
   assert.match(lock, /hashicorp\/azurerm[\s\S]*romaine-life\/forgejo/);
 });
 
-test('a repository is given the shared lock, cut to its own providers, unless its checkout has its own', () => {
+test('a repository is given the shared lock, cut to its own providers, and its own lock is refused', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shared-lock-'));
   try {
     const from = path.join(root, 'shared.hcl');
@@ -41,8 +41,7 @@ test('a repository is given the shared lock, cut to its own providers, unless it
     const own = path.join(root, 'own');
     fs.mkdirSync(own);
     fs.writeFileSync(path.join(own, '.terraform.lock.hcl'), 'own');
-    assert.equal(useSharedLock({from, dir: own}), false);
-    assert.equal(fs.readFileSync(path.join(own, '.terraform.lock.hcl'), 'utf8'), 'own');
+    assert.throws(() => useSharedLock({from, dir: own}), /is this repository's own lock/);
 
     const repo = path.join(root, 'repo');
     fs.mkdirSync(path.join(repo, 'store'), {recursive: true});
@@ -51,7 +50,8 @@ test('a repository is given the shared lock, cut to its own providers, unless it
       'module "store" {', '  source = "./store"', '}', ''].join('\n'));
     fs.writeFileSync(path.join(repo, 'store', 'versions.tf'), [
       'terraform {', '  required_providers {', '    forgejo = { source = "artifacts.home.romaine.life/romaine-life/forgejo" }', '  }', '}', ''].join('\n'));
-    assert.equal(useSharedLock({from, dir: repo}), true);
+    useSharedLock({from, dir: repo});
+    useSharedLock({from, dir: repo});
     const lock = fs.readFileSync(path.join(repo, '.terraform.lock.hcl'), 'utf8');
     assert.match(lock, /hashicorp\/azurerm/);
     assert.match(lock, /romaine-life\/forgejo/);
