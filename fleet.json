@@ -19,8 +19,13 @@
     },
     "nelsong6/avatar-pack": {
       "suites": [
-        "go"
-      ]
+        "go",
+        "release"
+      ],
+      "topics": [
+        "release-module"
+      ],
+      "applier": "avatars/home"
     },
     "nelsong6/avatars": {
       "suites": [

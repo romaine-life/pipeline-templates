@@ -3,11 +3,16 @@ import {capture, readJSON, templates} from './lib.mjs';
 import {currentTopics, isSettingTopic, providerType, resolve, validTopic} from './topics.mjs';
 import {layout} from './layout.mjs';
 
-// A fleet entry: its suites, its setting topics (topics.mjs), and nas, which says homesvc on
-// the NAS applies the repo's merged default branch there and strip-owner waits for it
-// (at-home-tools and agent-tools, AHT-177); everything else follows from the repository
-// (layout.mjs, conventions.mjs).
-const fields = ['suites', 'topics', 'nas'];
+// A fleet entry: its suites, its setting topics (topics.mjs), and what applies the repo where
+// it runs, which strip-owner waits for before a merge is delivered (agent-tools): nas, homesvc
+// on the NAS applying the merged default branch there (at-home-tools, AHT-177), or applier,
+// the activity source of another service that applies the repo and reports so on ntfy's
+// activity topic (avatars/home loading avatar-pack's releases, AVATARS-6). homesvc reads nas
+// itself, so a repo it applies says nas, never applier. Everything else follows from the
+// repository (layout.mjs, conventions.mjs).
+const fields = ['suites', 'topics', 'nas', 'applier'];
+// An activity source, as a service names itself on the activity topic: <service>/<where>.
+const activitySource = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
 export const suiteNames = ['default', 'go', 'rust', 'cmake', 'dotnet', 'python', 'release', 'cluster-service', 'web-app', 'tofu', 'docs', 'powershell'];
 
 export function currentRepository() {
@@ -44,6 +49,8 @@ export function validate(value, where = 'fleet entry') {
   }
   for (const key of Object.keys(value)) if (!fields.includes(key)) throw new Error(`${where}: unknown field ${key}`);
   if (value.nas !== undefined && value.nas !== true) throw new Error(`${where}: nas is true or left out`);
+  if (value.applier !== undefined && (typeof value.applier !== 'string' || !activitySource.test(value.applier))) throw new Error(`${where}: applier is an activity source, <service>/<where>`);
+  if (value.applier !== undefined && (value.nas || value.applier === 'homesvc/nas')) throw new Error(`${where}: a repo homesvc applies on the NAS says nas: true, which homesvc reads, not applier`);
   const topics = value.topics ?? [];
   if (!Array.isArray(topics) || new Set(topics).size !== topics.length || topics.some(topic => !validTopic(topic) || !isSettingTopic(topic))) {
     throw new Error(`${where}: topics must name each setting topic once (suites are ci- topics, from suites)`);

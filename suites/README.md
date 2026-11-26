@@ -22,7 +22,12 @@ prints what the merge would change, and the merge changes it.
 - Any other topic, one set by hand, is left as it is.
 
 An entry is `{"suites": [...], "topics": [...]}`. `config.mjs` validates it; an unknown field
-or topic fails.
+or topic fails. An entry also names what applies the repository where it runs, when something
+other than a release does, and agent-tools' strip-owner waits for that before a merge is
+delivered: `"nas": true` is homesvc on the NAS applying each merge to its default branch there
+(at-home-tools, which reads the flag, AHT-177), and `"applier": "<service>/<where>"` is any other
+service, by the source it reports as on ntfy's `activity` topic: avatar-pack's is
+`avatars/home`, home's avatars service loading each of its releases (AVATARS-6).
 
 ### Setting topics
 
@@ -46,7 +51,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `web-static` | The web app deploys to its Static Web App |
 | `web-history` | The tests compare with the base branch, so the test job gets full history (`origin/<base>`) |
 | `release-source` | A documentation repository cuts a source release |
-| `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
+| `release-module` | A Go library, or a data repository its services load (avatar-pack): a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
 | `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64`, `rust-build-gba` | The Rust release targets (`gba` is a Game Boy Advance ROM); with none, Linux x86_64 |
 | `version-from-manifest` | The version series comes from the root manifest's version |
