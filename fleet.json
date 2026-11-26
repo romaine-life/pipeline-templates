@@ -558,6 +558,18 @@
         "web-static"
       ]
     },
+    "romaine-life/logline": {
+      "suites": [
+        "go",
+        "release",
+        "rust"
+      ],
+      "topics": [
+        "go-test-windows",
+        "release-module",
+        "rust-test-windows"
+      ]
+    },
     "romaine-life/macrocraft": {
       "suites": [
         "docs"
