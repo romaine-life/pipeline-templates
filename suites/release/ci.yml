@@ -145,6 +145,7 @@ jobs:
     - run: node _ci/suites/release/image.mjs publish
       if: needs.scope.outputs.joined-image == 'cluster'
       env:
+        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
         IMAGE_BUILD: ${{ needs.scope.outputs.image-build }}
@@ -334,6 +335,7 @@ jobs:
     - run: node _ci/suites/release/image.mjs publish
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
       env:
+        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ needs.reserve.outputs.tag }}
         IMAGE_BUILD: ${{ needs.scope.outputs.image-build }}
@@ -519,6 +521,7 @@ jobs:
         VERSION: ${{ needs.scope.outputs.check-version }}
     - run: node _ci/suites/release/image.mjs check
       env:
+        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         VERSION: ${{ needs.scope.outputs.check-version }}
     # The joined image the check built, for its merge to publish.
     - uses: forgejo/upload-artifact@v4

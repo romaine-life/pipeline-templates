@@ -5,7 +5,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 const log = value => fs.appendFileSync(process.env.PROBE_LOG, `${JSON.stringify(value)}\n`);
 child.spawnSync = (command, args, options) => {
-  log({command, args, cwd:options.cwd, goos:options.env?.GOOS,goarch:options.env?.GOARCH,input: options.input ? '<stdin>' : undefined});
+  log({command, args, cwd:options.cwd, goos:options.env?.GOOS,goarch:options.env?.GOARCH,input: options.input ? '<stdin>' : undefined, goPrivateGit: options.env?.GO_PRIVATE_GIT});
   if (process.env.PROBE_FAIL === command) return {status: 9, stdout: ''};
   // The registry refuses the first docker login (the job's own token), and takes the next.
   if (process.env.PROBE_REFUSE_LOGIN && command === 'docker' && args[0] === 'login' && !globalThis.refusedLogin) {

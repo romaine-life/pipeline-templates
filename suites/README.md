@@ -145,7 +145,7 @@ own business; the check is about the stamp landing.
 A repository that releases and builds an image (its `cluster-image` or `web-image` topic)
 releases them together under one version. A CMake, .NET or Python release builds on Windows
 when that toolchain's tests run on Windows alone, else on Linux, and a release syncs the
-repository's Forgejo push mirrors, when it has any. Once a release is published, the
+repository's Forgejo push mirrors, when it has any, before it dispatches any take-up. Once a release is published, the
 repository's own `.forgejo/workflows/released.yml`, when it has one, runs on its default
 branch (spirelens' Steam Workshop upload). A cluster image's release publishes the
 image and proposes its pin.
@@ -178,6 +178,30 @@ gives it, and the merge checks the pushed digest is the one the PR built. With n
 direct push, another release took the tag first, the image expired) the merge builds it, as
 it would anyway. An image whose `Dockerfile` declares `ARG SOURCE_SHA` stamps the commit,
 which only the merge makes, so it is built on the merge (landing-page, tuimail).
+
+### Our Go modules in an image
+
+An image's `docker build` gets our Go modules (`github.com/romaine-life/*`) from Forgejo
+through git, as every suite Go step does (`go/environment.mjs`), never through the home Go
+proxy: a module's new tag is on Forgejo at once, while the proxy (Artifact Keeper, whose
+source is proxy.golang.org reading the module's GitHub push mirror) has it only later, so a
+take-up's image check would otherwise fail (PIPT-61). When the build's `go.mod` requires one,
+`image.mjs` passes `GOPRIVATE` and `GONOSUMDB` as build arguments, and the git settings that
+fetch them from Forgejo, signed in with the job's `PIPELINE_DISPATCH_TOKEN`, as the BuildKit
+secret `go-private-git`, a git config file that is never an argument or in a layer. The
+Dockerfile declares the arguments in its build stage, installs git there, and mounts the
+secret for its `go mod download` alone; every other module still comes through the proxy:
+
+```dockerfile
+ENV GOPROXY=https://artifacts.home.romaine.life/go/go,direct
+ARG GOPRIVATE GONOSUMDB
+RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://artifacts.home.romaine.life/alpine/alpine#' /etc/apk/repositories && apk add --no-cache git
+COPY go.mod go.sum ./
+RUN --mount=type=secret,id=go-private-git,target=/root/.gitconfig go mod download
+```
+
+Built by hand without them, the arguments are empty and the modules come through the proxy, as
+before.
 
 ## A release-external part on a pull request
 

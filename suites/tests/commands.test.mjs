@@ -136,6 +136,22 @@ test("a release's joined image check keeps the image it built for its merge, whi
   assert.match(publish.result.stdout,/merged no pull request; building/);
   assert.ok(publish.trace.some(t=>t.command==='docker' && t.args[0]==='build'));
 });
+test("an image that requires our Go modules gets them from Forgejo, signed in through a secret, never an argument (PIPT-61)", () => {
+  const cfg = {suites:['cluster-service']}, tracked = {PROBE_TRACKED:'k8s/deployment.yaml'};
+  const goMod = 'module github.com/romaine-life/app\n\nrequire github.com/romaine-life/logline v0.1.4\n';
+  const {result,trace} = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:'',PRIVATE_GO_TOKEN:'t0k'},cfg,{'go.mod':goMod});
+  assert.equal(result.status,0,result.stderr);
+  const build = trace.find(t=>t.command==='docker' && t.args[0]==='build');
+  for (const arg of ['GOPRIVATE=github.com/romaine-life/*','GONOSUMDB=github.com/romaine-life/*','id=go-private-git,env=GO_PRIVATE_GIT']) assert.ok(build.args.includes(arg),arg);
+  const header = Buffer.from('x-access-token:t0k').toString('base64');
+  assert.equal(build.args.some(arg=>arg.includes('t0k') || arg.includes(header)),false,'the token is no build argument');
+  assert.match(build.goPrivateGit,/\[url "https:\/\/forgejo\.romaine\.life\/romaine-life\/"\]\n\tinsteadOf = "https:\/\/github\.com\/romaine-life\/"/);
+  assert.ok(build.goPrivateGit.includes(`extraheader = "Authorization: Basic ${header}"`));
+  // An image that requires none of them builds as before.
+  const plain = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:'',PRIVATE_GO_TOKEN:'t0k'},cfg).trace.find(t=>t.command==='docker' && t.args[0]==='build');
+  assert.equal(plain.args.some(arg=>arg.startsWith('GOPRIVATE=') || arg.startsWith('id=go-private-git')),false);
+  assert.equal(plain.goPrivateGit,undefined);
+});
 test('image checks smoke once, publication skips smoke and queues the pin without polling', () => {
   const cfg = {suites:['cluster-service']}, tracked = {PROBE_TRACKED:'k8s/deployment.yaml'};
   let check = probe('cluster-service/image.mjs',['check'],{...tracked,VERSION:''},cfg);

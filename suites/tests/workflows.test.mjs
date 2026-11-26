@@ -147,6 +147,14 @@ test("a PR's image check stamps the tag its merge would take and keeps the image
   }
 });
 
+test('every image build can sign in for our Go modules on Forgejo (PIPT-61)',()=>{
+  for(const suite of ['cluster-service','web-app','release']) {
+    const steps=Object.values(YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8')).jobs).flatMap(job=>job.steps || []).filter(step=>/^node _ci\/suites\/[\w-]+\/image\.mjs /.test(step.run || ''));
+    assert.ok(steps.length>=2,suite);
+    for(const step of steps) assert.equal(step.env?.PRIVATE_GO_TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',`${suite}: ${step.run}`);
+  }
+});
+
 test("a release's joined image is attested by its scope, kept by check-package and published by its merge",()=>{
   const jobs=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8')).jobs;
   const attest=jobs.scope.steps.find(step=>step.run==='node _ci/suites/cluster-service/prior-image.mjs attest ${{ steps.scope.outputs.joined-image }}');

@@ -102,6 +102,13 @@ export async function publish() {
 }
 export async function dispatch() {
   requirePublish();
+  // The repository's push mirrors (fzt's GitHub copies) take the release's tag first, before
+  // any take-up: the home Go proxy reads a module's GitHub copy (PIPT-61).
+  if (process.env.DISPATCH_TOKEN) {
+    const options={token:process.env.DISPATCH_TOKEN};
+    const mirrors=await request(`${api()}/push_mirrors`,options);
+    if (mirrors.length) await post(`${api()}/push_mirrors-sync`,{},options);
+  }
   // The release's npm package, when its package.json names one, then a take-up to every
   // repository that uses it (packages.mjs).
   const name = await publishPackage();
@@ -112,12 +119,6 @@ export async function dispatch() {
   // go.mod requires it (go/modules.mjs).
   const module = ownModule();
   if (module) await dispatchModuleConsumers(module);
-  // The repository's push mirrors (fzt's GitHub copies) take the release's tag.
-  if (process.env.DISPATCH_TOKEN) {
-    const options={token:process.env.DISPATCH_TOKEN};
-    const mirrors=await request(`${api()}/push_mirrors`,options);
-    if (mirrors.length) await post(`${api()}/push_mirrors-sync`,{},options);
-  }
   // The repository's own released.yml, when it has one, runs on its default branch once the
   // release is out (spirelens uploads it to Steam Workshop). The release's own event can't start
   // it: Forgejo starts no workflow for what a job's automatic token does.

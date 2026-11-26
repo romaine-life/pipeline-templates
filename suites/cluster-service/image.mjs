@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {pathToFileURL} from 'node:url';
 import crypto from 'node:crypto';
+import {goPrivate, gitConfigFile} from '../go/environment.mjs';
 
 // workflow: the suite workflow whose PR run's image a merge publishes (prior-image.mjs), and
 // job, that run's image check (check-image by default; a joined release's is check-package).
@@ -48,7 +49,18 @@ if (build && !reused) {
     // `RUN --mount=type=secret,id=FORGEJO_PACKAGES_TOKEN,env=FORGEJO_PACKAGES_TOKEN` reads.
     ...(process.env.FORGEJO_PACKAGES_TOKEN ? ['--secret', 'id=FORGEJO_PACKAGES_TOKEN,env=FORGEJO_PACKAGES_TOKEN'] : [])];
   const context = cfg.context || '.';
-  run('docker', ['build', '--network', 'host', ...args, '-f', path.posix.join(context, 'Dockerfile'), '-t', image, context], {env: {...process.env, DOCKER_BUILDKIT: '1'}});
+  // Our Go modules from Forgejo, as every suite Go step takes them (go/environment.mjs): their
+  // GOPRIVATE and GONOSUMDB as build arguments, and the git settings that fetch them from
+  // Forgejo, signed in with PRIVATE_GO_TOKEN, as the secret file go-private-git, which a
+  // Dockerfile mounts for its `go mod download` alone (PIPT-61).
+  const goMod = path.join(context, 'go.mod');
+  const go = fs.existsSync(goMod) ? goPrivate(fs.readFileSync(goMod, 'utf8'), process.env.PRIVATE_GO_TOKEN) : null;
+  const goEnv = {};
+  if (go) {
+    args.push(...Object.entries(go.env).flatMap(([key, value]) => ['--build-arg', `${key}=${value}`]), '--secret', 'id=go-private-git,env=GO_PRIVATE_GIT');
+    goEnv.GO_PRIVATE_GIT = gitConfigFile(go.git);
+  }
+  run('docker', ['build', '--network', 'host', ...args, '-f', path.posix.join(context, 'Dockerfile'), '-t', image, context], {env: {...process.env, ...goEnv, DOCKER_BUILDKIT: '1'}});
   tagged.push(image);
 } else if (!build && !cfg.image) throw new Error('upstream service requires cluster.image pinned by digest');
 if (mode === 'check') {

@@ -118,6 +118,7 @@ jobs:
       if: needs.scope.outputs.has-services == 'true'
     - run: node _ci/suites/cluster-service/image.mjs check
       env:
+        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         VERSION: ${{ needs.scope.outputs.check-version }}
     # The image the check built, for its merge to publish.
     - uses: forgejo/upload-artifact@v4
@@ -156,6 +157,7 @@ jobs:
       id: version
     - run: node _ci/suites/cluster-service/image.mjs publish
       env:
+        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
     - run: node _ci/suites/release.mjs image
