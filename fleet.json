@@ -560,11 +560,17 @@
     },
     "romaine-life/logline": {
       "suites": [
+        "cmake",
+        "dotnet",
         "go",
         "release",
-        "rust"
+        "rust",
+        "web-app"
       ],
       "topics": [
+        "cmake-test-linux",
+        "cmake-test-windows",
+        "dotnet-test-windows",
         "go-test-windows",
         "release-module",
         "rust-test-windows"
