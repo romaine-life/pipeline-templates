@@ -275,28 +275,24 @@ The suites' jobs install them through `home-cache`, which adds the mirror
 `artifacts.home.romaine.life/*/*`; home-sync writes the same mirror into each home PC's
 `%APPDATA%\tofu.rc`, with every other provider installing directly as before.
 
-A repository that uses one requires it by that address:
+Every provider a tofu-suite repository uses, ours and the registry's, is pinned once in the
+shared set, `suites/tofu/providers/providers.tf`. A repository requires each provider by its
+source address alone, with no version, and commits no lock:
 
 ```hcl
 terraform {
   required_providers {
-    openproject = { source = "artifacts.home.romaine.life/romaine-life/openproject", version = "0.1.2" }
+    openproject = { source = "artifacts.home.romaine.life/romaine-life/openproject" }
   }
 }
 ```
 
-and commits its lock with the hashes for Linux, where CI runs it (`tofu init -lockfile=readonly`),
-and Windows, where the home PCs do. `tofu providers lock` asks each provider's registry, and
-`artifacts.home.romaine.life` isn't one, so our providers are locked from the mirror, each named,
-and the registry's as usual; each run updates only the providers it names:
-
-```sh
-tofu providers lock -net-mirror=https://artifacts.home.romaine.life/terraform/tofu-providers/ \
-  -platform=linux_amd64 -platform=windows_amd64 artifacts.home.romaine.life/romaine-life/openproject
-tofu providers lock -platform=linux_amd64 -platform=windows_amd64 hashicorp/random
-```
-
-A new version is a change to `version` and the lock, made the same way.
+The suite writes `tofu/.terraform.lock.hcl` from the set's lock, cut to the providers the
+repository names, before `tofu init -lockfile=readonly` (`tofu/common.mjs`), and fails a
+repository that has a lock of its own. Only CI writes the set's lock: a pull request that changes
+`providers.tf` has `.forgejo/workflows/tofu-providers.yml` lock it for `linux_amd64` through both
+mirrors and commit the result to the branch, which fails that run; the run its push starts checks
+it (`tofu/providers.mjs`). A new provider or version is a change to `providers.tf` alone.
 
 ## The rules every suite keeps
 
