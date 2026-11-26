@@ -1,0 +1,21 @@
+{
+  "about": "What the logging standard's check (logs.mjs, AHT-204) doesn't hold: upstream code and the standard's own implementation. paths are globs in the repository; an entry without paths exempts the repository whole, and homesvc doesn't check its images' lines either (at-home-tools docs/app-logs.md, Enforcement). Every entry says why.",
+  "exemptions": [
+    {"repo": "romaine-life/logline", "reason": "The standard's own implementation: it writes the line by hand, so every other program doesn't."},
+    {"repo": "nelsong6/spotify-player", "reason": "A fork of spotify-player: its tracing and env_logger set-up, and its log file, are upstream's."},
+    {"repo": "romaine-life/at-terminal", "paths": ["Cargo.toml", "frontends/rioterm/Cargo.toml", "frontends/rioterm/src/main.rs", "rio-window/**"], "reason": "Rio's own tracing and env_logger (upstream, the terminal's fork); at-terminal's own log is frontends/rioterm/src/atlog.rs, on logline."},
+    {"repo": "romaine-life/at-terminal", "paths": ["misc/windows-desktop-test.ps1"], "reason": "A hand-run desktop test, whose log is its own report for the person running it."},
+    {"repo": "nelsong6/at-tmux", "paths": ["regress/**"], "reason": "tmux's regression tests, whose logs are each test's own output."},
+    {"repo": "romaine-life/at-home-tools", "paths": ["internal/logship/logship.go", "internal/homesvc/container_logs.go", "internal/homesvc/script_logs.go"], "reason": "log-ship and homesvc copy other programs' lines into the pile's day files; they write no line of their own there."},
+    {"repo": "romaine-life/terraform-provider-forgejo", "paths": ["main.go"], "reason": "A Terraform provider's stderr is read by tofu as the plugin's log, never shipped."},
+    {"repo": "romaine-life/terraform-provider-openproject", "paths": ["main.go"], "reason": "A Terraform provider's stderr is read by tofu as the plugin's log, never shipped."},
+    {"repo": "romaine-life/spirelens", "paths": ["Core/SafeLogger.cs"], "reason": "Core logs through the game's own logger into its godot.log; the console fallback runs only where there is no game (Core's tests and offline tools), whose console is their output."},
+    {"repo": "romaine-life/shell-config", "paths": ["scripts/codex-*.ps1"], "reason": "Codex's hooks; Codex is out of scope for home work (shell-config-profile-home CLAUDE.md)."},
+    {"repo": "nelsong6/forgejo", "reason": "Deploys Forgejo and its runner, whose programs and logs are upstream's."},
+    {"repo": "nelsong6/openproject", "reason": "Deploys OpenProject, whose program and logs are upstream's."},
+    {"repo": "nelsong6/openbao", "reason": "Deploys OpenBao, whose program and logs are upstream's."},
+    {"repo": "nelsong6/ntfy", "reason": "Deploys ntfy, whose program and logs are upstream's."},
+    {"repo": "nelsong6/torrent", "reason": "Deploys qBittorrent and its VPN, whose programs and logs are upstream's."},
+    {"repo": "nelsong6/artifact-keeper", "reason": "Deploys Artifact Keeper, whose program and logs are upstream's."}
+  ]
+}
