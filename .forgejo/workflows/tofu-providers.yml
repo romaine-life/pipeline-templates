@@ -1,0 +1,45 @@
+name: Tofu providers
+
+# The shared provider set's lock (suites/tofu/providers), written by CI alone (IB-3): a pull
+# request that changes the set, or the lock or its maker, has the lock made fresh from Artifact
+# Keeper's mirrors. If it differs from the committed one, CI commits it to the pull request's
+# branch and this run fails; the run that push starts checks the lock it wrote.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: tofu-providers-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --name-only "$BASE...HEAD" | grep -qE '^suites/tofu/providers/|^suites/tofu/providers\.mjs$|^\.forgejo/workflows/tofu-providers\.yml$'; then
+            echo run=true >> "$GITHUB_OUTPUT"
+          fi
+      - uses: ./actions/suite
+        if: steps.scope.outputs.run == 'true'
+      - uses: ./actions/home-cache
+        if: steps.scope.outputs.run == 'true'
+      - uses: ./actions/setup-opentofu
+        if: steps.scope.outputs.run == 'true'
+        with:
+          tofu-version: 1.11.0
+      - name: Make the lock, and commit it if it changed
+        if: steps.scope.outputs.run == 'true'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PUSH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        run: node suites/tofu/providers.mjs
