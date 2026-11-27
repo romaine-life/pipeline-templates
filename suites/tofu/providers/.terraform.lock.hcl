@@ -2,11 +2,11 @@
 # Manual edits may be lost in future updates.
 
 provider "artifacts.home.romaine.life/romaine-life/forgejo" {
-  version     = "1.7.1"
-  constraints = "1.7.1"
+  version     = "1.7.4"
+  constraints = "1.7.4"
   hashes = [
-    "h1:CinlSMlU9Mmcica5BRyOc+FGc4DGTRZSfvojdT4HVSA=",
-    "zh:0eb967e0e4ec8d2d52ce242373177b4900cf511926881cb2f5ec05601a543433",
+    "h1:sQc7q58lRjQCdOBI9T56pi598imKdk5cbvIXeVTR4gA=",
+    "zh:5bbd12f60c5cdc7ffa5d57731637dfcf21b01b8905bd105c841c83ce8b048afe",
   ]
 }
 

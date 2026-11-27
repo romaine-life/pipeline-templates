@@ -35,10 +35,11 @@ terraform {
       source  = "hashicorp/vault"
       version = "5.13.0"
     }
-    # Nelson's fork of svalabs/forgejo, with import for forgejo_repository_action_variable.
+    # Nelson's fork of svalabs/forgejo, with import for forgejo_repository_action_variable,
+    # forgejo_actions_runner(s) (FORGEJO-66) and forgejo_authorized_integration (AVATARS-6).
     forgejo = {
       source  = "artifacts.home.romaine.life/romaine-life/forgejo"
-      version = "1.7.1"
+      version = "1.7.4"
     }
     openproject = {
       source  = "artifacts.home.romaine.life/romaine-life/openproject"
