@@ -1,0 +1,27 @@
+name: Forgejo token
+description: A short-lived Forgejo token for repositories from the job's own identity (suites/forgejo-token.mjs), as the output token. The job sets enable-openid-connect true; make it in the step before the one that uses it, since it lasts an hour.
+inputs:
+  access:
+    description: read (read:repository) or write (the repository's write integration).
+    default: read
+outputs:
+  token:
+    description: The token.
+    value: ${{ steps.unix.outputs.token || steps.windows.outputs.token }}
+runs:
+  using: composite
+  steps:
+    - id: unix
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        ACCESS: ${{ inputs.access }}
+        SCRIPT: ${{ github.action_path }}/../../suites/forgejo-token.mjs
+      run: node "$SCRIPT" "$ACCESS"
+    - id: windows
+      if: runner.os == 'Windows'
+      shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
+      env:
+        ACCESS: ${{ inputs.access }}
+        SCRIPT: ${{ github.action_path }}/../../suites/forgejo-token.mjs
+      run: node $env:SCRIPT $env:ACCESS

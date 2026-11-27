@@ -16,6 +16,7 @@ env:
   CARGO_BUILD_JOBS: '4'
 jobs:
   scope:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

@@ -124,7 +124,7 @@ export async function dispatch() {
   // it: Forgejo starts no workflow for what a job's automatic token does.
   if (fs.existsSync(released)) {
     const token=process.env.DISPATCH_TOKEN;
-    if (!token) throw new Error(`${released} runs through PIPELINE_DISPATCH_TOKEN`);
+    if (!token) throw new Error(`${released} needs DISPATCH_TOKEN, a Forgejo write token from actions/forgejo-token`);
     const repo=await request(api(),{token});
     await post(`${api()}/actions/workflows/${path.basename(released)}/dispatches`,{ref:repo.default_branch},{token});
   }

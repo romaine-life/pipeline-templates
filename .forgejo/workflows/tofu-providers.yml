@@ -15,6 +15,7 @@ concurrency:
 jobs:
   lock:
     runs-on: ubuntu-latest
+    enable-openid-connect: true
     steps:
       - uses: actions/checkout@v4
         with:

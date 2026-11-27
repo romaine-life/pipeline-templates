@@ -59,6 +59,7 @@ jobs:
       dotnet: ${{ steps.scope.outputs.dotnet }}
       python: ${{ steps.scope.outputs.python }}
   check-test-linux:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -74,12 +75,17 @@ jobs:
       with:
         token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/cmake/test.mjs
       env:
-        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ steps.forgejo-read.outputs.token }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-linux == 'true'
   check-test-windows:
+    enable-openid-connect: true
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -95,9 +101,13 @@ jobs:
       with:
         token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/cmake/test.mjs
       env:
-        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ steps.forgejo-read.outputs.token }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-windows == 'true'
     defaults:

@@ -117,7 +117,7 @@ async function download(url, token) {
 export async function publishProvider({tag = process.env.VERSION, repository, server = process.env.GITHUB_SERVER_URL || 'https://forgejo.romaine.life',
   token = process.env.DISPATCH_TOKEN || process.env.TOKEN, env = process.env} = {}) {
   const type = providerType(repository), version = providerVersion(tag), namespace = repository.split('/')[0];
-  if (!token) throw new Error('reading the release assets needs TOKEN or PIPELINE_DISPATCH_TOKEN');
+  if (!token) throw new Error('reading the release assets needs TOKEN or DISPATCH_TOKEN');
   const release = await request(`${server}/api/v1/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`, {token});
   const assets = Object.fromEntries((release.assets || []).map(asset => [asset.name, asset]));
   const packages = providerPackages(Object.keys(assets), type, version);

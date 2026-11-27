@@ -84,6 +84,7 @@ jobs:
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.format == 'true'
   check-test-linux:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -104,12 +105,17 @@ jobs:
         toolchain: project
         components: clippy, rustfmt
     - uses: ./_ci/actions/setup-uv
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/rust/test.mjs
       env:
-        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ steps.forgejo-read.outputs.token }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-linux == 'true'
   check-test-windows:
+    enable-openid-connect: true
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -130,15 +136,20 @@ jobs:
         toolchain: project
         components: clippy, rustfmt
     - uses: ./_ci/actions/setup-uv
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/rust/test.mjs
       env:
-        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ steps.forgejo-read.outputs.token }}
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.test-windows == 'true'
     defaults:
       run:
         shell: pwsh -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference = 'Stop'; . ([scriptblock]::Create([IO.File]::ReadAllText('{0}'))); if (Test-Path variable:LASTEXITCODE) { exit $LASTEXITCODE }"
   check-services:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -161,9 +172,13 @@ jobs:
         toolchain: project
         components: clippy, rustfmt
     - uses: ./_ci/actions/setup-uv
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/rust/test.mjs
       env:
-        PRIVATE_GIT_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GIT_TOKEN: ${{ steps.forgejo-read.outputs.token }}
     - name: Remove job services
       if: always()
       run: node _ci/suites/services.mjs stop

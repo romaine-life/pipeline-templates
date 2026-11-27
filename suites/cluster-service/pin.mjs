@@ -9,7 +9,7 @@ const cfg = (process.argv[2] === 'web' ? config().web : config().cluster) || {};
 if (!cfg.pinFile) throw new Error(`no single tracked YAML file pins ${cfg.image} by digest`);
 const pin = fs.readFileSync('.ci-image-pin', 'utf8').trim();
 const token = process.env.PIN_TOKEN;
-if (!token) throw new Error('missing PIPELINE_DISPATCH_TOKEN for pin CI');
+if (!token) throw new Error('missing PIN_TOKEN, a Forgejo write token from actions/forgejo-token');
 const env = {...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader',
   GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString('base64')}`};
 const branch = `ci-pin/${process.env.VERSION}`;

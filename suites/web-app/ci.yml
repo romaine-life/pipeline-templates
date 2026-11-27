@@ -19,6 +19,7 @@ env:
   CARGO_BUILD_JOBS: '4'
 jobs:
   scope:
+    enable-openid-connect: true
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -142,9 +143,13 @@ jobs:
         token: ${{ github.token }}
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true'
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/web-app/image.mjs check
       env:
-        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GO_TOKEN: ${{ steps.forgejo-read.outputs.token }}
         VERSION: ${{ needs.scope.outputs.check-version }}
     # The image the check built, for its merge to publish.
     - uses: forgejo/upload-artifact@v4
@@ -188,9 +193,13 @@ jobs:
         suffix: ${{ needs.scope.outputs.suffix }}
         publish: 'true'
       id: version
+    - id: forgejo-read
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: read
     - run: node _ci/suites/web-app/image.mjs publish
       env:
-        PRIVATE_GO_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PRIVATE_GO_TOKEN: ${{ steps.forgejo-read.outputs.token }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
     - run: node _ci/suites/release.mjs image

@@ -12,5 +12,5 @@ test('a bot PR is handed to merge-queue by its queue label, made when the repo h
     assert.deepEqual(labelled[2], {labels: [existing[0].name === 'queue' ? 3 : 9]});
     assert.equal(calls.some(c => c[0] === 'POST' && c[1].endsWith('/r/labels')), existing[0].name !== 'queue');
   }
-  await assert.rejects(queuePR(7, {}), /PIPELINE_DISPATCH_TOKEN/);
+  await assert.rejects(queuePR(7, {}), /forgejo-token/);
 });
