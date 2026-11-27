@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {stage, sourceRelease, publish, releaseScope, dispatch} from '../release.mjs';
+import {stage, sourceRelease, publish, releaseScope, dispatch, syncMirrors} from '../release.mjs';
 import {run, capture} from '../lib.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
@@ -106,6 +106,8 @@ test('source release, publication, pruning, dispatch and successful-input gating
     const takeUp=calls.findIndex(([method,url])=>method==='POST' && url.endsWith('/romaine-life/consumer/actions/workflows/go%2Fdependencies.yml/dispatches'));
     assert.ok(synced>=0 && takeUp>synced,'the mirrors sync before the take-ups');
     await releaseScope('docs');assert.match(fs.readFileSync('outputs','utf8'),/build=false/);
+    // A rerun on an image release's own commit delivers it (AVATARS-6).
+    fs.writeFileSync('outputs','');await releaseScope('cluster-service');assert.equal(fs.readFileSync('outputs','utf8'),'build=true\n');
     // Started by hand, the same unchanged head releases (PIPT-37).
     process.env.GITHUB_EVENT_NAME='workflow_dispatch';fs.writeFileSync('outputs','');
     await releaseScope('docs');assert.equal(fs.readFileSync('outputs','utf8'),'build=true\n');
@@ -119,4 +121,20 @@ test('source release, publication, pruning, dispatch and successful-input gating
     for (const key of Object.keys(process.env)) if (!(key in oldEnv)) delete process.env[key];
     Object.assign(process.env,oldEnv);fs.rmSync(dir,{recursive:true,force:true});
   }
+});
+test("a mirror sync that loses the tag to Forgejo's own push is tried again, and a mirror that keeps failing fails the release (AVATARS-6)", async () => {
+  const originalFetch=globalThis.fetch;let failures=0,syncs=0;const waits=[];
+  globalThis.fetch=async (url,options={}) => {
+    if (String(url).endsWith('/push_mirrors')) return Response.json([{remote_name:'github'}]);
+    syncs++;
+    return failures-->0 ? Response.json({message:'error occurred when syncing push mirror github'},{status:500}) : new Response(null,{status:200});
+  };
+  const sync=()=>syncMirrors({token:'t',url:'https://forgejo.test/api/v1/repos/o/r',wait:async ms=>{waits.push(ms);},log:()=>{}});
+  try {
+    failures=1;await sync();
+    assert.equal(syncs,2);assert.deepEqual(waits,[10000]);
+    syncs=0;failures=99;
+    await assert.rejects(sync(),/failed to sync 3 times: .*HTTP 500/);
+    assert.equal(syncs,3);
+  } finally { globalThis.fetch=originalFetch; }
 });

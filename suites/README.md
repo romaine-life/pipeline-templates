@@ -82,6 +82,13 @@ A cluster service or web app is configured by its name and layout, not the list 
   `commit`, `version` (the tag without its v), `date` (when the release was pinned, UTC,
   to the second), or the PR the release's commit merged, `prNumber`, `prTitle`, `prUrl`.
   The pin PR links the work package that PR links.
+- A version already published is delivered as it was published: a rerun of the release (its
+  scope finds the release on the run's own commit and publishes), or a dispatch on the commit
+  it was cut from, takes the image its release's `image.txt` names
+  (once the registry still serves that digest) and goes on to the pin PR, building and
+  pushing nothing; a pin PR of that release already open is left be. A published release
+  from another commit, or one whose `image.txt` differs from what it records, fails before
+  anything is built.
 - Its npm packages are each `package.json` at the root or one directory down with a `test`
   script. Each package's lint and tests are a check of their own, `check-test (<folder>)`
   (`.` for the root's).
@@ -145,7 +152,9 @@ own business; the check is about the stamp landing.
 A repository that releases and builds an image (its `cluster-image` or `web-image` topic)
 releases them together under one version. A CMake, .NET or Python release builds on Windows
 when that toolchain's tests run on Windows alone, else on Linux, and a release syncs the
-repository's Forgejo push mirrors, when it has any, before it dispatches any take-up. Once a release is published, the
+repository's Forgejo push mirrors, when it has any, before it dispatches any take-up (a sync
+that fails, as one racing Forgejo's own push of the tag does, is tried twice more 10 seconds
+apart, then fails the release). Once a release is published, the
 repository's own `.forgejo/workflows/released.yml`, when it has one, runs on its default
 branch (spirelens' Steam Workshop upload). A cluster image's release publishes the
 image and proposes its pin.

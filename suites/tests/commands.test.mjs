@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {spawnSync} from 'node:child_process';
+import crypto from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import {suites} from '../lib.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
@@ -195,6 +196,38 @@ test('image checks smoke once, publication skips smoke and queues the pin withou
   assert.notEqual(probe('cluster-service/pin.mjs',[],{},cfg).result.status,0,'no file pins the image');
   assert.equal(pin.trace.some(t=>t.url?.endsWith('/issues/7/labels') && t.method==='POST'),true);
 });
+test('a version already published delivers the image its release names, and a release that differs fails before anything is pushed (AVATARS-6)', () => {
+  const cfg = {suites:['cluster-service']}, sha = 'a'.repeat(40);
+  const pin = `forgejo.romaine.life/test/probe:v0.1.1@sha256:${'c'.repeat(64)}`;
+  const release = (asset, from = sha) => JSON.stringify({id:1,draft:false,
+    body:`Built from ${from}.
+
+${JSON.stringify({sha:from,files:[{name:'image.txt',size:Buffer.byteLength(asset),sha256:crypto.createHash('sha256').update(asset).digest('hex')}]})}`,
+    assets:[{id:2,name:'image.txt',size:Buffer.byteLength(asset),browser_download_url:'https://forgejo.romaine.life/test/probe/releases/download/v0.1.1/image.txt'}]});
+  const env = {PROBE_TRACKED:'k8s/deployment.yaml',DOWNLOAD_TOKEN:'read',PROBE_RELEASE:release(pin),PROBE_ASSET:pin};
+  let kept;
+  const rerun = probe('cluster-service/image.mjs',['publish'],env,cfg,{},root=>{kept=fs.readFileSync(path.join(root,'.ci-image-pin'),'utf8');});
+  assert.equal(rerun.result.status,0,rerun.result.stderr);
+  assert.equal(kept,pin,"the release's image.txt, byte for byte, so its stage finds the release unchanged");
+  const docker = rerun.trace.filter(t=>t.command==='docker').map(t=>t.args.slice(0,2).join(' '));
+  assert.deepEqual(docker,['login forgejo.romaine.life',`manifest inspect`],'nothing is built or pushed');
+  assert.equal(rerun.trace.find(t=>t.args?.[0]==='manifest').args[2],`forgejo.romaine.life/test/probe@sha256:${'c'.repeat(64)}`);
+  // The registry no longer serves its digest: the version can't be delivered, and says so.
+  const gone = probe('cluster-service/image.mjs',['publish'],{...env,PROBE_NO_MANIFEST:'1'},cfg);
+  assert.notEqual(gone.result.status,0);
+  assert.match(gone.result.stderr,/no longer serves/);
+  // A published release from another commit, or whose image.txt isn't what it records, is
+  // immutable: the run fails without building or pushing over its tag.
+  for (const differs of [{PROBE_RELEASE:release(pin,'d'.repeat(40))},{PROBE_ASSET:pin.replace('c','e')}]) {
+    const refused = probe('cluster-service/image.mjs',['publish'],{...env,...differs},cfg);
+    assert.notEqual(refused.result.status,0);
+    assert.equal(refused.trace.some(t=>t.command==='docker'),false);
+  }
+  // A draft is this run's to build and stage.
+  const draft = probe('cluster-service/image.mjs',['publish'],{...env,PROBE_RELEASE:JSON.stringify({...JSON.parse(release(pin)),draft:true})},cfg);
+  assert.equal(draft.result.status,0,draft.result.stderr);
+  assert.ok(draft.trace.some(t=>t.command==='docker' && t.args[0]==='push'));
+});
 test('a pin is made on the default branch as it is now, and supersedes an older open pin, never a newer one',()=>{
   const cfg = {suites:['cluster-service']};
   const older = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.9',PROBE_TRACKED:'k8s/deployment.yaml'},cfg);
@@ -205,6 +238,10 @@ test('a pin is made on the default branch as it is now, and supersedes an older 
   assert.equal(older.trace.filter(t=>t.url?.endsWith('/pulls')).length,1);
   assert.equal(older.trace.some(t=>t.url?.endsWith('/pulls/5') && t.method==='PATCH' && t.body?.state==='closed'),true);
   assert.equal(older.trace.some(t=>t.url?.endsWith('/branches/ci-pin%2Fv0.1.9') && t.method==='DELETE'),true);
+  // This release's own pin already open (a rerun of its release): it is left be.
+  const own = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.10',PROBE_TRACKED:'k8s/deployment.yaml'},cfg);
+  assert.equal(own.result.status,0,own.result.stderr);
+  assert.equal(own.trace.some(t=>t.command==='git' && ['fetch','checkout','push'].includes(t.args[0]) || t.method==='POST' || t.method==='PATCH'),false);
   const newer = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.11',PROBE_TRACKED:'k8s/deployment.yaml'},cfg);
   assert.equal(newer.result.status,0,newer.result.stderr);
   assert.equal(newer.trace.some(t=>t.url?.endsWith('/pulls') || t.method==='PATCH'),false);

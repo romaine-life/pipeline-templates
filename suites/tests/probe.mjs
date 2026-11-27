@@ -58,6 +58,8 @@ child.spawnSync = (command, args, options) => {
   if (command === 'docker' && args[0] === 'image') stdout = JSON.stringify([`${process.env.PROBE_IMAGE || 'forgejo.romaine.life/test/probe'}@sha256:${'b'.repeat(64)}`]);
   // An image's ID, which the containerd image store makes the digest a push gives it.
   if (command === 'docker' && args[0] === 'image' && args.includes('{{.Id}}')) stdout = `sha256:${process.env.PROBE_IMAGE_ID || 'b'.repeat(64)}`;
+  // The registry serves a manifest unless PROBE_NO_MANIFEST.
+  if (command === 'docker' && args[0] === 'manifest' && process.env.PROBE_NO_MANIFEST) return {status: 1, stdout: ''};
   if (command === 'docker' && args[0] === 'save') fs.writeFileSync(path.resolve(options.cwd || '.', args[args.indexOf('-o') + 1]), 'image');
   if (command === 'kustomize' || command === 'helm') stdout = `kind: Pod\nspec:\n  containers:\n    - image: forgejo.romaine.life/test/probe@sha256:${'b'.repeat(64)}\n`;
   return {status:0,stdout};
@@ -80,5 +82,8 @@ globalThis.fetch = async (url, options = {}) => {
     body={content:Buffer.from(process.env.PROBE_OPEN==='identical' ? fs.readFileSync(file) : 'old dependency').toString('base64')};
   }
   if (u.includes('/releases/latest')) return new Response('{}',{status:404});
+  // The release of VERSION (PROBE_RELEASE, else none yet) and its assets' bytes (PROBE_ASSET).
+  if (u.includes('/releases/tags/')) return process.env.PROBE_RELEASE ? new Response(process.env.PROBE_RELEASE,{status:200}) : new Response('{}',{status:404});
+  if (u.includes('/releases/download/')) return new Response(process.env.PROBE_ASSET || '',{status:200});
   return new Response(JSON.stringify(body),{status:200,headers:{'Content-Type':'application/json'}});
 };

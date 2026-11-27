@@ -173,6 +173,7 @@ jobs:
     - run: node _ci/suites/cluster-service/image.mjs publish
       env:
         PRIVATE_GO_TOKEN: ${{ steps.forgejo-read.outputs.token }}
+        DOWNLOAD_TOKEN: ${{ steps.forgejo-read.outputs.token }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
     - id: forgejo-write

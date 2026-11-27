@@ -9,7 +9,9 @@ import {goPrivate, gitConfigFile} from '../go/environment.mjs';
 
 // workflow: the suite workflow whose PR run's image a merge publishes (prior-image.mjs), and
 // job, that run's image check (check-image by default; a joined release's is check-package).
-export async function imageOperation(cfg, mode, login, {workflow, job} = {}) {
+// published: the suite's release is the image.txt release.mjs image stages, so a version
+// already published delivers the image it names (published.mjs).
+export async function imageOperation(cfg, mode, login, {workflow, job, published = false} = {}) {
 const repo = (process.env.GITHUB_REPOSITORY || path.basename(process.cwd())).replace(/[^\w.-]/g, '-');
 // Its own name, since two jobs of one run can build the same commit on one runner; the job
 // removes what it tagged when it ends, so images don't pile up in the runner's Docker.
@@ -17,6 +19,23 @@ let image = `ci-${repo}:${process.env.GITHUB_SHA || capture('git', ['rev-parse',
 if (!['check', 'publish'].includes(mode)) throw new Error('image.mjs check|publish');
 if (mode === 'publish') requirePublish();
 const build = cfg.build !== false;
+// A version already published (a rerun, or a dispatch that finishes a delivery whose pin never
+// ran) keeps its image: the release's image.txt goes to .ci-image-pin once the registry still
+// serves its digest, nothing is built or pushed, and the steps after this one carry it to its pin.
+if (mode === 'publish' && published && build) {
+  const {publishedImage} = await import('./published.mjs');
+  const released = await publishedImage({image: cfg.image});
+  if (released) {
+    const reference = `${cfg.image}@${released.pin.split('@')[1]}`;
+    await signedIn(cfg, login, () => {
+      try { run('docker', ['manifest', 'inspect', reference], {stdio: ['ignore', 'ignore', 'inherit']}); }
+      catch (error) { throw new Error(`release ${process.env.VERSION} is published with ${released.pin}, which the registry no longer serves (${error.message}): a new commit releases a new version`); }
+    });
+    fs.writeFileSync('.ci-image-pin', released.bytes);
+    console.log(`${process.env.VERSION} is already published with ${released.pin}; delivering that image, nothing is built`);
+    return;
+  }
+}
 const tagged = [];
 const prior = await import('./prior-image.mjs');
 // A merge whose PR built this image, at this version from these inputs, publishes that image.
@@ -87,12 +106,7 @@ if (mode === 'check') {
     console.log(`Built ${id}, stamped ${process.env.VERSION}: kept for the merge that takes that tag to publish`);
   }
 } else if (build) {
-  const {registryLogin} = await import('./registry.mjs');
-  const temp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'registry-'));
-  const old = process.env.DOCKER_CONFIG;
-  process.env.DOCKER_CONFIG = temp;
-  try {
-    await (login || registryLogin)(cfg);
+  await signedIn(cfg, login, () => {
     const remote = `${cfg.image}:${process.env.VERSION}`;
     if (!cfg.image || !/^(?:forgejo\.romaine\.life|[a-z0-9]+\.azurecr\.io)\/[\w./-]+$/.test(cfg.image)) throw new Error('image must name the Forgejo registry or ACR repository');
     run('docker', ['tag', image, remote]);
@@ -104,14 +118,26 @@ if (mode === 'check') {
     if (reused && pin.split('@')[1] !== reused.id) throw new Error(`pushed ${pin}, not the ${reused.id} pull request #${reused.pull}'s run ${reused.run} built`);
     fs.writeFileSync('.ci-image-pin', `${cfg.image}:${process.env.VERSION}@${pin.split('@')[1]}`);
     if (reused) console.log(`Published ${cfg.image}:${process.env.VERSION}@${reused.id}, the image pull request #${reused.pull}'s run ${reused.run} built; nothing was built here`);
-  } finally {
-    if (old === undefined) delete process.env.DOCKER_CONFIG; else process.env.DOCKER_CONFIG = old;
-    fs.rmSync(temp, {recursive: true, force: true});
-  }
+  });
 }
 } finally {
   if (tagged.length) run('docker', ['image', 'rm', ...tagged]);
   if (mode === 'publish') fs.rmSync(prior.kept, {recursive: true, force: true});
 }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await imageOperation(config().cluster || {}, process.argv[2], undefined, {workflow: 'cluster-service/ci.yml'});
+// The registry signed in for one action, in a Docker config of its own that the action leaves
+// behind it.
+async function signedIn(cfg, login, action) {
+  const {registryLogin} = await import('./registry.mjs');
+  const temp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'registry-'));
+  const old = process.env.DOCKER_CONFIG;
+  process.env.DOCKER_CONFIG = temp;
+  try {
+    await (login || registryLogin)(cfg);
+    return await action();
+  } finally {
+    if (old === undefined) delete process.env.DOCKER_CONFIG; else process.env.DOCKER_CONFIG = old;
+    fs.rmSync(temp, {recursive: true, force: true});
+  }
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) await imageOperation(config().cluster || {}, process.argv[2], undefined, {workflow: 'cluster-service/ci.yml', published: true});
