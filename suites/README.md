@@ -187,7 +187,7 @@ proxy: a module's new tag is on Forgejo at once, while the proxy (Artifact Keepe
 source is proxy.golang.org reading the module's GitHub push mirror) has it only later, so a
 take-up's image check would otherwise fail (PIPT-61). When the build's `go.mod` requires one,
 `image.mjs` passes `GOPRIVATE` and `GONOSUMDB` as build arguments, and the git settings that
-fetch them from Forgejo, signed in with the job's `PIPELINE_DISPATCH_TOKEN`, as the BuildKit
+fetch them from Forgejo, signed in with the job's short-lived `ci-repo-read` token (`actions/forgejo-token`), as the BuildKit
 secret `go-private-git`, a git config file that is never an argument or in a layer. The
 Dockerfile declares the arguments in its build stage, installs git there, and mounts the
 secret for its `go mod download` alone; every other module still comes through the proxy:
