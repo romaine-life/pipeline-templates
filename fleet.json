@@ -413,6 +413,15 @@
         "web-static"
       ]
     },
+    "romaine-life/forgejo-sync": {
+      "suites": [
+        "cluster-service",
+        "go"
+      ],
+      "topics": [
+        "cluster-image"
+      ]
+    },
     "romaine-life/fzt": {
       "suites": [
         "go",
