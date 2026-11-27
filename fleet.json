@@ -255,6 +255,11 @@
         "cluster-service"
       ]
     },
+    "nelsong6/travel": {
+      "suites": [
+        "docs"
+      ]
+    },
     "nelsong6/tuner": {
       "suites": [
         "release",
