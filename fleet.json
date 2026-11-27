@@ -691,7 +691,6 @@
     },
     "romaine-life/shell-config-profile-home": {
       "suites": [
-        "cluster-service",
         "powershell"
       ],
       "topics": [
