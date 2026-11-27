@@ -38,13 +38,25 @@ jobs:
           fi
       - uses: ./actions/suite
         if: steps.scope.outputs.run == 'true'
+      # The plan sets this repository's own topics, so it writes too (pipeline-templates-write
+      # admits a pull request).
+      - id: forgejo-plan
+        if: steps.scope.outputs.run == 'true' && github.event_name == 'pull_request'
+        uses: ./actions/forgejo-token
+        with:
+          access: write
       - name: Show what the merge would change
         if: steps.scope.outputs.run == 'true' && github.event_name == 'pull_request'
         env:
-          TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          TOKEN: ${{ steps.forgejo-plan.outputs.token }}
         run: node suites/fleet.mjs plan
+      - id: forgejo-write
+        if: steps.scope.outputs.run == 'true' && github.event_name != 'pull_request'
+        uses: ./actions/forgejo-token
+        with:
+          access: write
       - name: Align every repository
         if: steps.scope.outputs.run == 'true' && github.event_name != 'pull_request'
         env:
-          TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          TOKEN: ${{ steps.forgejo-write.outputs.token }}
         run: node suites/fleet.mjs apply

@@ -51,11 +51,16 @@ jobs:
       if: steps.version.outputs.next != ''
       env:
         VERSION: ${{ steps.version.outputs.next }}
+    - id: forgejo-write
+      uses: ./_ci/actions/forgejo-token
+      if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      with:
+        access: write
     - run: node _ci/suites/release.mjs scope cluster-service
       id: release
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        DISPATCH_TOKEN: ${{ steps.forgejo-write.outputs.token }}
       if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     if: github.event_name == 'pull_request' || (github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     outputs:
@@ -170,16 +175,24 @@ jobs:
         PRIVATE_GO_TOKEN: ${{ steps.forgejo-read.outputs.token }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
+    - id: forgejo-write
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: write
     - run: node _ci/suites/release.mjs image
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
-        DISPATCH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        DISPATCH_TOKEN: ${{ steps.forgejo-write.outputs.token }}
+    - id: forgejo-write-2
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: write
     - run: node _ci/suites/cluster-service/pin.mjs
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
         VERSION: ${{ steps.version.outputs.version }}
-        PIN_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        PIN_TOKEN: ${{ steps.forgejo-write-2.outputs.token }}
     needs: scope
     if: (github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) && needs.scope.outputs.build
       == 'true' && needs.scope.outputs.joined-image == ''

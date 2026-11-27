@@ -79,10 +79,16 @@ jobs:
           if (result.status !== 0) throw new Error(`NAS checkout failed: SSH exit ${result.status}`);
           JS
 
+      # Another repository's draft (a dispatch here) takes this job's short-lived write token.
+      - id: forgejo-write
+        if: inputs.release-tag && inputs.target-repository
+        uses: romaine-life/pipeline-templates/actions/forgejo-token@main
+        with:
+          access: write
       - name: Publish the complete draft
         if: inputs.release-tag
         env:
-          TOKEN: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ inputs.target-repository && steps.forgejo-write.outputs.token || secrets.GITHUB_TOKEN }}
           API: ${{ github.server_url }}/api/v1/repos/${{ inputs.target-repository || github.repository }}
           TAG: ${{ inputs.release-tag }}
         run: |
@@ -221,7 +227,12 @@ jobs:
     enable-openid-connect: true
     timeout-minutes: 10
     steps:
+      - id: forgejo-write
+        if: inputs.target-repository
+        uses: romaine-life/pipeline-templates/actions/forgejo-token@main
+        with:
+          access: write
       - uses: romaine-life/pipeline-templates/actions/prune-releases@main
         with:
           repository: ${{ inputs.target-repository || github.repository }}
-          token: ${{ inputs.target-repository && secrets.PIPELINE_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ inputs.target-repository && steps.forgejo-write.outputs.token || secrets.GITHUB_TOKEN }}

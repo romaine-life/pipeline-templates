@@ -28,6 +28,10 @@ jobs:
         token: ${{ github.token }}
     - uses: ./_ci/actions/home-cache
     - uses: ./_ci/actions/setup-go
+    - id: forgejo-write
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: write
     - run: node _ci/suites/go/dependencies.mjs
       env:
-        TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        TOKEN: ${{ steps.forgejo-write.outputs.token }}

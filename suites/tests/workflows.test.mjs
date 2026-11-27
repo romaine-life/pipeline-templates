@@ -122,6 +122,9 @@ const tokenOf=(job,step)=>{
   const refs=Object.values(step.env || {}).join(' ').match(/steps\.([\w-]+)\.outputs\.token/g) || [];
   return refs.map(ref=>job.steps.find(s=>s.id===ref.split('.')[1]));
 };
+test('no workflow reads a stored Forgejo token',()=>{
+  for(const file of tokenWorkflows())assert.doesNotMatch(fs.readFileSync(file,'utf8'),/PIPELINE_DISPATCH_TOKEN/,file);
+});
 test('each Forgejo token is made, in a job with its identity, just before the step that uses it',()=>{
   for(const file of tokenWorkflows()) {
     for(const [name,job] of Object.entries(YAML.parse(fs.readFileSync(file,'utf8')).jobs)) {
@@ -138,19 +141,19 @@ test('each Forgejo token is made, in a job with its identity, just before the st
     }
   }
 });
-test('every pin publisher and dependency PR uses PIPELINE_DISPATCH_TOKEN to open and queue it',()=>{
-  for(const suite of ['cluster-service','web-app','release']) {
-    const workflow=YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8'));
-    for(const job of Object.values(workflow.jobs))for(const step of job.steps || []) {
-      if(/(?:(?:cluster-service\/pin|web-app\/deploy|release\/deploy)\.mjs)$/.test(step.run || ''))assert.equal(step.env?.PIN_TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',`${suite}: ${step.run}`);
+test('every pin publisher and dependency PR writes with a write token',()=>{
+  const access=(file,match,variable)=>{
+    const jobs=YAML.parse(fs.readFileSync(path.join(suites,file),'utf8')).jobs;
+    const found=Object.values(jobs).flatMap(job=>(job.steps || []).filter(step=>match.test(step.run || '')).map(step=>[job,step]));
+    assert.ok(found.length,`${file}: ${match}`);
+    for(const [job,step] of found) {
+      assert.match(step.env?.[variable] || '',/steps\.[\w-]+\.outputs\.token/,`${file}: ${step.run}`);
+      assert.equal(tokenOf(job,step)[0].with?.access,'write',`${file}: ${step.run}`);
     }
-  }
-  const dependencies=YAML.parse(fs.readFileSync(path.join(suites,'go/dependencies.yml'),'utf8'));
-  assert.equal(dependencies.jobs.update.steps.find(step=>step.run==='node _ci/suites/go/dependencies.mjs').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}');
-  for(const suite of ['web-app','release']) {
-    const takeUp=YAML.parse(fs.readFileSync(path.join(suites,suite,'dependencies.yml'),'utf8'));
-    assert.equal(takeUp.jobs.update.steps.find(step=>step.run==='node _ci/suites/packages.mjs take-up').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',suite);
-  }
+  };
+  for(const suite of ['cluster-service','web-app','release'])access(`${suite}/ci.yml`,/(?:cluster-service\/pin|web-app\/deploy|release\/deploy)\.mjs/,'PIN_TOKEN');
+  access('go/dependencies.yml',/^node _ci\/suites\/go\/dependencies\.mjs$/,'TOKEN');
+  for(const suite of ['web-app','release'])access(`${suite}/dependencies.yml`,/^node _ci\/suites\/packages\.mjs take-up$/,'TOKEN');
 });
 test('a release dispatches its downstream workflows once: publish does it, or the dispatch job after home-sync publishes',()=>{
   const jobs=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8')).jobs;

@@ -38,9 +38,14 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         with:
           tofu-version: 1.11.0
+      - id: forgejo-write
+        if: steps.scope.outputs.run == 'true'
+        uses: ./actions/forgejo-token
+        with:
+          access: write
       - name: Make the lock, and commit it if it changed
         if: steps.scope.outputs.run == 'true'
         env:
           HEAD_REF: ${{ github.head_ref }}
-          PUSH_TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+          PUSH_TOKEN: ${{ steps.forgejo-write.outputs.token }}
         run: node suites/tofu/providers.mjs
