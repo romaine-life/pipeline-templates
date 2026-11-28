@@ -143,7 +143,11 @@ export function cutsRelease(step, commands) {
   if (releaseActions.test(action) && !(action.endsWith('release-version') && String(step.with?.publish) === 'false')) return true;
   // A command continued over lines (shell's \, PowerShell's `) is one command.
   const joined = commands.replace(/[\\`]\r?\n/g, ' ');
-  return releaseTool.test(joined) || joined.split('\n').some(line => /\/releases\b/.test(line) && releaseWrite.test(line));
+  // A write names the release API itself, or a variable the step set to it ($api = ".../releases").
+  const lines = joined.split('\n');
+  const names = lines.flatMap(line => [...line.matchAll(/(?:^|[\s;])\$?(?:env:)?([A-Za-z_]\w*)\s*=\s*[^\n]*\/releases\b/g)].map(m => m[1]));
+  const release = new RegExp(`/releases\\b${names.length ? `|\\$\\{?(?:env:)?(?:${names.join('|')})\\b` : ''}`);
+  return releaseTool.test(joined) || lines.some(line => release.test(line) && releaseWrite.test(line));
 }
 export function violations(text, read, {go = false} = {}) {
   const document = YAML.parseDocument(text, {uniqueKeys: true});

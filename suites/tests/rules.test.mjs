@@ -154,6 +154,8 @@ test("a repository's own workflow never cuts a release, whatever its language", 
   ];
   for (const s of cut) assert.match(violations(step(s)).join('\n'), /build: cuts a release/, s);
   assert.match(violations(step('      - run: ./ci/ship.ps1'), p => p === 'ci/ship.ps1' ? 'Invoke-RestMethod "$api/releases" -Method Post' : null).join('\n'), /cuts a release/, 'a script the step runs counts');
+  assert.match(violations(step('      - run: ./ci/ship.ps1'), p => p === 'ci/ship.ps1' ? '$api = "$env:GITHUB_SERVER_URL/api/v1/repos/$env:GITHUB_REPOSITORY/releases"\n$r = Invoke-RestMethod $api -Method Post -Body $b' : null).join('\n'), /cuts a release/, 'a write to a variable holding the release API counts');
+  assert.doesNotMatch(violations(step('      - run: ./ci/ship.ps1'), p => p === 'ci/ship.ps1' ? '$api = "$base/releases"\n$r = Invoke-RestMethod "$api/latest"\nInvoke-RestMethod $other -Method Post' : null).join('\n'), /cuts a release/, 'a read of it, and a write elsewhere, does not');
   const reads = [
     '      - uses: ./_ci/actions/release-version\n        with:\n          publish: "false"',
     '      - run: curl -fsSL https://artifacts.home.romaine.life/general/github/x/y/releases/download/v1/y.tar.gz | tar -xz',
