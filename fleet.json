@@ -615,6 +615,20 @@
         "web-image"
       ]
     },
+    "romaine-life/one-copy": {
+      "suites": [
+        "go",
+        "release",
+        "rust"
+      ],
+      "topics": [
+        "go-test-linux",
+        "go-test-windows",
+        "release-module",
+        "rust-test-linux",
+        "rust-test-windows"
+      ]
+    },
     "romaine-life/ozzy-mari-extravaganza": {
       "suites": [
         "go",
