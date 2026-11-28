@@ -97,24 +97,26 @@ test('relative imported helper scripts remain covered by the rules', () => {
 test('duplicate YAML keys cannot hide a trigger', () => assert.match(violations('on: push\non: pull_request').join(''), /unique/i));
 
 // actionlint runs over a repository's own workflows: a context Forgejo would refuse only
-// when it runs the workflow fails the rules check on the pull request instead.
-test('a repository workflow Forgejo would refuse fails the rules check', async () => {
+// when it runs the workflow fails the rules check on the pull request instead, as does a bash
+// step shellcheck faults (PIPT-62).
+test('a repository workflow Forgejo would refuse, or whose shell shellcheck faults, fails the rules check', async () => {
   const fs = await import('node:fs');
   const os = await import('node:os');
   const path = await import('node:path');
   const {spawnSync} = await import('node:child_process');
   const script = new URL('../default/rules.mjs', import.meta.url);
-  const workflow = env => `on:\n  pull_request:\nconcurrency:\n  group: checks-\${{ github.ref }}\n  cancel-in-progress: \${{ github.event_name == 'pull_request' }}\njobs:\n  check-x:\n    if: github.event_name == 'pull_request'\n    runs-on: ubuntu-latest\n${env}    steps:\n      - run: echo hi\n`;
-  for (const [env, ok] of [['', true], ['    env:\n      DIR: ${{ runner.tool_cache }}/x\n', false]]) {
+  const workflow = (env, run) => `on:\n  pull_request:\nconcurrency:\n  group: checks-\${{ github.ref }}\n  cancel-in-progress: \${{ github.event_name == 'pull_request' }}\njobs:\n  check-x:\n    if: github.event_name == 'pull_request'\n    runs-on: ubuntu-latest\n${env}    steps:\n      - run: ${run}\n`;
+  for (const [env, run, why] of [['', 'echo hi'], ['    env:\n      DIR: ${{ runner.tool_cache }}/x\n', 'echo hi', /context "runner" is not allowed here/],
+    ['', 'unused=1', /SC2034/]]) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rules-'));
     try {
       fs.mkdirSync(path.join(root, '.forgejo', 'workflows'), {recursive: true});
-      fs.writeFileSync(path.join(root, '.forgejo', 'workflows', 'checks.yml'), workflow(env));
+      fs.writeFileSync(path.join(root, '.forgejo', 'workflows', 'checks.yml'), workflow(env, run));
       spawnSync('git', ['init', '-q'], {cwd: root});
       spawnSync('git', ['add', '-A'], {cwd: root});
       const result = spawnSync(process.execPath, [script.pathname.replace(/^\/([A-Za-z]:)/, '$1')], {cwd: root, encoding: 'utf8'});
-      assert.equal(result.status === 0, ok, result.stdout + result.stderr);
-      if (!ok) assert.match(result.stdout + result.stderr, /context "runner" is not allowed here/);
+      assert.equal(result.status === 0, !why, result.stdout + result.stderr);
+      if (why) assert.match(result.stdout + result.stderr, why);
     } finally { fs.rmSync(root, {recursive: true, force: true}); }
   }
 });

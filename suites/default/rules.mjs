@@ -3,7 +3,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import YAML from 'yaml';
 import {run, templates, tracked} from '../lib.mjs';
-import {tool} from '../tools.mjs';
+import {lintArgs, tool} from '../tools.mjs';
 import {currentTopics} from '../topics.mjs';
 
 const check = /(?:\b(?:gofmt|actionlint|kubeconform|markdownlint|pytest|ctest|PSScriptAnalyzer)\b|\bgo\s+(?:vet|test)\b|\bcargo\s+(?:fmt|clippy|test|nextest)\b|\bnode\s+[^\n]*--test\b|\bpython[\d.]*\s+[^\n]*-m\s+unittest\b|\b(?:npm|pnpm)\s+(?:test|run\s+(?:lint|check|test))\b|\btofu\s+(?:fmt|validate|plan)\b|\bdotnet\s+(?:test|format)\b|\b(?:check|test|lint|validate|parse)[-/.\w]*\.(?:m?js|py|ps1|sh)\b)/i;
@@ -198,11 +198,11 @@ export async function main() {
   for (const error of goErrors) console.error(error);
   bad += goErrors.length;
   // Forgejo checks a workflow only when it runs it; actionlint finds a context used where
-  // none exists, an unknown key or a bad expression on the pull request. Shell and Python
-  // inside steps aren't linted here.
+  // none exists, an unknown key or a bad expression on the pull request, and shellcheck reads
+  // every bash and sh step (PIPT-62).
   if (files.length) {
     try {
-      run(await tool('actionlint'), ['-config-file', path.join(templates, '.github', 'actionlint.yaml'), '-shellcheck=', '-pyflakes=', ...actionlintIgnores.flatMap(i => ['-ignore', i]), ...files]);
+      run(await tool('actionlint'), ['-config-file', path.join(templates, '.github', 'actionlint.yaml'), ...await lintArgs(actionlintIgnores, files)]);
     } catch { bad++; }
   }
   if (bad) throw new Error(`${bad} CI rule violations`);
