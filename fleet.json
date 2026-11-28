@@ -253,6 +253,9 @@
     "nelsong6/torrent": {
       "suites": [
         "cluster-service"
+      ],
+      "topics": [
+        "cluster-image"
       ]
     },
     "nelsong6/travel": {
