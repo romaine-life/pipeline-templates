@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {inputs, relevant, matches, changed,pushFiles} from '../inputs.mjs';
 import {broad} from '../input-patterns.mjs';
-import {releaseInputs} from '../release/inputs.mjs';
+import {releaseInputs,releaseOwn} from '../release/inputs.mjs';
 import {publishEvent} from '../lib.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -33,6 +33,13 @@ test('narrow checks read their tool\'s files; tests and a merge\'s release read 
   const external = releaseInputs({release: {external: [{id: 'build', workflow: 'build.yml'}]}});
   assert.ok(relevant(['.forgejo/workflows/build.yml'], 'release.build', external));
   assert.equal(relevant(['.forgejo/workflows/checks.yml'], 'release.build', external), false);
+});
+test('a PowerShell release reads commands/ and its assets, so a tree write in at cuts none (AT-10)', () => {
+  const own = releaseOwn({release: {toolchains: ['powershell']}});
+  for (const file of ['commands/x.ps1','commands/lib/y.ps1','release/assets/powershell/z.txt']) assert.ok(relevant([file], 'release.build', [], own), file);
+  for (const file of ['trees/a-menu.json','trees/a-bookmarks.json','tools/check.py']) assert.equal(relevant([file], 'release.build', [], own), false, file);
+  // Any other toolchain, or a part built elsewhere, reads the whole repository as before.
+  for (const release of [{toolchains: ['go']}, {toolchains: ['powershell','go']}, {toolchains: ['powershell'], external: [{id: 'b', workflow: 'b.yml'}]}, {toolchains: ['powershell'], image: 'cluster'}, {}]) assert.equal(releaseOwn({release}), undefined, JSON.stringify(release));
 });
 test('the manifests check reads k8s/, where every render is', () => {
   for (const file of ['k8s/kustomization.yaml','k8s/values-unserved.yaml','k8s/templates/a.yaml']) assert.ok(relevant([file],'cluster-service.manifests'),file);

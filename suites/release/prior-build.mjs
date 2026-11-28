@@ -15,7 +15,7 @@ import YAML from 'yaml';
 import {api,capture,hash,output,request,safePath,templates} from '../lib.mjs';
 import {canonical,tree} from '../fingerprints.mjs';
 import {input} from '../input-patterns.mjs';
-import {releaseInputs,settings} from './inputs.mjs';
+import {releaseInputs,releaseOwn,settings} from './inputs.mjs';
 import {releasePlan} from './plan.mjs';
 
 const marker='CI_BUILD_V1 ';
@@ -76,7 +76,7 @@ export function buildFingerprint({cfg,version,entries=tree(),plan=releasePlan(cf
   if(!/^[\w.+-]+$/.test(version || ''))throw new Error('a build fingerprint needs the version it stamps');
   const read=file=>{const entry=entries.find(entry=>entry.path===file);return entry?capture('git',['show',entry.oid]):null;};
   const patterns=[...new Set(releaseInputs(cfg,read))].sort();
-  const files=entries.filter(entry=>input(entry.path,'release.build',patterns)).sort((a,b)=>a.path.localeCompare(b.path));
+  const files=entries.filter(entry=>input(entry.path,'release.build',patterns,releaseOwn(cfg))).sort((a,b)=>a.path.localeCompare(b.path));
   return hash(canonical({version:2,repository,suite,stamp:version,topics:cfg.topics || [],settings:settings(cfg),parts:plan.matrix.include,patterns,files}));
 }
 // An external part's: the same files, stamp and settings, with the part itself as the build's

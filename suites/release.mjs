@@ -7,6 +7,7 @@ import {config, currentRepository} from './config.mjs';
 import {relevant, matches} from './input-patterns.mjs';
 import {imageInputs} from './dependencies.mjs';
 import {found} from './fingerprints.mjs';
+import {releaseOwn} from './release/inputs.mjs';
 import {imagePins} from './layout.mjs';
 import {zipDirectory} from './release/zip.mjs';
 import {dispatchConsumers, publishPackage} from './packages.mjs';
@@ -70,7 +71,7 @@ export async function releaseScope(suite) {
   }
   const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
   const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'release.build' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
-  output('build', relevant(files, job, await found(job, cfg)));
+  output('build', relevant(files, job, await found(job, cfg), job === 'release.build' ? releaseOwn(cfg) : undefined));
   if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', joinedImageChanged(cfg.cluster));
 }
 // The image the pin file runs (`<image>:<tag>@sha256:<digest>`, written as one string or as a
