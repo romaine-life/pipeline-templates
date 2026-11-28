@@ -50,6 +50,16 @@ export function packagingScope(files,cfg,base=process.env.BASE) {
   const existing=new Set(capture('git',['ls-tree','-r','--name-only','-z',mergeBase]).split('\0'));
   return packagingChanged(files,cfg,file=>existing.has(file) ? capture('git',['show',`${mergeBase}:${file}`]) : null);
 }
+// What a release reads in place of the whole repository, where every part's toolchain builds
+// from a known folder: a PowerShell release zips commands/ (powershell/build.mjs), so at's menu
+// and bookmark writes cut none (AT-10). Its static assets count too. Undefined is the whole
+// repository, as release.build's patterns say.
+const shippedBy={powershell:['commands/**']};
+export function releaseOwn(cfg) {
+  const release=cfg.release || {},kinds=release.toolchains || [];
+  if(!kinds.length || kinds.some(kind=>!shippedBy[kind]) || release.external?.length || release.image || release.tofuProvider || release.module)return undefined;
+  return [...kinds.flatMap(kind=>shippedBy[kind]),'release/assets/**'];
+}
 // What a merge's release reads beyond its patterns, inside the ignored files too: what its code
 // embeds, its joined image's inputs, its downloads and their locks, and the workflow an external
 // part builds with (at-terminal's build.yml).
