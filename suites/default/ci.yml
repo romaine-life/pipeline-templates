@@ -43,6 +43,7 @@ jobs:
       parse-legacy: ${{ steps.scope.outputs.parse-legacy }}
       fetches: ${{ steps.scope.outputs.fetches }}
       rules: ${{ steps.scope.outputs.rules }}
+      logs: ${{ steps.scope.outputs.logs }}
       platforms: ${{ steps.scope.outputs.platforms }}
       windows-powershell: ${{ steps.scope.outputs.windows-powershell }}
       source-release: ${{ steps.scope.outputs.source-release }}
@@ -92,11 +93,31 @@ jobs:
     needs: scope
     if: github.event_name == 'pull_request' && needs.scope.outputs.rules == 'true'
 
+  check-logs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/checkout@v4
+      with:
+        repository: romaine-life/pipeline-templates
+        ref: ${{ needs.scope.outputs.suite-sha }}
+        path: _ci
+        persist-credentials: false
+    - uses: ./_ci/actions/suite
+      with:
+        token: ${{ github.token }}
+    - run: node _ci/suites/default/logs.mjs
+    needs: scope
+    if: github.event_name == 'pull_request' && needs.scope.outputs.logs == 'true'
+
   reused-checks:
     needs:
     - scope
     - check-fetches
     - check-rules
+    - check-logs
     if: always() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.fingerprints != '{}'
     runs-on: ubuntu-latest
     steps:
