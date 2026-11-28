@@ -22,7 +22,12 @@ prints what the merge would change, and the merge changes it.
 - Any other topic, one set by hand, is left as it is.
 
 An entry is `{"suites": [...], "topics": [...]}`. `config.mjs` validates it; an unknown field
-or topic fails.
+or topic fails. An entry also names what applies the repository where it runs, when something
+other than a release does, and agent-tools' strip-owner waits for that before a merge is
+delivered: `"nas": true` is homesvc on the NAS applying each merge to its default branch there
+(at-home-tools, which reads the flag, AHT-177), and `"applier": "<service>/<where>"` is any other
+service, by the source it reports as on ntfy's `activity` topic: avatar-pack's is
+`avatars/home`, home's avatars service loading each of its releases (AVATARS-6).
 
 ### Setting topics
 
@@ -46,7 +51,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `web-static` | The web app deploys to its Static Web App |
 | `web-history` | The tests compare with the base branch, so the test job gets full history (`origin/<base>`) |
 | `release-source` | A documentation repository cuts a source release |
-| `release-module` | A Go library: a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
+| `release-module` | A Go library, or a data repository its services load (avatar-pack): a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
 | `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64`, `rust-build-gba` | The Rust release targets (`gba` is a Game Boy Advance ROM); with none, Linux x86_64 |
 | `version-from-manifest` | The version series comes from the root manifest's version |
@@ -77,6 +82,13 @@ A cluster service or web app is configured by its name and layout, not the list 
   `commit`, `version` (the tag without its v), `date` (when the release was pinned, UTC,
   to the second), or the PR the release's commit merged, `prNumber`, `prTitle`, `prUrl`.
   The pin PR links the work package that PR links.
+- A version already published is delivered as it was published: a rerun of the release (its
+  scope finds the release on the run's own commit and publishes), or a dispatch on the commit
+  it was cut from, takes the image its release's `image.txt` names
+  (once the registry still serves that digest) and goes on to the pin PR, building and
+  pushing nothing; a pin PR of that release already open is left be. A published release
+  from another commit, or one whose `image.txt` differs from what it records, fails before
+  anything is built.
 - Its npm packages are each `package.json` at the root or one directory down with a `test`
   script. Each package's lint and tests are a check of their own, `check-test (<folder>)`
   (`.` for the root's).
@@ -140,7 +152,9 @@ own business; the check is about the stamp landing.
 A repository that releases and builds an image (its `cluster-image` or `web-image` topic)
 releases them together under one version. A CMake, .NET or Python release builds on Windows
 when that toolchain's tests run on Windows alone, else on Linux, and a release syncs the
-repository's Forgejo push mirrors, when it has any. Once a release is published, the
+repository's Forgejo push mirrors, when it has any, before it dispatches any take-up (a sync
+that fails, as one racing Forgejo's own push of the tag does, is tried twice more 10 seconds
+apart, then fails the release). Once a release is published, the
 repository's own `.forgejo/workflows/released.yml`, when it has one, runs on its default
 branch (spirelens' Steam Workshop upload). A cluster image's release publishes the
 image and proposes its pin.
@@ -173,6 +187,30 @@ gives it, and the merge checks the pushed digest is the one the PR built. With n
 direct push, another release took the tag first, the image expired) the merge builds it, as
 it would anyway. An image whose `Dockerfile` declares `ARG SOURCE_SHA` stamps the commit,
 which only the merge makes, so it is built on the merge (landing-page, tuimail).
+
+### Our Go modules in an image
+
+An image's `docker build` gets our Go modules (`github.com/romaine-life/*`) from Forgejo
+through git, as every suite Go step does (`go/environment.mjs`), never through the home Go
+proxy: a module's new tag is on Forgejo at once, while the proxy (Artifact Keeper, whose
+source is proxy.golang.org reading the module's GitHub push mirror) has it only later, so a
+take-up's image check would otherwise fail (PIPT-61). When the build's `go.mod` requires one,
+`image.mjs` passes `GOPRIVATE` and `GONOSUMDB` as build arguments, and the git settings that
+fetch them from Forgejo, signed in with the job's short-lived `ci-repo-read` token (`actions/forgejo-token`), as the BuildKit
+secret `go-private-git`, a git config file that is never an argument or in a layer. The
+Dockerfile declares the arguments in its build stage, installs git there, and mounts the
+secret for its `go mod download` alone; every other module still comes through the proxy:
+
+```dockerfile
+ENV GOPROXY=https://artifacts.home.romaine.life/go/go,direct
+ARG GOPRIVATE GONOSUMDB
+RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://artifacts.home.romaine.life/alpine/alpine#' /etc/apk/repositories && apk add --no-cache git
+COPY go.mod go.sum ./
+RUN --mount=type=secret,id=go-private-git,target=/root/.gitconfig go mod download
+```
+
+Built by hand without them, the arguments are empty and the modules come through the proxy, as
+before.
 
 ## A release-external part on a pull request
 
@@ -270,28 +308,24 @@ The suites' jobs install them through `home-cache`, which adds the mirror
 `artifacts.home.romaine.life/*/*`; home-sync writes the same mirror into each home PC's
 `%APPDATA%\tofu.rc`, with every other provider installing directly as before.
 
-A repository that uses one requires it by that address:
+Every provider a tofu-suite repository uses, ours and the registry's, is pinned once in the
+shared set, `suites/tofu/providers/providers.tf`. A repository requires each provider by its
+source address alone, with no version, and commits no lock:
 
 ```hcl
 terraform {
   required_providers {
-    openproject = { source = "artifacts.home.romaine.life/romaine-life/openproject", version = "0.1.2" }
+    openproject = { source = "artifacts.home.romaine.life/romaine-life/openproject" }
   }
 }
 ```
 
-and commits its lock with the hashes for Linux, where CI runs it (`tofu init -lockfile=readonly`),
-and Windows, where the home PCs do. `tofu providers lock` asks each provider's registry, and
-`artifacts.home.romaine.life` isn't one, so our providers are locked from the mirror, each named,
-and the registry's as usual; each run updates only the providers it names:
-
-```sh
-tofu providers lock -net-mirror=https://artifacts.home.romaine.life/terraform/tofu-providers/ \
-  -platform=linux_amd64 -platform=windows_amd64 artifacts.home.romaine.life/romaine-life/openproject
-tofu providers lock -platform=linux_amd64 -platform=windows_amd64 hashicorp/random
-```
-
-A new version is a change to `version` and the lock, made the same way.
+The suite writes `tofu/.terraform.lock.hcl` from the set's lock, cut to the providers the
+repository names, before `tofu init -lockfile=readonly` (`tofu/common.mjs`), and fails a
+repository that has a lock of its own. Only CI writes the set's lock: a pull request that changes
+`providers.tf` has `.forgejo/workflows/tofu-providers.yml` lock it for `linux_amd64` through both
+mirrors and commit the result to the branch, which fails that run; the run its push starts checks
+it (`tofu/providers.mjs`). A new provider or version is a change to `providers.tf` alone.
 
 ## The rules every suite keeps
 

@@ -5,16 +5,6 @@
         "cluster-service"
       ]
     },
-    "nelsong6/at-terminal": {
-      "suites": [
-        "release"
-      ],
-      "topics": [
-        "home-sync",
-        "release-external",
-        "version-four-part"
-      ]
-    },
     "nelsong6/at-tmux": {
       "suites": [
         "cmake",
@@ -29,8 +19,13 @@
     },
     "nelsong6/avatar-pack": {
       "suites": [
-        "go"
-      ]
+        "go",
+        "release"
+      ],
+      "topics": [
+        "release-module"
+      ],
+      "applier": "avatars/home"
     },
     "nelsong6/avatars": {
       "suites": [
@@ -260,6 +255,11 @@
         "cluster-service"
       ]
     },
+    "nelsong6/travel": {
+      "suites": [
+        "docs"
+      ]
+    },
     "nelsong6/tuner": {
       "suites": [
         "release",
@@ -337,7 +337,7 @@
         "cmake-test-windows"
       ]
     },
-    "romaine-life/at-terminal-rio": {
+    "romaine-life/at-terminal": {
       "suites": [
         "release",
         "rust"
@@ -399,6 +399,16 @@
         "web-image"
       ]
     },
+    "romaine-life/dungeon-crawler": {
+      "suites": [
+        "cluster-service",
+        "go",
+        "web-app"
+      ],
+      "topics": [
+        "web-image"
+      ]
+    },
     "romaine-life/eight-queens": {
       "suites": [
         "tofu",
@@ -406,6 +416,15 @@
       ],
       "topics": [
         "web-static"
+      ]
+    },
+    "romaine-life/forgejo-sync": {
+      "suites": [
+        "cluster-service",
+        "go"
+      ],
+      "topics": [
+        "cluster-image"
       ]
     },
     "romaine-life/fzt": {
@@ -553,6 +572,24 @@
         "web-static"
       ]
     },
+    "romaine-life/logline": {
+      "suites": [
+        "cmake",
+        "dotnet",
+        "go",
+        "release",
+        "rust",
+        "web-app"
+      ],
+      "topics": [
+        "cmake-test-linux",
+        "cmake-test-windows",
+        "dotnet-test-windows",
+        "go-test-windows",
+        "release-module",
+        "rust-test-windows"
+      ]
+    },
     "romaine-life/macrocraft": {
       "suites": [
         "docs"
@@ -578,6 +615,20 @@
         "web-image"
       ]
     },
+    "romaine-life/one-copy": {
+      "suites": [
+        "go",
+        "release",
+        "rust"
+      ],
+      "topics": [
+        "go-test-linux",
+        "go-test-windows",
+        "release-module",
+        "rust-test-linux",
+        "rust-test-windows"
+      ]
+    },
     "romaine-life/ozzy-mari-extravaganza": {
       "suites": [
         "go",
@@ -590,6 +641,16 @@
       ]
     },
     "romaine-life/pokemon-generator": {
+      "suites": [
+        "cluster-service",
+        "go",
+        "web-app"
+      ],
+      "topics": [
+        "web-image"
+      ]
+    },
+    "romaine-life/pokosmari": {
       "suites": [
         "cluster-service",
         "go",
@@ -644,7 +705,6 @@
     },
     "romaine-life/shell-config-profile-home": {
       "suites": [
-        "cluster-service",
         "powershell"
       ],
       "topics": [
@@ -719,6 +779,16 @@
       ],
       "topics": [
         "web-image"
+      ]
+    },
+    "romaine-life/terraform-provider-forgejo": {
+      "suites": [
+        "go",
+        "release"
+      ],
+      "topics": [
+        "release-go",
+        "release-tofu-provider"
       ]
     },
     "romaine-life/terraform-provider-openproject": {

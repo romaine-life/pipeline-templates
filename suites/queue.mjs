@@ -4,7 +4,7 @@ import {api,post,request} from './lib.mjs';
 // up to date with its base, which a branch protection blocking outdated branches needs,
 // and merges once CI passes. A repository without the label gets it.
 export async function queuePR(number,{token,url=api(),get=request,send=post}={}) {
-  if(!token)throw new Error('queueing a PR requires PIPELINE_DISPATCH_TOKEN');
+  if(!token)throw new Error('queueing a PR requires a Forgejo write token from actions/forgejo-token');
   if(!Number.isSafeInteger(number) || number<1)throw new Error('queueing requires the PR number');
   let label;
   for(let page=1;;page++) {

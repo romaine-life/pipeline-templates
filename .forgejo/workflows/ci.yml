@@ -172,7 +172,7 @@ jobs:
           // The step's pause between tries, made instant.
           const timers = {setTimeout: () => Promise.resolve()};
           // The destination follows the last option; a PC's call adds the release's time.
-          const dest = args => args[args.indexOf('ServerAliveCountMax=4') + 1];
+          const dest = args => args.find(a => a.includes('@'));
           const silent = [255, 'ssh: connect to host pc port 22: Connection timed out'];
           // An answer list is used in order, its last answer repeating.
           const cases = [
@@ -180,7 +180,7 @@ jobs:
               logs: [/nelsonpc: step: tools/, /nelsonpc: up to date/]},
             {name: 'a silent PC that is not checked out fails the release', answers: {'upstairspc@upstairspc': [silent]}, exit: 1, wakes: 0,
               logs: [/upstairspc: not reachable, and it isn't checked out/]},
-            {name: 'a checked-out silent PC is left for later', away: ['nelsonlaptop'], answers: {'nelsonlaptopuser@nelsonlaptop': [silent]}, exit: undefined, wakes: 0,
+            {name: 'a checked-out silent PC is left for later', away: ['nelsonlaptop'], answers: {'nelsonlaptopuser@100.100.110.91': [silent]}, exit: undefined, wakes: 0,
               logs: [/nelsonlaptop: checked out and not reachable/]},
             {name: 'a checked-out PC that answers still takes the release', away: ['nelsonlaptop'], answers: {}, exit: undefined, wakes: 0},
             {name: 'the treadmill is woken and delivered to once it answers', answers: {'nelsontreadmill@treadmill': [silent, silent, [0, 'up to date']]}, exit: undefined, wakes: 1,
@@ -230,12 +230,14 @@ jobs:
               assert.equal(wakes.length, current.wakes, `${current.name}: wake packets`);
               for (const pc of pcs) {
                 const want = current.tries?.[pc.name] ?? current.tries?.all ?? 1;
-                assert.equal(calls.filter(args => dest(args) === `${pc.user}@${pc.name}`).length, want, `${current.name}: ${pc.name} tries`);
+                assert.equal(calls.filter(args => dest(args) === `${pc.user}@${pc.host ?? pc.name}`).length, want, `${current.name}: ${pc.name} tries`);
+                // A PC reached at another address still has its host key checked under its name.
+                for (const args of calls.filter(args => dest(args) === `${pc.user}@${pc.host ?? pc.name}`)) assert.equal(args.includes(`HostKeyAlias=${pc.name}`), !!pc.host, `${current.name}: ${pc.name} host key`);
               }
               if (wakes.length) assert.ok(calls.indexOf(wakes[0]) > calls.findIndex(args => dest(args) === 'nelsontreadmill@treadmill'), 'a wake follows the silent attempt');
               for (const args of calls) {
                 for (const args of calls) {
-                const command = args.slice(args.indexOf('ServerAliveCountMax=4') + 2);
+                const command = args.slice(args.indexOf(dest(args)) + 1);
                 if (dest(args) === 'Nelson@nas') assert.equal(command.length, 0, 'the wake sends no command');
                 else assert.match(command.join(' '), /^since \d{4}-\d\d-\d\dT[\d:.]+Z$/, `${current.name}: the release's time`);
               }

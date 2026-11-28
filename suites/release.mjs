@@ -60,6 +60,14 @@ export async function releaseScope(suite) {
   const latest = await request(`${api()}/releases/latest`, {allow404: true});
   if (!latest) { output('build', true); return; }
   const base = capture('git', ['rev-parse', '--verify', `refs/tags/${latest.tag_name}^{commit}`]);
+  // A rerun of the run that published an image's release, on that release's own commit,
+  // finishes its delivery: the publish reuses the published image and goes on to its pin,
+  // which a failure after the release was published skipped (AVATARS-6, avatars v0.1.19).
+  if ((suite === 'cluster-service' || suite === 'web-app' && cfg.web?.image && !cfg.web?.staticApp) && base === capture('git', ['rev-parse', 'HEAD'])) {
+    console.log(`${latest.tag_name} is this commit's release: delivering it`);
+    output('build', true);
+    return;
+  }
   const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
   const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'release.build' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
   output('build', relevant(files, job, await found(job, cfg)));
@@ -102,6 +110,9 @@ export async function publish() {
 }
 export async function dispatch() {
   requirePublish();
+  // The repository's push mirrors (fzt's GitHub copies) take the release's tag first, before
+  // any take-up: the home Go proxy reads a module's GitHub copy (PIPT-61).
+  if (process.env.DISPATCH_TOKEN) await syncMirrors({token:process.env.DISPATCH_TOKEN});
   // The release's npm package, when its package.json names one, then a take-up to every
   // repository that uses it (packages.mjs).
   const name = await publishPackage();
@@ -112,23 +123,36 @@ export async function dispatch() {
   // go.mod requires it (go/modules.mjs).
   const module = ownModule();
   if (module) await dispatchModuleConsumers(module);
-  // The repository's push mirrors (fzt's GitHub copies) take the release's tag.
-  if (process.env.DISPATCH_TOKEN) {
-    const options={token:process.env.DISPATCH_TOKEN};
-    const mirrors=await request(`${api()}/push_mirrors`,options);
-    if (mirrors.length) await post(`${api()}/push_mirrors-sync`,{},options);
-  }
   // The repository's own released.yml, when it has one, runs on its default branch once the
   // release is out (spirelens uploads it to Steam Workshop). The release's own event can't start
   // it: Forgejo starts no workflow for what a job's automatic token does.
   if (fs.existsSync(released)) {
     const token=process.env.DISPATCH_TOKEN;
-    if (!token) throw new Error(`${released} runs through PIPELINE_DISPATCH_TOKEN`);
+    if (!token) throw new Error(`${released} needs DISPATCH_TOKEN, a Forgejo write token from actions/forgejo-token`);
     const repo=await request(api(),{token});
     await post(`${api()}/actions/workflows/${path.basename(released)}/dispatches`,{ref:repo.default_branch},{token});
   }
 }
 export const released = '.forgejo/workflows/released.yml';
+// Forgejo pushes a new tag to the repository's mirrors by itself too, and when its push is
+// still running, the sync's own push of the tag loses the race for the ref: GitHub answers
+// "cannot lock ref 'refs/tags/<tag>': reference already exists", and Forgejo's sync answers
+// HTTP 500 without saying why (AVATARS-6; avatars v0.1.12, v0.1.13 and v0.1.19). Once that push
+// is done, a sync finds the mirror holding what the repository holds and succeeds, so a failed
+// sync is tried again after a wait; a mirror that still fails it is a real failure.
+export async function syncMirrors({token, url=api(), attempts=3, delay=10000, wait=ms=>new Promise(resolve=>setTimeout(resolve,ms)), log=console.log}) {
+  const options={token};
+  const mirrors=await request(`${url}/push_mirrors`,options);
+  if (!mirrors.length) return;
+  for (let attempt=1;;attempt++) {
+    try { await post(`${url}/push_mirrors-sync`,{},options); return; }
+    catch (error) {
+      if (attempt>=attempts) throw new Error(`the push mirrors failed to sync ${attempts} times: ${error.message}`);
+      log(`The push mirrors' sync failed (${error.message}); Forgejo's own push of the tag may still be running, so it is tried again in ${delay/1000}s`);
+      await wait(delay);
+    }
+  }
+}
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const mode = process.argv[2];
   if (mode === 'scope') await releaseScope(process.argv[3]);

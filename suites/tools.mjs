@@ -30,11 +30,24 @@ export const tools = {
   },
   kubeconform: {
     linux:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz`, '9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883', 'kubeconform'],
-    win32:['0.8.0', `${mirror}/github/yannh/kubeconform/releases/download/v0.8.0/kubeconform-windows-amd64.zip`, 'e3f56102bcf4f50b034a567e2482a1c5330799983ddd655952310211aef73d93', 'kubeconform.exe']
+    // The release's Windows build is netgo: its resolver asks the network adapters' DNS servers
+    // and skips the Windows name rules, where Tailscale sends home.romaine.life when the PC is away
+    // from home, so it couldn't reach the schemas there (AHT-184). Built from the release's
+    // source with Go's default resolver, it asks Windows. Go comes from PATH.
+    win32:['0.8.0', `${mirror}/github/yannh/kubeconform/archive/refs/tags/v0.8.0.tar.gz`, 'c345de9c3207f2d24628c64fe3cb9bed55c4248b12c181efe81ee907d6c994f2', 'built/kubeconform.exe', {go: 'kubeconform-0.8.0/cmd/kubeconform'}]
   },
+  // actionlint runs shellcheck on every bash and sh step (lintArgs). Through 1.7.12 it writes a
+  // script to shellcheck's stdin before starting it, which a Windows pipe (4 KB) can't hold, so
+  // a longer script hung it for good (PIPT-62). Windows builds the commit that fixed it
+  // (rhysd/actionlint#651, unreleased): 1.7.12 and the fix, with service-container command support.
   actionlint: {
-    linux:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz`, '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757', 'actionlint'],
-    win32:['1.7.7', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_windows_amd64.zip`, '7f12f1801bca3d480d67aaf7774f4c2a6359a3ca8eebe382c95c10c9704aa731', 'actionlint.exe']
+    linux:['1.7.12', `${mirror}/github/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz`, '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8', 'actionlint'],
+    win32:['1.7.12-011a6d1', `${mirror}/github/rhysd/actionlint/archive/011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7.tar.gz`, '7dd555762af6fde1f30e560cf21da67053ecbe020da23fac4be4e914d3d2c434', 'built/actionlint.exe', {go: 'actionlint-011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7/cmd/actionlint', modules: true}]
+  },
+  // Installed here, never found on PATH: what a PC happens to have decided whether the check ran.
+  shellcheck: {
+    linux:['0.11.0', `${mirror}/github/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz`, '8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198', 'shellcheck-v0.11.0/shellcheck'],
+    win32:['0.11.0', `${mirror}/github/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip`, '8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e', 'shellcheck.exe']
   },
   cargoAudit: {
     linux:['0.22.2',`${mirror}/github/rustsec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-musl-v0.22.2.tgz`,'7fb9497f8594b389e5fce5ef9b92db08432996895b2e0c5a0167a69ed445c428','cargo-audit-x86_64-unknown-linux-musl-v0.22.2/cargo-audit'],
@@ -65,11 +78,23 @@ export async function tool(name) {
   const response = await fetch(url, {signal: AbortSignal.timeout(120000)});
   if (!response.ok) throw new Error(`${name} download: HTTP ${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
-  if (hash(bytes) !== sha) throw new Error(`${name} checksum mismatch`);
+  if (hash(bytes) !== sha) throw new Error(`${name} checksum mismatch: the list has ${sha}, the download is ${hash(bytes)}`);
   const temp = fs.mkdtempSync(path.join(root, '.install-'));
   try {
     const archive = path.join(temp, 'tool.tar.gz');
     fs.writeFileSync(archive, bytes);
+    if (fullPackage?.go) {
+      // A source archive: its modules vendored, so the build fetches nothing, or with modules
+      // set, fetched through GOPROXY (Artifact Keeper on the runner) and checked against go.sum.
+      run(tar, ['-xf', archive, '-C', temp]);
+      const built = path.join(temp, path.basename(binary));
+      run('go', ['build', '-p', '4', fullPackage.modules ? '-mod=readonly' : '-mod=vendor', '-trimpath', '-ldflags=-s -w', '-o', built, '.'],
+        {cwd: path.join(temp, fullPackage.go), env: {CGO_ENABLED: '0', GOFLAGS: '', GOTOOLCHAIN: 'local'}});
+      fs.mkdirSync(path.dirname(executable), {recursive: true});
+      try { fs.renameSync(built, executable); }
+      catch (error) { if (!fs.existsSync(executable)) throw error; }
+      return executable;
+    }
     if (fullPackage) {
       const packageDir=path.join(temp,'package');fs.mkdirSync(packageDir);
       if(url.endsWith('.whl') && process.platform==='linux')run('unzip',['-q',archive,'-d',packageDir]);
@@ -86,4 +111,10 @@ export async function tool(name) {
     catch (error) { if (!fs.existsSync(executable)) throw error; }
     return executable;
   } finally { fs.rmSync(temp, {recursive: true, force: true}); }
+}
+
+// actionlint's arguments for workflow files: shellcheck from the list above on every bash and
+// sh step, so a PC and CI check the same. No workflow has a Python step, so pyflakes is off.
+export async function lintArgs(ignores, files) {
+  return ['-shellcheck', await tool('shellcheck'), '-pyflakes=', ...ignores.flatMap(i => ['-ignore', i]), ...files];
 }

@@ -7,7 +7,7 @@ requirePublish();
 const modules = fs.existsSync('go.mod') ? ownRequires(fs.readFileSync('go.mod', 'utf8')) : [];
 if (!modules.length) { console.log(`go.mod requires no ${prefix} module`); process.exit(0); }
 const token=process.env.TOKEN;
-if (!token) throw new Error('missing PIPELINE_DISPATCH_TOKEN');
+if (!token) throw new Error('missing TOKEN, a Forgejo write token from actions/forgejo-token');
 const env = {...process.env, GOPRIVATE: `${prefix}*`, GONOSUMDB: `${prefix}*`,
   GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_0: `url.${process.env.GITHUB_SERVER_URL}/romaine-life/.insteadOf`,
   GIT_CONFIG_VALUE_0: `https://${prefix}`,
