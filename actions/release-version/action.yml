@@ -14,9 +14,10 @@ inputs:
   prefix-from:
     description: >-
       A file holding the version the series is numbered on: Cargo.toml ([package] or
-      [workspace.package] version), CMakeLists.txt (PACKAGE_VERSION or project VERSION) or
-      package.json. A fork numbers on the upstream version it is built on: 0.25.1 gives
-      v0.25.1.N. Give this or prefix, not both.
+      [workspace.package] version), CMakeLists.txt (PACKAGE_VERSION or project VERSION),
+      package.json, or VERSION (a fork's upstream release alone on its first line, v17.0.1). A
+      fork numbers on the upstream version it is built on: 0.25.1 gives v0.25.1.N. Give this
+      or prefix, not both.
     default: ''
   component:
     description: >-

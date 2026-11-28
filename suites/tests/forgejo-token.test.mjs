@@ -8,7 +8,8 @@ import {audience, audiences, main} from '../forgejo-token.mjs';
 test('read is one audience; write is the repository\'s own integration, else the suites\'', () => {
   assert.equal(audience('read', 'romaine-life/pipeline-templates'), audiences.read);
   assert.equal(audience('write', 'romaine-life/pipeline-templates'), audiences['romaine-life/pipeline-templates']);
-  assert.equal(audience('write', 'nelsong6/forgejo'), audiences['nelsong6/forgejo']);
+  // nelsong6/forgejo's images and pins are the cluster-service suite's, which write with the suites' integration.
+  assert.equal(audience('write', 'nelsong6/forgejo'), audiences.write);
   assert.equal(audience('write', 'romaine-life/at-home-tools'), audiences.write);
   assert.throws(() => audience('admin', 'nelsong6/forgejo'), /read or write/);
 });
@@ -22,8 +23,8 @@ test('the token is the step output, masked, for the chosen audience', async t =>
   const logged = [];
   t.mock.method(console, 'log', line => logged.push(line));
   await main('write', {ACTIONS_ID_TOKEN_REQUEST_URL: 'https://f.example/id?run=1', ACTIONS_ID_TOKEN_REQUEST_TOKEN: 't',
-    GITHUB_REPOSITORY: 'nelsong6/forgejo', GITHUB_OUTPUT: output});
-  assert.equal(asked.searchParams.get('audience'), audiences['nelsong6/forgejo']);
+    GITHUB_REPOSITORY: 'romaine-life/pipeline-templates', GITHUB_OUTPUT: output});
+  assert.equal(asked.searchParams.get('audience'), audiences['romaine-life/pipeline-templates']);
   assert.deepEqual(logged, ['::add-mask::jwt']);
   assert.equal(fs.readFileSync(output, 'utf8'), 'token=jwt\n');
   await assert.rejects(main('read', {GITHUB_OUTPUT: output}), /enable-openid-connect/);

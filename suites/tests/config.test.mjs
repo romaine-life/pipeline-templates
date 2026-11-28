@@ -58,6 +58,11 @@ test('topics select the settings the suites read', () => {
   const bare = resolve({suites: ['go', 'rust', 'release']}, []);
   assert.deepEqual(bare, {suites: ['go', 'rust', 'release'], topics: []});
   assert.deepEqual(checkVariants('rust', bare).map(c => c.key), ['rust.format/ubuntu-latest', 'rust.test/ubuntu-latest']);
+  // A joined image beside an external part alone: its package check (the image's) is a check of its own to reuse.
+  const runner = resolve({suites: ['cluster-service', 'release']}, ['cluster-image', 'release-external'], 'o/runner');
+  assert.deepEqual(checkVariants('release', runner).map(c => c.key), ['release.package/ubuntu-latest']);
+  assert.deepEqual(checkVariants('cluster-service', runner).map(c => c.key), ['cluster-service.manifests/ubuntu-latest']);
+  assert.deepEqual(checkVariants('release', resolve({suites: ['release']}, ['release-external'], 'o/part')).map(c => c.key), []);
   // An image, its registry sign-in and a Static Web App are named for the repository.
   const named = resolve({suites: ['cluster-service', 'web-app']}, ['cluster-image', 'web-image'], 'o/app');
   assert.deepEqual(named.cluster, {image: 'forgejo.romaine.life/o/app'});

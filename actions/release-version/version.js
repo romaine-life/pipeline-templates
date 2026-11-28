@@ -19,8 +19,12 @@ function prefixFrom(file, text) {
     version = m && m[1];
   } else if (name === 'package.json') {
     version = JSON.parse(text).version;
+  } else if (name === 'version') {
+    // A fork's VERSION file: the upstream release it is built on, as its tag names it (v17.0.1),
+    // alone on its first line.
+    version = text.split(/\r?\n/)[0].trim().replace(/^v(?=[0-9])/, '');
   } else {
-    throw new Error(`prefix-from: ${file} is not a Cargo.toml, CMakeLists.txt or package.json`);
+    throw new Error(`prefix-from: ${file} is not a Cargo.toml, CMakeLists.txt, package.json or VERSION`);
   }
   if (!version) throw new Error(`prefix-from: ${file} declares no version`);
   version = version.split(/[-+]/)[0];

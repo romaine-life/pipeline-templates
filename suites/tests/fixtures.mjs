@@ -116,7 +116,14 @@ builds:
     script('cluster-service/manifests.mjs');
     if (process.env.CI_FIXTURE_DOCKER === '1') {
       write('Dockerfile','FROM artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f\nENTRYPOINT ["/bin/true"]\n');
+      // A repository's other image, in a folder of its own under k8s/image/, is built, self-tested
+      // and kept beside its own image (layout.mjs, images).
+      write('k8s/image/second/Dockerfile','FROM artifacts.home.romaine.life/dockerhub/library/alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f\nCOPY marker /marker\nENTRYPOINT ["/bin/true"]\n');
+      write('k8s/image/second/marker','second\n');
+      run('git',['add','k8s/image/second']);
       script('cluster-service/image.mjs',['check']);
+      for (const kept of ['.ci-image/image.json','.ci-image/second/image.json']) if (!fs.existsSync(kept)) throw new Error(`the check kept no ${kept}`);
+      fs.rmSync('.ci-image',{recursive:true,force:true});
       const cfg=currentEntry();
       cfg.release={toolchains:['go'],image:'cluster'};
       // A cluster image is a cluster service's, selected by its cluster-image topic, and named

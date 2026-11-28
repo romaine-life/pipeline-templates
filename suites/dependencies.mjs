@@ -40,12 +40,14 @@ export function dockerSources(text) {
   return result;
 }
 // An image's inputs: its Dockerfile and .dockerignore in its build context (`context`, the
-// repository root by default), what that Dockerfile copies in, and ci/smoke/.
+// repository root by default), what that Dockerfile copies in, and ci/smoke/; for a cluster
+// section, each of its other images' too (layout.mjs, images).
 export function imageInputs(section = {}, read = file => fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null) {
   const context = section.context || '.';
   const at = name => context === '.' ? name : path.posix.join(context, name);
   const text = read(at('Dockerfile'));
-  return [at('Dockerfile'), at('.dockerignore'), 'ci/smoke/**', ...(text ? dockerSources(text).map(at) : [])];
+  return [at('Dockerfile'), at('.dockerignore'), 'ci/smoke/**', ...(text ? dockerSources(text).map(at) : []),
+    ...(section.images || []).flatMap(other => imageInputs({...other, images: undefined}, read))];
 }
 // What an npm package in a directory of its own reads outside it (rule 2), as its files name it:
 // the relative modules its sources import (`import`, `export ... from`, `import()`, `require()`,

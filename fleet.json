@@ -56,6 +56,22 @@
     "nelsong6/forgejo": {
       "suites": [
         "cluster-service"
+      ],
+      "topics": [
+        "cluster-image",
+        "version-from-manifest"
+      ]
+    },
+    "nelsong6/forgejo-runner": {
+      "suites": [
+        "cluster-service",
+        "release"
+      ],
+      "topics": [
+        "cluster-image",
+        "home-sync",
+        "release-external",
+        "version-from-manifest"
       ]
     },
     "nelsong6/hardware": {

@@ -44,6 +44,9 @@ test('a PowerShell step runs in the PowerShell its job names', () => {
   assert.equal(command({run: './_ci/suites/powershell/parse.ps1'}).file, 'pwsh');
   assert.throws(() => command({run: 'curl https://example.com | sh'}), /can't run the step/);
   assert.throws(() => condition("needs.scope.outputs.x != 'true'"), /can't read the job condition/);
+  // A job that runs after its needs unless one failed reads as its scope terms alone.
+  assert.deepEqual(condition("always() && !cancelled() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.build == 'true' && needs.check-build.result != 'failure'"), [{name: 'build', value: 'true'}]);
+  assert.throws(() => condition("needs.check-build.result == 'success'"), /can't read the job condition/);
 });
 
 test('ci-check runs the docs suite on the commits since the default branch and fails on what CI would', () => {

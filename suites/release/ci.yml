@@ -71,13 +71,13 @@ jobs:
     # that reserves that tag with the same inputs publishes this build (release/prior-build.mjs).
     - uses: ./_ci/actions/release-version
       id: version
-      if: github.event_name == 'pull_request' && steps.scope.outputs.package == 'true' && steps.plan.outputs.has-local == 'true'
+      if: github.event_name == 'pull_request' && steps.scope.outputs.package == 'true' && steps.plan.outputs.local-part == 'true'
       with:
         prefix: ${{ steps.scope.outputs.prefix }}
         prefix-from: ${{ steps.scope.outputs.prefix-from }}
         suffix: ${{ steps.scope.outputs.suffix }}
     - run: node _ci/suites/release/prior-build.mjs attest
-      if: steps.version.outputs.next != ''
+      if: steps.version.outputs.next != '' && steps.plan.outputs.has-local == 'true'
       env:
         VERSION: ${{ steps.version.outputs.next }}
     # The joined image check-package builds with that tag, attested the same way, so the merge
@@ -114,6 +114,7 @@ jobs:
       greenmail: ${{ steps.scope.outputs.greenmail }}
       has-services: ${{ steps.scope.outputs.has-services }}
       has-local: ${{ steps.plan.outputs.has-local }}
+      local-part: ${{ steps.plan.outputs.local-part }}
       module: ${{ steps.scope.outputs.module }}
   # A Go library (release-module): the next tag, released with its source, when its code
   # changed since the last one. Each repository whose go.mod requires it takes the tag up
@@ -360,13 +361,15 @@ jobs:
         AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
         VERSION: ${{ needs.reserve.outputs.tag }}
       if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
+    # The joined image, built here or published from its PR's build, beside the release's own
+    # builds or its external part alone.
     - id: forgejo-read
       uses: ./_ci/actions/forgejo-token
-      if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
+      if: '!inputs.release-tag && needs.scope.outputs.local-part == ''true'''
       with:
         access: read
     - run: node _ci/suites/release/image.mjs publish
-      if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
+      if: '!inputs.release-tag && needs.scope.outputs.local-part == ''true'''
       env:
         PRIVATE_GO_TOKEN: ${{ steps.forgejo-read.outputs.token }}
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -379,7 +382,7 @@ jobs:
         COMPLETED_PART: ${{ inputs.completed-part }}
         COMPLETED_RECEIPT: ${{ inputs.receipt }}
         COMPLETION: ${{ inputs.completion }}
-      if: '!inputs.release-tag && needs.scope.outputs.has-local == ''true'''
+      if: '!inputs.release-tag && needs.scope.outputs.local-part == ''true'''
     - run: node _ci/suites/release/prior-build.mjs external
       if: '!inputs.release-tag && needs.reserve.outputs.prior-external != '''''
       env:
@@ -537,7 +540,10 @@ jobs:
     needs:
     - scope
     - check-build
-    if: github.event_name == 'pull_request' && needs.scope.outputs.build == 'true' && needs.scope.outputs.has-local == 'true'
+    # After the release's own builds, or with none to wait for: a joined image beside an external
+    # part alone (check-build skipped).
+    if: always() && !cancelled() && github.event_name == 'pull_request' && needs.scope.result == 'success' && needs.scope.outputs.build == 'true' && needs.scope.outputs.local-part
+      == 'true' && needs.check-build.result != 'failure'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -556,11 +562,14 @@ jobs:
     - run: node _ci/suites/services.mjs start
       if: needs.scope.outputs.has-services == 'true' && needs.scope.outputs.joined-image != ''
     - uses: forgejo/download-artifact@v4
+      if: needs.scope.outputs.has-local == 'true'
       with:
         pattern: check-release-*
         path: parts
     - run: node _ci/suites/release/assemble.mjs
+      if: needs.scope.outputs.has-local == 'true'
     - run: node _ci/suites/release/sign-linux.mjs
+      if: needs.scope.outputs.has-local == 'true'
       env:
         AT_TERMINAL_PFX: ${{ secrets.AT_TERMINAL_PFX }}
         AT_TERMINAL_PFX_PASSWORD: ${{ secrets.AT_TERMINAL_PFX_PASSWORD }}
@@ -585,6 +594,7 @@ jobs:
       if: always()
       run: node _ci/suites/services.mjs stop
     - run: node _ci/suites/release/metadata.mjs
+      if: needs.scope.outputs.has-local == 'true'
       env:
         VERSION: ${{ needs.scope.outputs.check-version }}
 

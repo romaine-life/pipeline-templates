@@ -199,3 +199,20 @@ test("a release's joined image is attested by its scope, kept by check-package a
   const cluster=YAML.parse(fs.readFileSync(path.join(suites,'cluster-service/ci.yml'),'utf8')).jobs.scope.steps.find(step=>step.id==='version');
   assert.doesNotMatch(cluster.if,/joined-image/);assert.match(cluster.if,/cluster-image-check == 'true'/);
 });
+
+test("a joined image beside an external part alone is versioned, checked, kept, published and staged with no build of the release's own",()=>{
+  const jobs=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8')).jobs;
+  // The scope stamps the tag its merge would take for the image, and attests a build only when there is one.
+  assert.match(jobs.scope.steps.find(step=>step.id==='version').if,/steps\.plan\.outputs\.local-part == 'true'/);
+  assert.match(jobs.scope.steps.find(step=>step.run==='node _ci/suites/release/prior-build.mjs attest').if,/steps\.plan\.outputs\.has-local == 'true'/);
+  assert.equal(jobs.scope.outputs['local-part'],'${{ steps.plan.outputs.local-part }}');
+  // check-package runs after check-build, or with it skipped, and only its image check runs without builds.
+  const pkg=jobs['check-package'];
+  assert.match(pkg.if,/^always\(\) && !cancelled\(\) && /);assert.match(pkg.if,/needs\.check-build\.result != 'failure'/);assert.match(pkg.if,/local-part == 'true'/);
+  for(const run of ['node _ci/suites/release/assemble.mjs','node _ci/suites/release/sign-linux.mjs','node _ci/suites/release/metadata.mjs'])assert.equal(pkg.steps.find(step=>step.run===run).if,"needs.scope.outputs.has-local == 'true'",run);
+  assert.equal(pkg.steps.find(step=>step.uses==='forgejo/download-artifact@v4').if,"needs.scope.outputs.has-local == 'true'");
+  assert.equal(pkg.steps.find(step=>step.run==='node _ci/suites/release/image.mjs check').if,undefined);
+  // The merge's finalize publishes the image and stages its image.txt as the release's own part.
+  for(const run of ['node _ci/suites/release/image.mjs publish','node _ci/suites/release/protocol.mjs stage'])assert.match(jobs.finalize.steps.find(step=>step.run===run).if,/local-part == ''true''|local-part == 'true'/,run);
+  assert.match(jobs.finalize.steps.find(step=>step.run==='node _ci/suites/release/assemble.mjs').if,/has-local/);
+});

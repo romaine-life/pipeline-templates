@@ -40,5 +40,7 @@ test('a manifest release numbers on the root manifest, or a workspace\'s one def
   assert.equal(releaseManifest(repo({'Cargo.toml': '[workspace]\nmembers = ["a", "b"]\ndefault-members = ["a"]\n', 'a/Cargo.toml': '[package]\nname = "a"\nversion = "0.25.1"\n'})), 'a/Cargo.toml');
   assert.throws(() => releaseManifest(repo({'Cargo.toml': '[workspace]\nmembers = ["a", "b"]\n'})), /no one default member/);
   assert.equal(releaseManifest(repo({'CMakeLists.txt': 'project(t VERSION 3.5)\n'})), 'CMakeLists.txt');
+  assert.equal(releaseManifest(repo({'VERSION': 'v17.0.1\n', 'server/patches/0001.patch': ''})), 'VERSION');
+  assert.equal(releaseManifest(repo({'package.json': '{"version": "1.0.0"}', 'VERSION': 'v2.0.0\n'})), 'package.json');
   assert.throws(() => releaseManifest(repo({})), /no Cargo.toml/);
 });

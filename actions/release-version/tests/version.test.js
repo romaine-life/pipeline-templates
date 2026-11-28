@@ -97,6 +97,11 @@ test('the series is read from the version a file declares', () => {
   assert.equal(prefixFrom('package.json', '{"version": "2.0.1-beta.3"}'), 'v2.0.1');
   assert.throws(() => prefixFrom('Cargo.toml', '[dependencies]\nversion = "1"\n'), /declares no version/);
   assert.throws(() => prefixFrom('setup.py', ''), /not a Cargo.toml/);
+  // A fork's VERSION file names the upstream release it is built on, with or without its v.
+  assert.equal(prefixFrom('VERSION', 'v17.0.1\n'), 'v17.0.1');
+  assert.equal(prefixFrom('x/VERSION', '13.2.1\r\n'), 'v13.2.1');
+  assert.throws(() => prefixFrom('VERSION', '\n'), /declares no version/);
+  assert.throws(() => prefixFrom('VERSION', 'main\n'), /not a release number/);
 });
 
 test('a suffix keeps fixed parts after the count', async () => {

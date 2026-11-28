@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {reserve,dispatchExternal,stagePart,finalize,materializeAsset} from '../release/protocol.mjs';
 import {deployJoined} from '../release/deploy.mjs';
-import {releasePlan} from '../release/plan.mjs';
+import {localBuilds,releasePlan} from '../release/plan.mjs';
+import {imageBuild} from '../release.mjs';
 import {completeExternal} from '../release/complete-external.mjs';
 import {fleetEntry, currentEntry} from './fleet-entry.mjs';
 
@@ -71,6 +72,16 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
     completionReceipt=await stagePart('build',['macos.tar.gz','app.cer'],{deferReceipt:true});assert.equal(await finalize('build','success',completionReceipt),true);
     assert.deepEqual(rel.assets.map(a=>a.name).filter(n=>n!=='SHA256SUMS').sort(),['app.cer','macos.tar.gz']);
     await assert.rejects(stagePart('local',['app.exe']),/undeclared/);
+    // With a joined image beside it, the release stages the image's image.txt as its own part,
+    // and is complete once both are in (nelsong6/forgejo-runner's Linux and Windows runners).
+    rel=null;data.clear();id=0;
+    fleetEntry(({version:1,suites:['cluster-service'],release:{image:'cluster',external:[{id:'build',workflow:'build.yml'}]}}));
+    await reserve();await dispatchExternal();assert.equal(await finalize(),false);
+    fs.writeFileSync('image.txt',`forgejo.romaine.life/test/app:v0.1.1@sha256:${'b'.repeat(64)}`);
+    await stagePart('local',['image.txt']);assert.equal(await finalize(),false,'the external part is still building');
+    completionReceipt=await stagePart('build',['macos.tar.gz'],{deferReceipt:true});assert.equal(await finalize('build','success',completionReceipt),true);
+    assert.deepEqual(rel.assets.map(a=>a.name).filter(n=>n!=='SHA256SUMS').sort(),['image.txt','macos.tar.gz']);
+    fleetEntry(({version:1,release:{toolchains:[],external:[{id:'build',workflow:'build.yml'}]}}));
     // A part the merged PR's build.yml run already built isn't dispatched: finalize stages that
     // run's files itself and the release completes in the same run, with no callback.
     rel=null;data.clear();id=0;
@@ -85,4 +96,22 @@ test('durable draft joins out-of-order callbacks, validates bytes and recovers w
     await deployJoined(async(...args)=>calls.push(args),(...args)=>calls.push(args));
     assert.deepEqual(calls[0],['image.txt','.ci-image-pin']);assert.ok(calls[1][1][0].replaceAll('\\','/').endsWith('cluster-service/pin.mjs'));assert.equal(calls[1][1][1],'web');
   }finally{globalThis.fetch=oldFetch;process.chdir(cwd);for(const k of Object.keys(process.env))if(!(k in oldEnv))delete process.env[k];Object.assign(process.env,oldEnv);fs.rmSync(root,{recursive:true,force:true});}
+});
+test("a joined image beside an external part alone is the release's own part, which builds nothing of its own", async () => {
+  const plan = releasePlan({release: {image: 'cluster', external: [{id: 'build', workflow: 'build.yml'}]}, cluster: {image: 'forgejo.romaine.life/o/runner'}});
+  assert.equal(plan.local, true, 'its image.txt is a part the release stages itself');
+  assert.equal(localBuilds(plan), false, 'no build or check-build job runs');
+  assert.deepEqual(plan.external, [{id: 'build', workflow: 'build.yml'}]);
+  // Without the image, an external part alone is still the whole release.
+  const external = releasePlan({release: {external: [{id: 'build', workflow: 'build.yml'}]}});
+  assert.equal(external.local, false);assert.equal(localBuilds(external), false);
+  const builds = releasePlan({release: {toolchains: ['go'], image: 'cluster'}, cluster: {image: 'x'}}, [{id: 'app', buildmode: '', targets: [{goos: 'linux', goarch: 'amd64'}]}]);
+  assert.equal(builds.local, true);assert.equal(localBuilds(builds), true);
+});
+test("the release suite's IMAGE_BUILD answers for each image, or for every image at once", () => {
+  assert.equal(imageBuild('')('a'), true);
+  assert.equal(imageBuild('false')('a'), false);
+  assert.equal(imageBuild('true')('a'), true);
+  const each = imageBuild(JSON.stringify({a: true, b: false}));
+  assert.equal(each('a'), true);assert.equal(each('b'), false);assert.equal(each('c'), true);
 });

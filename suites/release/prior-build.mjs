@@ -16,7 +16,7 @@ import {api,capture,hash,output,request,safePath,templates} from '../lib.mjs';
 import {canonical,tree} from '../fingerprints.mjs';
 import {input} from '../input-patterns.mjs';
 import {releaseInputs,settings} from './inputs.mjs';
-import {releasePlan} from './plan.mjs';
+import {localBuilds,releasePlan} from './plan.mjs';
 
 const marker='CI_BUILD_V1 ';
 export const artifactName=id=>`check-release-${id}`;
@@ -201,7 +201,9 @@ export async function download(run,parts,{get=request,url=api(),directory='parts
 // A lookup that fails builds, as every release did before.
 export async function findAll({cfg,plan,version,find=findPrior,findExternal=findPriorExternal,log=console.log}) {
   let local=null;const external={};
-  if(plan.local) {
+  // A release whose own part is only its joined image builds nothing here: the image's PR build
+  // is found by its own fingerprint (cluster-service/prior-image.mjs).
+  if(localBuilds(plan)) {
     try {local=await find({fingerprint:buildFingerprint({cfg,version,plan}),parts:plan.matrix.include.map(part=>part.id)});}
     catch(error){log(`::warning::Looking for the pull request's build failed, so the release builds: ${error.message}`);}
   }

@@ -32,6 +32,9 @@ export function condition(expression) {
   const terms = [];
   for (const part of String(expression).split('&&').map(s => s.trim())) {
     if (part === "github.event_name == 'pull_request'") continue;
+    // A job that runs after the jobs it needs unless one failed, a skipped one included (a joined
+    // image's check-package, whose release may build nothing of its own): which jobs ran is CI's.
+    if (['always()', '!cancelled()', "needs.scope.result == 'success'"].includes(part) || /^needs\.[\w-]+\.result != 'failure'$/.test(part)) continue;
     const term = part.match(/^needs\.scope\.outputs\.([\w-]+) == '([^']*)'$/);
     if (!term) throw new Error(`ci-check can't read the job condition: ${part}`);
     terms.push({name: term[1], value: term[2]});

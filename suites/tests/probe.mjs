@@ -55,7 +55,9 @@ child.spawnSync = (command, args, options) => {
   }
   // agb-gbafix writes the ROM its -o names.
   if (path.basename(command).startsWith('agb-gbafix')) fs.writeFileSync(path.resolve(options.cwd || '.', args[args.indexOf('-o') + 1]), 'rom');
-  if (command === 'docker' && args[0] === 'image') stdout = JSON.stringify([`${process.env.PROBE_IMAGE || 'forgejo.romaine.life/test/probe'}@sha256:${'b'.repeat(64)}`]);
+  // A pushed image's digest, under the repository its tag names (a repository's other image's own).
+  const pushed = args[0] === 'image' && args[1] === 'inspect' && /^forgejo\.romaine\.life\/[\w./-]+:[\w.+-]+$/.test(args[2] || '') ? args[2].replace(/:[\w.+-]+$/, '') : null;
+  if (command === 'docker' && args[0] === 'image') stdout = JSON.stringify([`${process.env.PROBE_IMAGE || pushed || 'forgejo.romaine.life/test/probe'}@sha256:${'b'.repeat(64)}`]);
   // An image's ID, which the containerd image store makes the digest a push gives it.
   if (command === 'docker' && args[0] === 'image' && args.includes('{{.Id}}')) stdout = `sha256:${process.env.PROBE_IMAGE_ID || 'b'.repeat(64)}`;
   // The registry serves a manifest unless PROBE_NO_MANIFEST.

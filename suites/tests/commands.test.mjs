@@ -36,7 +36,7 @@ function probe(script, args = [], env = {}, cfg = {}, files = {}, inspect = () =
     fs.writeFileSync(path.join(root,'main.go'),'package main\r\n');
     if (!('go.mod' in files)) fs.writeFileSync(path.join(root,'go.mod'),'module example.com/probe\n');
     fs.writeFileSync(path.join(root,'go.sum'),'dependency checksums\n');
-    fs.writeFileSync(path.join(root,'.ci-image-pin'),`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}`);
+    if (!('.ci-image-pin' in files)) fs.writeFileSync(path.join(root,'.ci-image-pin'),`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}`);
     fs.mkdirSync(path.join(root,'k8s'),{recursive:true});
     fs.writeFileSync(path.join(root,'k8s/deployment.yaml'),`image: forgejo.romaine.life/test/probe:v0.1.0@sha256:${'a'.repeat(64)}`);
     const log = path.join(root,'trace');
@@ -228,6 +228,74 @@ ${JSON.stringify({sha:from,files:[{name:'image.txt',size:Buffer.byteLength(asset
   assert.equal(draft.result.status,0,draft.result.stderr);
   assert.ok(draft.trace.some(t=>t.command==='docker' && t.args[0]==='push'));
 });
+// nelsong6/forgejo-runner's shape (FORGEJO-68): the repository's own image at the root, its
+// runner's Docker sidecar in k8s/image/docker/, both pinned in k8s/values.yaml.
+const secondImage = () => {
+  const pins = (own, docker) => `runner:\n  image: forgejo.romaine.life/test/probe:${own}@sha256:${'a'.repeat(64)}\n  docker: forgejo.romaine.life/test/probe-docker:${docker}@sha256:${'c'.repeat(64)}\n`;
+  return {cfg: {suites:['cluster-service']}, pins,
+    env: {PROBE_TRACKED:'Dockerfile,k8s/values.yaml,k8s/image/docker/Dockerfile,k8s/image/docker/daemon.json'},
+    files: {'Dockerfile':'FROM scratch\nARG APP_VERSION\nCOPY VERSION /VERSION\n','VERSION':'v13.2.1\n','k8s/image/docker/Dockerfile':'FROM scratch\nCOPY daemon.json /etc/docker/daemon.json\n',
+      'k8s/image/docker/daemon.json':'{}','k8s/values.yaml':pins('v0.1.0','v0.1.0')}};
+};
+test("a repository's other image builds in its own folder, self-tests and is kept beside its own image", () => {
+  const {cfg, env, files} = secondImage();
+  let own, docker;
+  const check = probe('cluster-service/image.mjs',['check'],{...env,VERSION:'v0.1.2'},cfg,files,root=>{
+    own=JSON.parse(fs.readFileSync(path.join(root,'.ci-image/image.json'),'utf8'));docker=JSON.parse(fs.readFileSync(path.join(root,'.ci-image/docker/image.json'),'utf8'));});
+  assert.equal(check.result.status,0,check.result.stderr);
+  const builds = check.trace.filter(t=>t.command==='docker' && t.args[0]==='build');
+  assert.deepEqual(builds.map(t=>[t.args[t.args.indexOf('-f')+1],t.args.at(-1)]),[['Dockerfile','.'],['k8s/image/docker/Dockerfile','k8s/image/docker']]);
+  assert.ok(builds.every(t=>t.args.includes('APP_VERSION=v0.1.2')),'both are stamped with the version the merge would take');
+  assert.equal(check.trace.filter(t=>t.command==='docker' && t.args[0]==='run' && t.args.at(-1)==='--self-test').length,2);
+  assert.equal(own.name,builds[0].args.at(-2));assert.equal(docker.name,builds[1].args.at(-2));
+  assert.match(docker.name,/^ci-test-probe-docker:/);
+});
+test("a repository's other image is published under the release's version and pinned beside its own, in one PR", () => {
+  const {cfg, env, files, pins} = secondImage();
+  let kept;
+  const publish = probe('cluster-service/image.mjs',['publish'],env,cfg,files,root=>{kept=fs.readFileSync(path.join(root,'.ci-image-pin'),'utf8');});
+  assert.equal(publish.result.status,0,publish.result.stderr);
+  assert.deepEqual(publish.trace.filter(t=>t.command==='docker' && t.args[0]==='push').map(t=>t.args[1]),['forgejo.romaine.life/test/probe:v0.1.1','forgejo.romaine.life/test/probe-docker:v0.1.1']);
+  assert.equal(kept,`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}\nforgejo.romaine.life/test/probe-docker:v0.1.1@sha256:${'b'.repeat(64)}`);
+  let values;
+  const pin = probe('cluster-service/pin.mjs',[],env,cfg,{...files,'.ci-image-pin':kept},root=>{values=fs.readFileSync(path.join(root,'k8s/values.yaml'),'utf8');});
+  assert.equal(pin.result.status,0,pin.result.stderr);
+  assert.equal(values,pins('v0.1.1','v0.1.1').replaceAll('a'.repeat(64),'b'.repeat(64)).replaceAll('c'.repeat(64),'b'.repeat(64)));
+  assert.equal(pin.trace.filter(t=>t.url?.endsWith('/pulls')).length,1,'one pin PR moves both');
+  assert.match(pin.trace.find(t=>t.url?.endsWith('/pulls')).body.body,/probe-docker:v0\.1\.1/);
+  // A pin of only one of them is refused: the release names each image it holds.
+  assert.notEqual(probe('cluster-service/pin.mjs',[],env,cfg,{...files,'.ci-image-pin':kept.split('\n')[0]}).result.status,0);
+});
+test("a version already published delivers every image its image.txt names, and one missing an image fails", () => {
+  const {cfg, env, files} = secondImage(), sha = 'a'.repeat(40);
+  const lines = [`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'c'.repeat(64)}`,`forgejo.romaine.life/test/probe-docker:v0.1.1@sha256:${'d'.repeat(64)}`];
+  const release = asset => JSON.stringify({id:1,draft:false,body:`Built from ${sha}.\n\n${JSON.stringify({sha,files:[{name:'image.txt',size:Buffer.byteLength(asset),sha256:crypto.createHash('sha256').update(asset).digest('hex')}]})}`,
+    assets:[{id:2,name:'image.txt',size:Buffer.byteLength(asset),browser_download_url:'https://forgejo.romaine.life/test/probe/releases/download/v0.1.1/image.txt'}]});
+  const both = lines.join('\n');
+  let kept;
+  const rerun = probe('cluster-service/image.mjs',['publish'],{...env,DOWNLOAD_TOKEN:'read',PROBE_RELEASE:release(both),PROBE_ASSET:both},cfg,files,root=>{kept=fs.readFileSync(path.join(root,'.ci-image-pin'),'utf8');});
+  assert.equal(rerun.result.status,0,rerun.result.stderr);
+  assert.equal(kept,both);
+  assert.deepEqual(rerun.trace.filter(t=>t.args?.[0]==='manifest').map(t=>t.args[2]),lines.map(line=>line.replace(':v0.1.1@','@')));
+  const one = probe('cluster-service/image.mjs',['publish'],{...env,DOWNLOAD_TOKEN:'read',PROBE_RELEASE:release(lines[0]),PROBE_ASSET:lines[0]},cfg,files);
+  assert.notEqual(one.result.status,0);
+  assert.equal(one.trace.some(t=>t.command==='docker' && ['build','push'].includes(t.args[0])),false);
+});
+test("a joined release keeps the other image the pin file runs when only its own image's inputs changed", () => {
+  const {cfg, env, files} = secondImage();
+  const joined = {...cfg, release:{image:'cluster', external:[{id:'build',workflow:'build.yml'}]}};
+  const changed = JSON.stringify({'forgejo.romaine.life/test/probe':true,'forgejo.romaine.life/test/probe-docker':false});
+  let image;
+  const publish = probe('release/image.mjs',['publish'],{...env,IMAGE_BUILD:changed},joined,files,root=>{image=fs.readFileSync(path.join(root,'dist/image.txt'),'utf8');});
+  assert.equal(publish.result.status,0,publish.result.stderr);
+  assert.deepEqual(publish.trace.filter(t=>t.command==='docker' && t.args[0]==='build').map(t=>t.args.at(-1)),['.']);
+  assert.equal(image,`forgejo.romaine.life/test/probe:v0.1.1@sha256:${'b'.repeat(64)}\nforgejo.romaine.life/test/probe-docker:v0.1.0@sha256:${'c'.repeat(64)}`);
+  // The scope's older answer for every image still reads.
+  const none = probe('release/image.mjs',['publish'],{...env,IMAGE_BUILD:'false'},joined,files,root=>{image=fs.readFileSync(path.join(root,'dist/image.txt'),'utf8');});
+  assert.equal(none.result.status,0,none.result.stderr);
+  assert.equal(none.trace.some(t=>t.command==='docker' && ['build','push'].includes(t.args[0])),false);
+  assert.equal(image,`forgejo.romaine.life/test/probe:v0.1.0@sha256:${'a'.repeat(64)}\nforgejo.romaine.life/test/probe-docker:v0.1.0@sha256:${'c'.repeat(64)}`);
+});
 test('a pin is made on the default branch as it is now, and supersedes an older open pin, never a newer one',()=>{
   const cfg = {suites:['cluster-service']};
   const older = probe('cluster-service/pin.mjs',[],{VERSION:'v0.1.10',PROBE_OPEN_PIN:'v0.1.9',PROBE_TRACKED:'k8s/deployment.yaml'},cfg);
@@ -363,7 +431,7 @@ test('Go dependency dispatch takes every romaine-life module go.mod requires, an
   assert.equal(newer.trace.some(t=>t.method==='DELETE' && t.url.endsWith('/branches/deps%2F0')),true);
 });
 test('web publication logs into ACR, and its pin PR moves the file that pins the image', () => {
-  const cfg={suites:['web-app'],web:{image:true}},files={'k8s/values.yaml':`image: romainecr.azurecr.io/probe:v0.1.0@sha256:${'a'.repeat(64)}\n`};
+  const cfg={suites:['web-app'],web:{image:true}},files={'k8s/values.yaml':`image: romainecr.azurecr.io/probe:v0.1.0@sha256:${'a'.repeat(64)}\n`,'.ci-image-pin':`romainecr.azurecr.io/probe:v0.1.1@sha256:${'b'.repeat(64)}`};
   const env={PROBE_IMAGE:'romainecr.azurecr.io/probe',PROBE_TRACKED:'k8s/deployment.yaml,k8s/values.yaml'};
   const {result,trace}=probe('web-app/image.mjs',['publish'],env,cfg,files);
   assert.equal(result.status,0,result.stderr);

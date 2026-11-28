@@ -54,7 +54,7 @@ Without its topic a setting is off. `topics.mjs` lists them.
 | `release-module` | A Go library, or a data repository its services load (avatar-pack): a merge that changes the code takes the next tag and publishes it with its source, building nothing; each fleet repository whose `go.mod` requires it gets a take-up (`go/dependencies.yml`) |
 | `release-go`, `release-rust`, `release-npm`, `release-python`, `release-dotnet`, `release-cmake`, `release-powershell` | The toolchains a release builds |
 | `rust-build-windows-amd64`, `rust-build-windows-arm64`, `rust-build-linux-amd64`, `rust-build-linux-arm64`, `rust-build-gba` | The Rust release targets (`gba` is a Game Boy Advance ROM); with none, Linux x86_64 |
-| `version-from-manifest` | The version series comes from the root manifest's version |
+| `version-from-manifest` | The version series comes from the root manifest's version, or a fork's `VERSION` file |
 | `version-four-part` | Versions take a fourth part, `.0` |
 | `home-sync` | A release starts home-sync on every PC |
 | `release-external` | The repository's own `.forgejo/workflows/build.yml` builds a release part: the release dispatches it with the tag it reserved, and publishes the files that build uploads (`release/complete-external.mjs`). On a pull request that changes what the release reads, it builds the part too, stamped with the tag its merge would take, and keeps the files ([below](#a-release-external-part-on-a-pull-request)), which the merge publishes instead of dispatching it |
@@ -69,6 +69,15 @@ A cluster service or web app is configured by its name and layout, not the list 
   `ci-image-publish` takes, with no stored token, BAO-15) or
   `romainecr.azurecr.io/<repo>` (`web-image`). It builds from `k8s/image/` when its
   `Dockerfile` is there, else from the root.
+- A cluster service's other images, beside its own (FORGEJO-68): each
+  `k8s/image/<name>/Dockerfile` builds `forgejo.romaine.life/<owner>/<repo>-<name>` in that
+  folder (nelsong6/forgejo-runner's runner image at the root and its Docker sidecar in
+  `k8s/image/docker/`, `forgejo-runner-docker`). Each is one of the service's images in
+  everything below: its inputs are the service's image check's (rule 2), it is self-tested,
+  kept for its merge and published from its PR's build, numbered with the repository's
+  version, and pinned in the file that pins it, by the same pin PR as the service's own; a
+  joined release builds it again only when its own inputs changed. The release's `image.txt`
+  names one pin a line, the repository's own first.
 - Its Static Web App is `<repo>-app` in resource group `<repo>-rg` (`web-static`).
 - `k8s/` is what the cluster runs, rendered as a Helm chart (`Chart.yaml`, as release
   `<repo>`, with its `values.yaml` and once more over each `values-<case>.yaml` beside it),
@@ -129,7 +138,10 @@ its `.python-version`, else 3.12, and its Python projects are the root's `pyproj
 else each directory holding one. A release numbers on from the repository's newest `vX.Y.N`
 tag (v0.1 with none; a new series starts with its first tag made by hand, such as `v0.2.0`),
 or with `version-from-manifest` on the root `Cargo.toml` (or a workspace's one default
-member), `CMakeLists.txt` or `package.json`. Some are the same everywhere: OpenTofu 1.11.0,
+member), `CMakeLists.txt`, `package.json` or `VERSION`: a fork's file holding, alone on its
+first line, the upstream release it is built on, so it numbers on that version (nelsong6/forgejo's
+`v17.0.1` makes `v17.0.1.N`, its runners' `v13.2.1` makes `v13.2.1.N`), as Nelson's rule for
+forks has it (PIPT-7). Some are the same everywhere: OpenTofu 1.11.0,
 with each repository's state at `<repo>.tfstate` in the `nelsontofu` account's `tfstate`
 container, `README.md` the one document the docs suite requires, and each test service's
 image (Postgres 18.6, Manticore 29.9.0, GreenMail 2.1.3). And a Go release builds what its `.goreleaser.yaml` lists, through `goreleaser build` (the
@@ -170,14 +182,23 @@ would take and keeps it, the release's scope attests its fingerprint, and the me
 image (fzt-frontend) is checked and kept by the `cluster-service` suite's image check, and its
 `module` job publishes it.
 
+A joined image is the release's own part even when the release builds nothing else, its only
+other part `release-external` (nelsong6/forgejo-runner: the Linux runner image, and the Windows
+runner its `build.yml` builds): `check-package` checks and keeps the image with no
+`check-build` to wait for, and the merge's `finalize` publishes it and stages its `image.txt`
+beside the part `build.yml` uploads; the release is complete once both are in. The plan's
+`has-local` says whether the release builds parts of its own, and `local-part` whether it
+stages one, those builds' files or its image's `image.txt`.
+
 ## An image's PR build
 
 A cluster service's or web app's own image (`cluster-image` or `web-image`) is built once, on
 its PR (`cluster-service/prior-image.mjs`), and so is an image [joined to a
 release](#an-image-joined-to-a-release), whose check is the release's `check-package`. The
 PR's image check builds it with the tag its merge would take as `APP_VERSION`, runs its
-self-test, and keeps it as the run's `check-image` artifact (the image as `docker save` writes it, and its ID), for a
-week; the scope attests a fingerprint of what that build reads: the `Dockerfile`,
+self-test, and keeps it as the run's `check-image` artifact (the image as `docker save` writes it, and its ID; each
+of a service's other images in a folder of its own there, by its name), for a
+week; the scope attests, for each image, a fingerprint of what that build reads: the `Dockerfile`,
 `.dockerignore` and what the `Dockerfile` copies, where it builds and the image's name, the
 version it stamps, and the pipeline-templates files `image.mjs` runs. The merge, once it has
 reserved its tag, looks through the merged PR's runs of the suite for one that attested the

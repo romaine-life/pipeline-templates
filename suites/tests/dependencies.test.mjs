@@ -16,6 +16,14 @@ test('an image built from another context takes its inputs there', () => {
   assert.deepEqual(imageInputs({context: 'k8s/image'}, read), ['k8s/image/Dockerfile', 'k8s/image/.dockerignore', 'ci/smoke/**', 'k8s/image/run.sh', 'k8s/image/run.sh/**', 'k8s/image/stager.sh', 'k8s/image/stager.sh/**']);
   assert.deepEqual(imageInputs({}, read), ['Dockerfile', '.dockerignore', 'ci/smoke/**', 'src', 'src/**']);
 });
+test("a cluster section's inputs are each of its images', its other images' in their own folders", () => {
+  const files = {'Dockerfile': 'FROM scratch\nCOPY VERSION patches/ /src/\n', 'k8s/image/docker/Dockerfile': 'FROM scratch\nCOPY daemon.json /etc/docker/\n'};
+  const read = file => files[file] ?? null;
+  const own = ['Dockerfile', '.dockerignore', 'ci/smoke/**', 'VERSION', 'VERSION/**', 'patches', 'patches/**'];
+  const docker = ['k8s/image/docker/Dockerfile', 'k8s/image/docker/.dockerignore', 'ci/smoke/**', 'k8s/image/docker/daemon.json', 'k8s/image/docker/daemon.json/**'];
+  assert.deepEqual(imageInputs({image: 'x'}, read), own);
+  assert.deepEqual(imageInputs({image: 'x', images: [{name: 'docker', image: 'x-docker', context: 'k8s/image/docker'}]}, read), [...own, ...docker]);
+});
 test('a joined image is built again only when its inputs changed since the pinned release', () => {
   const cwd = process.cwd(), root = fs.mkdtempSync(path.join(os.tmpdir(), 'joined-image-'));
   const git = (...args) => { const r = spawnSync('git', args, {cwd: root, encoding: 'utf8'}); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };

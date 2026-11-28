@@ -14,12 +14,15 @@ import {api,capture,hash,request,safePath,templates} from '../lib.mjs';
 import {canonical,tree} from '../fingerprints.mjs';
 import {matches} from '../input-patterns.mjs';
 import {imageInputs} from '../dependencies.mjs';
+import {clusterImages} from '../layout.mjs';
 import {attested,followed,pullRuns,templateTree,zipReadable} from '../release/prior-build.mjs';
 
 const marker='CI_IMAGE_V1 ';
 export const artifact='check-image';
-// Where the check leaves the image it keeps: the image as `docker save` writes it, and what it is.
+// Where the check leaves the image it keeps: the image as `docker save` writes it, and what it is;
+// a repository's other image (layout.mjs, images) in a folder of its own there, by its name.
 export const kept='.ci-image';
+export const keptFor=section=>section?.name ? path.posix.join(kept,section.name) : kept;
 
 // An image that stamps its commit (ARG SOURCE_SHA) is built again on the merge: its PR can't
 // know the commit the merge makes.
@@ -51,10 +54,13 @@ export function reusable(section,version,read=file=>fs.existsSync(file)?fs.readF
   return !stampsCommit(read(context==='.'?'Dockerfile':path.posix.join(context,'Dockerfile')));
 }
 
-// The PR's scope job writes the fingerprint to its own log, which the PR's code can't reach.
+// The PR's scope job writes the fingerprint to its own log, which the PR's code can't reach: one
+// line for each image the section builds.
 export function attest(section,version,{log=console.log}={}) {
-  if(!reusable(section,version)) {log(`${section.image} stamps its commit (ARG SOURCE_SHA), which its merge makes: the merge builds it`);return;}
-  log(marker+JSON.stringify({head:capture('git',['rev-parse','HEAD']),fingerprint:imageFingerprint({section,version})}));
+  for(const image of clusterImages(section)) {
+    if(!reusable(image,version)) {log(`${image.image} stamps its commit (ARG SOURCE_SHA), which its merge makes: the merge builds it`);continue;}
+    log(marker+JSON.stringify({head:capture('git',['rev-parse','HEAD']),fingerprint:imageFingerprint({section:image,version})}));
+  }
 }
 
 // The suite run whose image check a joined release's merge publishes: a module's image is
@@ -82,19 +88,25 @@ export async function findPriorImage({sha=process.env.GITHUB_SHA,workflow,job:ch
   return null;
 }
 
-// The kept image goes to `directory`: image.tar and image.json, {name, id}.
-export async function download(prior,{directory=kept,url=api()}={}) {
-  const response=await fetch(`${url}/actions/artifacts/${prior.artifact.id}/zip`,{headers:{Authorization:`token ${process.env.TOKEN}`},signal:AbortSignal.timeout(600000)});
-  if(!response.ok)throw new Error(`${artifact}: HTTP ${response.status}`);
-  fs.mkdirSync(directory,{recursive:true});
-  for(const [name,bytes] of Object.entries(unzipSync(new Uint8Array(await response.arrayBuffer())))) {
-    if(name.endsWith('/'))continue;
-    safePath(name);
-    fs.mkdirSync(path.dirname(path.join(directory,name)),{recursive:true});
-    fs.writeFileSync(path.join(directory,name),bytes);
+// The kept images go to `directory`: image.tar and image.json, {name, id}, and each other image's
+// in its folder (`image`, its name). The artifact is downloaded once for all of them.
+export async function download(prior,{directory=kept,url=api(),image}={}) {
+  const fetched=path.join(directory,`.artifact-${prior.artifact.id}`);
+  if(!fs.existsSync(fetched)) {
+    const response=await fetch(`${url}/actions/artifacts/${prior.artifact.id}/zip`,{headers:{Authorization:`token ${process.env.TOKEN}`},signal:AbortSignal.timeout(600000)});
+    if(!response.ok)throw new Error(`${artifact}: HTTP ${response.status}`);
+    fs.mkdirSync(directory,{recursive:true});
+    for(const [name,bytes] of Object.entries(unzipSync(new Uint8Array(await response.arrayBuffer())))) {
+      if(name.endsWith('/'))continue;
+      safePath(name);
+      fs.mkdirSync(path.dirname(path.join(directory,name)),{recursive:true});
+      fs.writeFileSync(path.join(directory,name),bytes);
+    }
+    fs.writeFileSync(fetched,'');
   }
-  const record=JSON.parse(fs.readFileSync(path.join(directory,'image.json'),'utf8'));
-  if(!/^sha256:[0-9a-f]{64}$/.test(record.id || '') || !/^[\w./:-]+$/.test(record.name || ''))throw new Error(`run ${prior.run}'s image.json names no image`);
+  const file=path.join(directory,...(image ? [image] : []),'image.json');
+  const record=fs.existsSync(file) ? JSON.parse(fs.readFileSync(file,'utf8')) : {};
+  if(!/^sha256:[0-9a-f]{64}$/.test(record.id || '') || !/^[\w./:-]+$/.test(record.name || ''))throw new Error(`run ${prior.run}'s ${image ? `${image}/` : ''}image.json names no image`);
   return record;
 }
 

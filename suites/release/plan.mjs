@@ -22,10 +22,16 @@ export function releasePlan(cfg=config(),goBuilds) {
       for(const part of goParts(goBuilds))include.push({id:part.part,toolchain:kind,target:part.target,features:'',noDefault:false,runner:part.runner});
     } else include.push({id:kind,toolchain:kind,target:'',features:'',noDefault:false,runner:buildRunner(cfg,kind)});
   }
-  const local=include.length>0;
-  if(!local)for(const part of release.external)include.push({id:part.id,toolchain:'external',target:part.id,features:'',noDefault:false,runner:'ubuntu-latest'});
+  const builds=include.length>0;
+  if(!builds)for(const part of release.external)include.push({id:part.id,toolchain:'external',target:part.id,features:'',noDefault:false,runner:'ubuntu-latest'});
+  // The release's own part: what its builds leave, and a joined image's image.txt, which the
+  // release builds itself however its other parts are built (an image beside an external part
+  // alone: nelsong6/forgejo-runner's Linux runner and its Windows runner).
+  const local=builds || Boolean(release.image);
   return {matrix:{include},local,external:(release.external || []).map(part=>({id:part.id,workflow:part.workflow})),homeSync:release.homeSync === true,image:release.image || ''};
 }
+// Whether a plan builds parts of its own, beside or without its joined image.
+export const localBuilds=plan=>plan.matrix.include.some(part=>part.toolchain!=='external');
 // Forgejo never creates a job whose matrix has no entries, and the jobs that need it then
 // wait forever (fzt's first module PR). An empty plan is sent as one placeholder entry, so
 // build and check-build exist (on a runner, which runs-on reads from the entry) and their
@@ -35,6 +41,10 @@ export function matrixOutput(matrix) {
 }
 if (process.argv[1]?.endsWith('/release/plan.mjs') || process.argv[1]?.endsWith('\\release\\plan.mjs')) {
   if (process.env.CALLBACK_TAG && (!/^[0-9a-f]{40,64}$/.test(process.env.CALLBACK_SOURCE || '') || !process.env.COMPLETED_PART)) throw new Error('callback needs the reserved source SHA and completed part');
-  output('matrix',matrixOutput(releasePlan().matrix));
-  output('has-local',releasePlan().local);
+  const plan=releasePlan();
+  output('matrix',matrixOutput(plan.matrix));
+  // has-local: the release builds parts of its own (the build and check-build jobs);
+  // local-part: it stages a part of its own, those builds' files or its joined image's image.txt.
+  output('has-local',localBuilds(plan));
+  output('local-part',plan.local);
 }

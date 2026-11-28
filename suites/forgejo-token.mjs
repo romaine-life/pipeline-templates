@@ -15,8 +15,6 @@ export const audiences = {
   write: 'u:1:a9240048-3b8f-42a0-b7ce-e592cd75d441',
   // write:repository, for pipeline-templates' fleet.yml and tofu-providers.yml.
   'romaine-life/pipeline-templates': 'u:1:ea00c132-73be-459f-ab1f-f0c02dba494d',
-  // write:repository and write:issue on nelsong6/forgejo only, for its ci.yml on main.
-  'nelsong6/forgejo': 'u:1:0f3cd901-3ecc-4f08-9970-871e8aba3a90',
 };
 
 // The audience for an access level in a repository: a repository with its own write

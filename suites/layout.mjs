@@ -21,6 +21,15 @@ export function renders(files, name) {
 // An image builds from k8s/image/ when its Dockerfile is there, else from the root.
 export const imageContext = files => files.includes('k8s/image/Dockerfile') ? 'k8s/image' : '.';
 
+// A cluster service's other images, beside its own (FORGEJO-68): each k8s/image/<name>/Dockerfile
+// builds forgejo.romaine.life/<owner>/<repo>-<name> in that folder (the runner's Docker sidecar,
+// nelsong6/forgejo-runner's k8s/image/docker/, is forgejo-runner-docker). Each is checked,
+// numbered, published and pinned with the repository's own image, under its version.
+export const otherImageNames = files => files.map(file => file.match(/^k8s\/image\/([a-z0-9]+(?:-[a-z0-9]+)*)\/Dockerfile$/)?.[1]).filter(Boolean).sort();
+// Every image a cluster section builds: its own first, then each other one, as sections of their
+// own (image, context, pinFile) that build as the repository's own does.
+export const clusterImages = section => [{...section, images: undefined}, ...(section?.images || [])];
+
 export const pinPattern = image => new RegExp(`${image.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:[\\w.+-]+@sha256:[0-9a-f]{64}`);
 
 // An upstream Helm chart that is vendored, so can't be edited, names its image by separate
@@ -127,6 +136,11 @@ export function layout(cfg, repo, {files, read = readFile} = {}) {
   const name = repo.split('/')[1];
   if (cluster) cfg.cluster = {...cfg.cluster, renders: renders(files, name)};
   if (cfg.cluster?.image) Object.assign(cfg.cluster, {context: imageContext(files), pinFile: pinFile(cfg.cluster.image, files, read)});
+  const others = cfg.cluster?.image && cfg.cluster.build !== false ? otherImageNames(files) : [];
+  if (others.length) cfg.cluster.images = others.map(other => {
+    const image = `${cfg.cluster.image}-${other}`;
+    return {name: other, image, context: `k8s/image/${other}`, pinFile: pinFile(image, files, read)};
+  });
   if (cfg.web?.image) cfg.web.pinFile = pinFile(cfg.web.image, files, read);
   if (npm) {
     const found = packages(files, read);

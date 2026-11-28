@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {argoPlan} from '../cluster-service/manifests.mjs';
-import {renders} from '../layout.mjs';
+import {clusterImages, layout, otherImageNames, renders} from '../layout.mjs';
 
 const app = (name, repo, source, namespace) => `apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -50,4 +50,17 @@ test('k8s/ decides the renders: a chart and its values- cases, a kustomization, 
   assert.deepEqual(renders(['k8s/kustomization.yaml', 'k8s/deployment.yaml'], 'app'), [{kind: 'kustomize', path: 'k8s'}]);
   assert.deepEqual(renders(['k8s/root-app.yaml', 'k8s/apps/a.yaml'], 'cluster'), [{kind: 'argocd', path: 'k8s/root-app.yaml'}]);
   assert.deepEqual(renders(['nas/repo-sync/kustomization.yaml'], 'home'), []);
+});
+test("each k8s/image/<name>/Dockerfile is another image of the repository's, named <repo>-<name> and pinned where its pin is", () => {
+  const files = ['Dockerfile', 'k8s/Chart.yaml', 'k8s/values.yaml', 'k8s/image/docker/Dockerfile', 'k8s/image/docker/daemon.json', 'k8s/image/README.md', 'k8s/image/Bad_Name/Dockerfile', 'k8s/image/a/b/Dockerfile'];
+  assert.deepEqual(otherImageNames(files), ['docker']);
+  const values = `runner:\n  image: forgejo.romaine.life/o/runner:v1.0.0@sha256:${'a'.repeat(64)}\n  docker: forgejo.romaine.life/o/runner-docker:v1.0.0@sha256:${'b'.repeat(64)}\n`;
+  const read = file => file === 'k8s/values.yaml' ? values : null;
+  const cfg = layout({suites: ['cluster-service'], cluster: {image: 'forgejo.romaine.life/o/runner'}}, 'o/runner', {files, read});
+  assert.equal(cfg.cluster.context, '.');
+  assert.equal(cfg.cluster.pinFile, 'k8s/values.yaml');
+  assert.deepEqual(cfg.cluster.images, [{name: 'docker', image: 'forgejo.romaine.life/o/runner-docker', context: 'k8s/image/docker', pinFile: 'k8s/values.yaml'}]);
+  assert.deepEqual(clusterImages(cfg.cluster).map(section => [section.image, section.context]), [['forgejo.romaine.life/o/runner', '.'], ['forgejo.romaine.life/o/runner-docker', 'k8s/image/docker']]);
+  // Without cluster-image the service builds nothing, so no other image either.
+  assert.equal(layout({suites: ['cluster-service'], cluster: {build: false, smoke: false}}, 'o/runner', {files, read}).cluster.images, undefined);
 });

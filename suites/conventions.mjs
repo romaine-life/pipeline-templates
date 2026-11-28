@@ -53,7 +53,8 @@ export function pythonProjects(files = tracked()) {
 
 // The manifest a version-from-manifest release numbers on: the root Cargo.toml's package or
 // workspace version, or the one default member's of a workspace that has none; else the root
-// CMakeLists.txt; else the root package.json.
+// CMakeLists.txt; else the root package.json; else the root VERSION, a fork's file naming the
+// upstream release it is built on (nelsong6/forgejo's v17.0.1, which numbers v17.0.1.N).
 export function releaseManifest(dir = '.') {
   const read = file => fs.existsSync(path.join(dir, file)) ? fs.readFileSync(path.join(dir, file), 'utf8') : undefined;
   const cargo = read('Cargo.toml');
@@ -66,5 +67,6 @@ export function releaseManifest(dir = '.') {
   }
   if (read('CMakeLists.txt') !== undefined) return 'CMakeLists.txt';
   if (read('package.json') !== undefined) return 'package.json';
-  throw new Error('version-from-manifest: no Cargo.toml, CMakeLists.txt or package.json at the root');
+  if (read('VERSION') !== undefined) return 'VERSION';
+  throw new Error('version-from-manifest: no Cargo.toml, CMakeLists.txt, package.json or VERSION at the root');
 }

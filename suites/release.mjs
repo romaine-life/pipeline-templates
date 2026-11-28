@@ -7,7 +7,7 @@ import {config, currentRepository} from './config.mjs';
 import {relevant, matches} from './input-patterns.mjs';
 import {imageInputs} from './dependencies.mjs';
 import {found} from './fingerprints.mjs';
-import {imagePins} from './layout.mjs';
+import {clusterImages, imagePins} from './layout.mjs';
 import {zipDirectory} from './release/zip.mjs';
 import {dispatchConsumers, publishPackage} from './packages.mjs';
 import {publishProvider} from './release/tofu-provider.mjs';
@@ -71,7 +71,16 @@ export async function releaseScope(suite) {
   const files = capture('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD']).split('\0').filter(Boolean);
   const job = suite === 'cluster-service' ? 'cluster-service.image' : suite === 'web-app' ? (cfg.web?.staticApp ? 'release.build' : 'web-app.image') : suite === 'docs' ? 'docs.validate' : 'release.build';
   output('build', relevant(files, job, await found(job, cfg)));
-  if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', joinedImageChanged(cfg.cluster));
+  // For each image, whether its inputs changed since the release that built its pinned image.
+  if (suite === 'release' && cfg.release?.image === 'cluster') output('image-build', JSON.stringify(Object.fromEntries(clusterImages(cfg.cluster).map(section => [section.image, joinedImageChanged(section)]))));
+}
+// Whether the release builds an image again, from the scope's image-build: {image: true|false},
+// or one answer for every image; with none (a PR's check), every image is built.
+export function imageBuild(value) {
+  if (!value) return () => true;
+  const parsed = JSON.parse(value);
+  if (typeof parsed === 'boolean') return () => parsed;
+  return image => parsed[image] !== false;
 }
 // The image the pin file runs (`<image>:<tag>@sha256:<digest>`, written as one string or as a
 // chart's separate fields, layout.mjs), when it names exactly one.
