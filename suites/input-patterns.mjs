@@ -6,6 +6,8 @@ export const ignored = ['**/*.md', 'docs/**', 'LICENSE', 'LICENSE.*', 'LICENSE-*
 const everything = ['**'];
 export const inputs = {
   'default.fetches': ['.forgejo/workflows/**', '**/action.yml', '**/action.yaml', '**/Dockerfile*', '**/Containerfile*', '**/*.Dockerfile', '**/Cargo.toml', '**/Cargo.lock'],
+  // The logging standard's check (default/logs.mjs) reads the sources its languages write logs from.
+  'default.logs': ['**/*.go', '**/*.rs', '**/Cargo.toml', '**/*.js', '**/*.mjs', '**/*.cjs', '**/*.ts', '**/*.cs', '**/*.csproj', '**/*.ps1', '**/*.psm1', '**/*.sh', '**/*.bash', '**/Dockerfile*', '**/*.Dockerfile'],
   'default.rules': ['.forgejo/workflows/**', '.forgejo/actions/**', 'go.mod', '*.go', 'cmd/*/*.go', '.github/workflows/forgejo-sync.yml'],
   'go.format': ['**/*.go', 'go.mod'],
   'go.test': everything,
@@ -38,7 +40,7 @@ export const packageInputs = (dir, references = []) => dir === '.' ? everything 
 // Tests, .gitignore and the repository's workflows (which call the suites, which build it)
 // can't change a shipped binary, so a merge that changes only those cuts no release. A
 // workflow that builds a release part itself counts (releaseInputs).
-const unshipped = ['**/*_test.go', '**/testdata/**', 'tests/**', 'test/**', '**/tests/**', 'Tests/**', '**/Tests/**', 'benches/**', '**/*.test.*', '**/*.spec.*', '**/.gitignore', '.forgejo/workflows/**'];
+export const unshipped = ['**/*_test.go', '**/testdata/**', 'tests/**', 'test/**', '**/tests/**', 'Tests/**', '**/Tests/**', 'benches/**', '**/*.test.*', '**/*.spec.*', '**/.gitignore', '.forgejo/workflows/**'];
 export const ignoredBy = job => !broad.includes(job) ? [] : job === 'release.build' ? [...ignored, ...unshipped] : ignored;
 export function matches(file, glob) {
   let pattern = '';

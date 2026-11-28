@@ -367,10 +367,20 @@ it (`tofu/providers.mjs`). A new provider or version is a change to `providers.t
    which the rules check accepts in place of the loop it would otherwise refuse.
 5. A new push cancels the out-of-date PR run; a run on the default branch is never
    cancelled.
-6. `default` runs `check-fetches` and the rules check over a repository's own remaining
-   workflows: these rules, and actionlint, so a workflow Forgejo would refuse (a context
-   used where it isn't available, an unknown key) fails on the pull request rather than
-   when Forgejo first runs it.
+6. `default` runs three checks. `check-fetches`; the rules check over a repository's own
+   remaining workflows: these rules, and actionlint, so a workflow Forgejo would refuse (a
+   context used where it isn't available, an unknown key) fails on the pull request rather
+   than when Forgejo first runs it; and `check-logs` (`default/logs.mjs`, AHT-204), which
+   fails code that writes a log another way than the estate's one line, logline
+   (at-home-tools `docs/app-logs.md`): Go's `log`, `log/slog`, logrus, zap or zerolog; Rust's
+   tracing-subscriber, env_logger and the like, or a `log` backend of its own; `console.*`,
+   morgan, winston or pino in what a Node image runs (its Dockerfile's `node` entry and
+   everything that reaches); `Console.Error` in a C# library; `Start-Transcript`; and any
+   language appending to a `.log` file (or a variable named for one) by hand, unless the
+   file writes through logline. Tests aren't scanned. What it doesn't hold is listed in
+   `default/log-exemptions.json`, the one list, each entry with its reason; an entry
+   without paths exempts its repository whole, and homesvc then doesn't check its images'
+   lines either.
 7. A Go repository (a root `go.mod`) builds its Go only through the suites: it takes the `go`
    suite, none of its own workflows runs `go build` or `go install` of its own packages, and on
    the release suite each program (under `cmd/`, or a root `package main`) ships through
