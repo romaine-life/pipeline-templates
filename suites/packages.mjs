@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {capture, jobToken, post, request, requirePublish, run, tracked} from './lib.mjs';
+import {capture, post, request, requirePublish, run, tracked} from './lib.mjs';
 import {currentRepository, fleet} from './config.mjs';
 import {proposeDependencies, pushEnv} from './deps-pr.mjs';
 
@@ -25,8 +25,9 @@ export const audiences = {read: 'u:1:5a0cac97-e87c-4848-95ba-6ec9fa7af23f', publ
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const shell = process.platform === 'win32';
 
-// A CI job's own token for an audience (lib.mjs).
-export {jobToken};
+// A CI job's own token for an audience (the job sets enable-openid-connect).
+export {jobToken} from './forgejo-token.mjs';
+import {jobToken} from './forgejo-token.mjs';
 
 // A token that reads packages: the job's in CI; on a home PC, OpenBao's for its role.
 export async function readToken(env = process.env) {
@@ -86,7 +87,7 @@ export async function publishPackage({tag = process.env.VERSION, repository = cu
   const published = await fetch(`${url}${manifest.name.replace('/', '%2f')}`, {headers: {Authorization: `Bearer ${auth}`}, signal: AbortSignal.timeout(30000)});
   if (published.ok && (await published.json()).versions?.[version]) { console.log(`${manifest.name}@${version} is already published`); return manifest.name; }
   if ((manifest.files || []).some(entry => entry === 'dist' || entry.startsWith('dist/'))) {
-    if (!token) throw new Error('reading the release assets requires PIPELINE_DISPATCH_TOKEN');
+    if (!token) throw new Error('reading the release assets requires a Forgejo token from actions/forgejo-token');
     const release = await request(`${server()}/api/v1/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`, {token});
     fs.mkdirSync('dist', {recursive: true});
     for (const asset of release.assets) fs.writeFileSync(path.join('dist', asset.name), await download(asset.browser_download_url, token));
@@ -133,7 +134,7 @@ export async function consumers(name, {token, repos = fleet(), base = server()} 
 
 // A published package's take-up, dispatched to each repository that uses it.
 export async function dispatchConsumers(name, token = process.env.DISPATCH_TOKEN) {
-  if (!token) throw new Error('dispatching take-ups requires PIPELINE_DISPATCH_TOKEN');
+  if (!token) throw new Error('dispatching take-ups requires a Forgejo write token from actions/forgejo-token');
   for (const target of await consumers(name, {token})) {
     await post(`${server()}/api/v1/repos/${target.repository}/actions/workflows/${encodeURIComponent(target.workflow)}/dispatches`, {ref: target.branch}, {token});
     console.log(`${target.repository}: ${target.workflow} takes up ${name}`);
@@ -171,7 +172,7 @@ export function moved(before, after) {
 export async function takeUp() {
   requirePublish();
   const token = process.env.TOKEN;
-  if (!token) throw new Error('missing PIPELINE_DISPATCH_TOKEN');
+  if (!token) throw new Error('missing TOKEN, a Forgejo write token from actions/forgejo-token');
   const files = [], before = {};
   const dirs = tracked().filter(f => path.posix.basename(f) === 'package.json' && !f.split('/').includes('node_modules'))
     .map(file => ({file, dir: path.posix.dirname(file)})).map(item => ({...item, names: forgejoDependencies(item.dir)})).filter(item => item.names.length);

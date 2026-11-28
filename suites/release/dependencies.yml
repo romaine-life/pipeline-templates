@@ -32,6 +32,10 @@ jobs:
     - uses: ./_ci/actions/suite
       with:
         token: ${{ github.token }}
+    - id: forgejo-write
+      uses: ./_ci/actions/forgejo-token
+      with:
+        access: write
     - run: node _ci/suites/packages.mjs take-up
       env:
-        TOKEN: ${{ secrets.PIPELINE_DISPATCH_TOKEN }}
+        TOKEN: ${{ steps.forgejo-write.outputs.token }}

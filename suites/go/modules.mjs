@@ -60,7 +60,7 @@ export async function consumers(module, {token, repos = fleet(), base = server()
 
 // A released module's take-up, dispatched to each repository that requires it.
 export async function dispatchConsumers(module, token = process.env.DISPATCH_TOKEN) {
-  if (!token) throw new Error('dispatching take-ups requires PIPELINE_DISPATCH_TOKEN');
+  if (!token) throw new Error('dispatching take-ups requires a Forgejo write token from actions/forgejo-token');
   for (const target of await consumers(module, {token})) {
     await post(`${server()}/api/v1/repos/${target.repository}/actions/workflows/${encodeURIComponent(target.workflow)}/dispatches`, {ref: target.branch}, {token});
     console.log(`${target.repository}: ${target.workflow} takes up ${module}`);

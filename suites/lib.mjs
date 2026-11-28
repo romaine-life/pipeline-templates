@@ -63,12 +63,3 @@ export function safePath(value) {
   return value;
 }
 export const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-
-// A CI job's own token for an audience (the job sets enable-openid-connect).
-export async function jobToken(audience, env = process.env) {
-  if (!env.ACTIONS_ID_TOKEN_REQUEST_URL) throw new Error('the job needs enable-openid-connect: true to sign in for packages');
-  const response = await fetch(`${env.ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encodeURIComponent(audience)}`, {
-    headers: {Authorization: `bearer ${env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}`}, signal: AbortSignal.timeout(30000)});
-  if (!response.ok) throw new Error(`job token: HTTP ${response.status}`);
-  return (await response.json()).value;
-}

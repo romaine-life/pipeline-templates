@@ -26,11 +26,11 @@ export const kept='.ci-image';
 export const stampsCommit=text=>/^\s*ARG\s+SOURCE_SHA\b/m.test(text || '');
 
 // The pipeline-templates files the image's build runs: image.mjs and what it reaches (lib.mjs,
-// config.mjs and theirs), this file and the sign-in aside, which carry the image and don't
-// make it.
+// config.mjs and theirs), this file, the sign-in and a published release's reading aside,
+// which carry the image and don't make it.
 export function imageSuiteInputs({entries=templateTree(),read=oid=>capture('git',['-C',templates,'cat-file','blob',oid])}={}) {
   const byPath=new Map(entries.map(entry=>[entry.path,entry.oid]));
-  return followed([],['suites/cluster-service/image.mjs'],byPath,read,['suites/cluster-service/prior-image.mjs','suites/cluster-service/registry.mjs']);
+  return followed([],['suites/cluster-service/image.mjs'],byPath,read,['suites/cluster-service/prior-image.mjs','suites/cluster-service/registry.mjs','suites/cluster-service/published.mjs']);
 }
 
 // What an image's build reads: its Dockerfile, .dockerignore and what the Dockerfile copies

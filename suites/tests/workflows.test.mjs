@@ -112,19 +112,48 @@ test('matrix display names and cache provenance identify only toolchain and targ
   assert.equal(release.jobs['check-build'].name,'check-build (${{ matrix.toolchain }}, ${{ matrix.target || matrix.runner }})');
 });
 
-test('every pin publisher and dependency PR uses PIPELINE_DISPATCH_TOKEN to open and queue it',()=>{
-  for(const suite of ['cluster-service','web-app','release']) {
-    const workflow=YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8'));
-    for(const job of Object.values(workflow.jobs))for(const step of job.steps || []) {
-      if(/(?:(?:cluster-service\/pin|web-app\/deploy|release\/deploy)\.mjs)$/.test(step.run || ''))assert.equal(step.env?.PIN_TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',`${suite}: ${step.run}`);
+// A step's Forgejo token for another repository comes from the step before it, from the job's
+// own identity (actions/forgejo-token, SES-267): nothing reads a stored token.
+const tokenWorkflows=()=>[
+  ...fs.readdirSync(suites,{withFileTypes:true}).filter(d=>d.isDirectory()).flatMap(d=>fs.readdirSync(path.join(suites,d.name)).filter(f=>f.endsWith('.yml')).map(f=>path.join(suites,d.name,f))),
+  ...['fleet','tofu-providers','home-sync'].map(name=>path.join(suites,'..','.forgejo','workflows',`${name}.yml`)),
+];
+const tokenOf=(job,step)=>{
+  const refs=Object.values(step.env || {}).join(' ').match(/steps\.([\w-]+)\.outputs\.token/g) || [];
+  return refs.map(ref=>job.steps.find(s=>s.id===ref.split('.')[1]));
+};
+test('no workflow reads a stored Forgejo token',()=>{
+  for(const file of tokenWorkflows())assert.doesNotMatch(fs.readFileSync(file,'utf8'),/PIPELINE_DISPATCH_TOKEN/,file);
+});
+test('each Forgejo token is made, in a job with its identity, just before the step that uses it',()=>{
+  for(const file of tokenWorkflows()) {
+    for(const [name,job] of Object.entries(YAML.parse(fs.readFileSync(file,'utf8')).jobs)) {
+      const steps=job.steps || [];
+      steps.forEach((step,i)=>{
+        for(const maker of tokenOf(job,step)) {
+          assert.ok(maker && /actions\/forgejo-token(@main)?$/.test(maker.uses),`${file} ${name}: ${step.run || step.name}`);
+          assert.equal(job['enable-openid-connect'],true,`${file} ${name}`);
+          assert.equal(steps.indexOf(maker),i-1,`${file} ${name}: ${maker.id} isn't the step before ${step.run || step.name}`);
+          // A step that takes the token only sometimes (home-sync's other-repository draft) makes it only then.
+          if(!/&&\s*steps\./.test(Object.values(step.env).join(' ')))assert.equal(maker.if,step.if,`${file} ${name}: ${maker.id} runs when its step does`);
+        }
+      });
     }
   }
-  const dependencies=YAML.parse(fs.readFileSync(path.join(suites,'go/dependencies.yml'),'utf8'));
-  assert.equal(dependencies.jobs.update.steps.find(step=>step.run==='node _ci/suites/go/dependencies.mjs').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}');
-  for(const suite of ['web-app','release']) {
-    const takeUp=YAML.parse(fs.readFileSync(path.join(suites,suite,'dependencies.yml'),'utf8'));
-    assert.equal(takeUp.jobs.update.steps.find(step=>step.run==='node _ci/suites/packages.mjs take-up').env.TOKEN,'${{ secrets.PIPELINE_DISPATCH_TOKEN }}',suite);
-  }
+});
+test('every pin publisher and dependency PR writes with a write token',()=>{
+  const access=(file,match,variable)=>{
+    const jobs=YAML.parse(fs.readFileSync(path.join(suites,file),'utf8')).jobs;
+    const found=Object.values(jobs).flatMap(job=>(job.steps || []).filter(step=>match.test(step.run || '')).map(step=>[job,step]));
+    assert.ok(found.length,`${file}: ${match}`);
+    for(const [job,step] of found) {
+      assert.match(step.env?.[variable] || '',/steps\.[\w-]+\.outputs\.token/,`${file}: ${step.run}`);
+      assert.equal(tokenOf(job,step)[0].with?.access,'write',`${file}: ${step.run}`);
+    }
+  };
+  for(const suite of ['cluster-service','web-app','release'])access(`${suite}/ci.yml`,/(?:cluster-service\/pin|web-app\/deploy|release\/deploy)\.mjs/,'PIN_TOKEN');
+  access('go/dependencies.yml',/^node _ci\/suites\/go\/dependencies\.mjs$/,'TOKEN');
+  for(const suite of ['web-app','release'])access(`${suite}/dependencies.yml`,/^node _ci\/suites\/packages\.mjs take-up$/,'TOKEN');
 });
 test('a release dispatches its downstream workflows once: publish does it, or the dispatch job after home-sync publishes',()=>{
   const jobs=YAML.parse(fs.readFileSync(path.join(suites,'release/ci.yml'),'utf8')).jobs;
@@ -144,6 +173,17 @@ test("a PR's image check stamps the tag its merge would take and keeps the image
     assert.equal(steps[check].env.VERSION,'${{ needs.scope.outputs.check-version }}');
     assert.ok(check>=0 && keep>check,suite);assert.equal(steps[keep].with.name,'check-image');assert.equal(steps[keep].with.path,'.ci-image/');
     assert.equal(jobs.publish.steps.find(step=>step.run===`node _ci/suites/${suite}/image.mjs publish`).env.TOKEN,'${{ secrets.GITHUB_TOKEN }}');
+  }
+});
+
+test('every image build can sign in for our Go modules on Forgejo (PIPT-61)',()=>{
+  for(const suite of ['cluster-service','web-app','release']) {
+    const found=Object.values(YAML.parse(fs.readFileSync(path.join(suites,suite,'ci.yml'),'utf8')).jobs).flatMap(job=>(job.steps || []).filter(step=>/^node _ci\/suites\/[\w-]+\/image\.mjs /.test(step.run || '')).map(step=>[job,step]));
+    assert.ok(found.length>=2,suite);
+    for(const [job,step] of found) {
+      assert.match(step.env?.PRIVATE_GO_TOKEN || '',/^\$\{\{ steps\.[\w-]+\.outputs\.token \}\}$/,`${suite}: ${step.run}`);
+      assert.equal(tokenOf(job,step)[0]?.with?.access,'read',`${suite}: ${step.run}`);
+    }
   }
 });
 

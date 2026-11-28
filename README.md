@@ -153,7 +153,9 @@ home-sync run (at-home-tools' `home-sync --task-run`): the job prints that run's
 under the PC's name, and a run that fails fails the release. A PC that doesn't answer fails
 the release too, unless `home-sync/checked-out.json` lists it as away; a checked-out PC that
 does answer still takes the release, and one that doesn't takes it from its own next
-home-sync run. Checking a PC out or in is a PR to that file, which the job reads from main.
+home-sync run. Checking a PC out or in is a PR to that file, which the job reads from main. The laptop is reached at its Tailscale address through the runner's tailnet node
+(nelsong6/forgejo, `release-runner`), so it takes releases away from home while it's on; its host key
+is checked under its name.
 The treadmill, the one PC with a wake address, is sent a wake packet through the NAS when it
 doesn't answer and is tried every 15 seconds for 3 minutes. Each PC is told when the release
 asked (`since <time>`), so a run that started after that, such as the one the treadmill's
